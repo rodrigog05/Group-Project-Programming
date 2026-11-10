@@ -2,7 +2,7 @@
 
 Run **Play Foundry Town.cmd** on Windows or run `python tycoon.py` with Python 3 and Tkinter. No pip packages are required.
 
-On macOS, double-click **Play Foundry Town.command**. The `.cmd` file only works on Windows. The first time, macOS may block the launcher because it was downloaded. If it does, right-click it, choose **Open**, then confirm.
+On macOS, double-click **Play Foundry Town (Mac)**. The other **Play Foundry Town** file is the Windows launcher and won't open on a Mac. Finder hides file extensions, so the two can look alike. The first time, macOS may block the launcher because it was downloaded. If it does, right-click it, choose **Open**, then confirm.
 
 The game needs Python with Tk 8.6 or newer. Apple's built-in Python uses Tk 8.5, which shows a black window on recent macOS. Install a newer Python in either of these ways, and the launcher finds it automatically:
 
@@ -50,7 +50,7 @@ On macOS, use Terminal:
 ```bash
 export FOUNDRY_SAVE_URL='https://your-save-server.example'
 export FOUNDRY_PLAYER_KEY='your-private-player-key'
-./'Play Foundry Town.command'
+./'Play Foundry Town (Mac).command'
 ```
 
 For testing on the server computer, use `http://127.0.0.1:8765`. The first launch with a new key starts a new game. Reuse the same key to resume on another device.
