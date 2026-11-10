@@ -24,6 +24,21 @@ A game day lasts 24 real hours. The market calendar starts on first launch and k
 
 You start with $60 and 12 bag slots. Factory orders reserve space for pickup. Reach $500 to hit the cash goal. You can keep trading afterward.
 
+## Foundry Casino
+
+The Foundry Casino is in the Casino District on the right of the map. Walk to its door and press **E** to play roulette. It uses a real European wheel with 37 pockets: 18 red, 18 black, and a green 0.
+
+1. Pick a chip of $5, $10, $25, $50, or $100 by clicking it or with the left and right arrow keys.
+2. Bet on a color by clicking it or pressing **R**, **B**, or **G**.
+
+| Bet | Wins on | Pays |
+| --- | --- | --- |
+| Red | 18 red numbers | 2× your chip |
+| Black | 18 black numbers | 2× your chip |
+| Green | 0 only | 36× your chip |
+
+The stake leaves your cash when the wheel starts spinning. Winnings arrive when the ball lands. When the ball lands on 0, red and black bets lose, so the house wins over time. If you lose everything, the $30 cash power-up still appears on the map. Press **Esc** or **E** to leave. Game time pauses while you are in the casino.
+
 ## Desktop saves and the Python API
 
 The desktop launcher automatically resumes your game and saves every ten seconds and on exit. By default it stores progress in `~/.foundry-town/saves.sqlite3` on your computer. The desktop game and its save server use Python's standard library.
