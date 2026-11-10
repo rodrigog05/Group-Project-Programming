@@ -1,9 +1,14 @@
 """Foundry Town, a small business tycoon built with Tkinter."""
-from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
+from dataclasses import asdict, dataclass
 import math
 from pathlib import Path
 import time
 import tkinter as tk
+from tkinter import messagebox
+
+from saves import SaveConflict, desktop_storage
 
 
 WIDTH = 960
@@ -333,6 +338,25 @@ class Town:
         return "Production running"
 
 
+def pack_save(town, market_started_at):
+    state = deepcopy(vars(town))
+    state["orders"] = [asdict(order) if order else None for order in town.orders]
+    return {"version": 1, "marketStart": market_started_at, "state": state}
+
+
+def unpack_save(data):
+    town = Town()
+    state = dict(data["state"])
+    if data["version"] != 1 or state.keys() != vars(town).keys():
+        raise ValueError("Unsupported Foundry Town save")
+    for name in ("supplies", "goods", "orders", "demand", "costs", "prices"):
+        if len(state[name]) != len(TRADES):
+            raise ValueError("Invalid trade data in save")
+    state["orders"] = [Order(**order) if order is not None else None for order in state["orders"]]
+    vars(town).update(state)
+    return town, float(data["marketStart"])
+
+
 class Game:
     display_scale = 1
 
@@ -340,6 +364,15 @@ class Game:
         self.root = root
         self.town = Town()
         self.market_started_at = market_start()
+        self.storage, self.player = desktop_storage()
+        self.revision, saved = self.storage.load(self.player)
+        if saved is not None:
+            self.town, self.market_started_at = unpack_save(saved)
+        self.writer = ThreadPoolExecutor(max_workers=1)
+        self.pending_save = None
+        self.save_conflict = False
+        root.protocol("WM_DELETE_WINDOW", self.close)
+        root.after(10000, self.autosave)
         self.keys = set()
         self.profile_window = None
         self.last_tick = time.monotonic()
@@ -357,6 +390,48 @@ class Game:
         self.draw_city()
         self.canvas.scale("all", 0, 0, self.display_scale, self.display_scale)
         self.tick()
+
+    def write_save(self):
+        snapshot = pack_save(self.town, self.market_started_at)
+        return self.writer.submit(self.storage.save, self.player, self.revision, snapshot)
+
+    def autosave(self):
+        if self.pending_save is not None:
+            if not self.pending_save.done():
+                self.root.after(200, self.autosave)
+                return
+            try:
+                self.revision = self.pending_save.result()
+                self.root.title("Foundry Town | Saved")
+            except SaveConflict as exc:
+                self.save_conflict = True
+                messagebox.showwarning("Save conflict", str(exc), parent=self.root)
+                return
+            except Exception as exc:
+                self.root.title(f"Foundry Town | Save failed: {exc}")
+            finally:
+                self.pending_save = None
+            self.root.after(10000, self.autosave)
+        else:
+            self.pending_save = self.write_save()
+            self.root.after(200, self.autosave)
+
+    def close(self):
+        try:
+            if self.pending_save is not None:
+                pending, self.pending_save = self.pending_save, None
+                self.revision = pending.result()
+            if self.save_conflict:
+                raise SaveConflict("A newer save exists on the server.")
+            self.revision = self.write_save().result()
+        except Exception as exc:
+            if isinstance(exc, SaveConflict):
+                self.save_conflict = True
+            if not messagebox.askyesno("Save failed", f"{exc}\n\nQuit without saving this session?",
+                                       parent=self.root):
+                return
+        self.writer.shutdown()
+        self.root.destroy()
 
     def key_down(self, event):
         if self.profile_window is not None:
@@ -809,5 +884,10 @@ class Game:
 
 if __name__ == "__main__":
     window = tk.Tk()
-    Game(window)
-    window.mainloop()
+    try:
+        Game(window)
+    except Exception as exc:
+        messagebox.showerror("Could not open Foundry Town", str(exc), parent=window)
+        window.destroy()
+    else:
+        window.mainloop()
