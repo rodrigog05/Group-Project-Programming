@@ -16,3 +16,26 @@ Each unit of supply makes one finished good. Press **E** at the factory to drop 
 A game day lasts 24 real hours. The market calendar starts on first launch and keeps moving while the game is closed. Every third day, a one-day market event changes a route's material cost, selling price, and customer demand. Look for the market banner to see the changes.
 
 You start with $60 and 12 bag slots. Factory orders reserve space for pickup. Reach $500 to hit the cash goal. You can keep trading afterward.
+
+## Desktop saves and the Python API
+
+The desktop launcher automatically resumes your game and saves every ten seconds and on exit. By default it stores progress in `~/.foundry-town/saves.sqlite3` on your computer. The desktop game and its save server use Python's standard library.
+
+To share a server with friends, run these commands on the server computer:
+
+```
+python save_api.py add-player
+python save_api.py serve
+```
+
+Run `add-player` once per player. Give each player their own private key. The server listens on loopback port 8765. For internet play, put it behind an HTTPS reverse proxy and keep the SQLite database on persistent storage. Both commands accept `--database PATH` to select the same database.
+
+On each player's computer, set the server address and key in PowerShell, then launch from that same window:
+
+```powershell
+$env:FOUNDRY_SAVE_URL = 'https://your-save-server.example'
+$env:FOUNDRY_PLAYER_KEY = 'your-private-player-key'
+& '.\Play Foundry Town.cmd'
+```
+
+For testing on the server computer, use `http://127.0.0.1:8765`. The first launch with a new key starts a new game. Reuse the same key to resume on another device. The existing browser edition uses a separate save service and account system.
