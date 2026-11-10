@@ -1,1 +1,0 @@
-{"name":"foundry-town-web","private":true,"type":"module","scripts":{"build":"node scripts/build.mjs","test":"node --test tests/api.test.mjs"}}

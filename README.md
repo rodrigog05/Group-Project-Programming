@@ -38,4 +38,4 @@ $env:FOUNDRY_PLAYER_KEY = 'your-private-player-key'
 & '.\Play Foundry Town.cmd'
 ```
 
-For testing on the server computer, use `http://127.0.0.1:8765`. The first launch with a new key starts a new game. Reuse the same key to resume on another device. The existing browser edition uses a separate save service and account system.
+For testing on the server computer, use `http://127.0.0.1:8765`. The first launch with a new key starts a new game. Reuse the same key to resume on another device.
