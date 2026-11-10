@@ -4,6 +4,7 @@ from copy import deepcopy
 from dataclasses import asdict, dataclass
 import math
 from pathlib import Path
+import sys
 import time
 import tkinter as tk
 from tkinter import messagebox
@@ -23,7 +24,11 @@ POWER_UPS = (
     ("Speed boost", "»", "#86caff", 646, 904),
     ("Cash bonus", "$", "#ffc66c", 812, 708),
 )
-FONT = "Segoe UI"
+IS_MAC = sys.platform == "darwin"
+FONT = "Helvetica Neue" if IS_MAC else "Segoe UI"
+# Tk on macOS draws 1 pixel per point, while Windows draws 96/72 pixels per point.
+# Sizing text in pixels on macOS keeps the layout the same as on Windows.
+FONT_PIXELS_PER_POINT = 96 / 72
 WHITE, MUTED, INK = "#f2f7f6", "#a3babb", "#101f28"
 GOLD, MINT = "#ffc66c", "#6de0b3"
 BODY_COLORS = {"Peach": "#f4bd93", "Amber": "#c78658", "Brown": "#89553c", "Mint": "#80dab9", "Lilac": "#bea0ec"}
@@ -377,8 +382,19 @@ class Game:
         self.profile_window = None
         self.last_tick = time.monotonic()
         root.title("Foundry Town | Business Tycoon")
-        root.resizable(False, False)
-        self.display_scale = min(1, (root.winfo_screenheight() - 100) / HEIGHT,
+        root.configure(bg=INK)
+        if IS_MAC:
+            # Tk 9 on macOS keeps a window at 200x200 if it is locked before it
+            # appears, so lock the size once the window is on screen.
+            def lock_size(event):
+                root.unbind("<Map>")
+                root.after(50, lambda: root.resizable(False, False))
+            root.bind("<Map>", lock_size)
+        else:
+            root.resizable(False, False)
+        # Leave room for the menu bar, title bar, and Dock on macOS.
+        margin = 160 if IS_MAC else 100
+        self.display_scale = min(1, (root.winfo_screenheight() - margin) / HEIGHT,
                                  (root.winfo_screenwidth() - 40) / WIDTH)
         self.canvas = tk.Canvas(root, width=round(WIDTH * self.display_scale),
                                 height=round(HEIGHT * self.display_scale), highlightthickness=0, bg=INK)
@@ -389,6 +405,13 @@ class Game:
         self.canvas.bind("<Button-1>", self.click_profile)
         self.draw_city()
         self.canvas.scale("all", 0, 0, self.display_scale, self.display_scale)
+        if IS_MAC:
+            # Apps started from Terminal open behind other windows on macOS, and the
+            # game clock only runs while its window has focus.
+            root.lift()
+            root.attributes("-topmost", True)
+            root.after(300, lambda: root.attributes("-topmost", False))
+            root.focus_force()
         self.tick()
 
     def write_save(self):
@@ -498,9 +521,14 @@ class Game:
         panel.protocol("WM_DELETE_WINDOW", close)
 
     def label(self, x, y, value, size=11, color=WHITE, bold=False, anchor="w", tag="city"):
+        if IS_MAC:
+            # A negative size is in pixels rather than points.
+            font_size = -max(1, round(size * FONT_PIXELS_PER_POINT * self.display_scale))
+        else:
+            font_size = max(1, round(size * self.display_scale))
         self.canvas.create_text(
             x, y, text=value, fill=color, anchor=anchor,
-            font=(FONT, max(1, round(size * self.display_scale)), "bold" if bold else "normal"), tags=tag,
+            font=(FONT, font_size, "bold" if bold else "normal"), tags=tag,
         )
 
     def box(self, x1, y1, x2, y2, color, tag="city"):
@@ -631,7 +659,7 @@ class Game:
         elif site.trade == 2:
             self.draw_clay_pit(x+88, y+70)
         else:
-            canvas.create_oval(x+21, y+57, right-21, bottom-3, fill="#393d2c", width=0)
+            canvas.create_oval(x+21, y+57, right-21, bottom-3, fill="#5b4a2b", width=0)
 
     def draw_clay_pit(self, x, y):
         rings = []
@@ -654,27 +682,39 @@ class Game:
             self.draw_mesh(x, y, outer+inner, faces, skew=.16)
         self.draw_mesh(x, y, rings[-1], ((tuple(range(8)), "#402823"),), skew=.16)
 
-    def draw_gold_pile(self):
+    def draw_wheat_field(self):
+        """Rows of wheat stalks that sway in the wind on Goldenfield Farm's field."""
         farm = SITES[9]
-        phase = self.town.elapsed * math.tau / 6
-        scale = .68 + .32 * (1 - math.cos(phase))
-        for offset_x, offset_y, elevation, radius in (
-            (-26, -11, 0, 14), (-8, -16, 0, 15), (13, -15, 0, 14), (29, -6, 0, 13),
-            (-31, 7, 0, 12), (-12, 7, 0, 16), (10, 7, 0, 15), (27, 9, 0, 11),
-            (-15, -6, 8, 12), (7, -5, 9, 13), (1, -5, 17, 10),
-        ):
-            nugget = ((-1, -.45, 0), (-.45, -.9, 0), (.65, -.66, 0), (1, .2, 0),
-                      (.4, .75, 0), (-.7, .62, 0), (-.55, -.25, .63), (.31, -.46, .85),
-                      (.66, .23, .51), (-.23, .39, .74))
-            vertices = [(scale*(offset_x+px*radius), scale*(offset_y+py*radius),
-                         scale*(elevation+pz*radius)) for px, py, pz in nugget]
-            faces = (
-                ((0, 1, 7, 6), "#d49a29"), ((1, 2, 3, 8, 7), "#b97817"),
-                ((3, 4, 8), "#965913"), ((4, 5, 9, 8), "#bb7c1c"),
-                ((5, 0, 6, 9), "#e2a638"), ((6, 7, 9), "#ffe184"),
-                ((7, 8, 9), "#f0bd49"),
-            )
-            self.draw_mesh(farm.x+88, farm.y+87, vertices, faces, skew=.22, tag="live")
+        canvas = self.canvas
+        center_x, center_y = farm.x + 88, farm.y + 79
+        wind = self.town.elapsed * math.tau / 4
+        # Back rows are drawn first so the front rows overlap them.
+        for row_y, height in ((-9, 15), (-1, 17), (7, 18), (15, 19)):
+            # Keep each row inside the oval field, which is 134 by 44 pixels.
+            half_width = 67 * math.sqrt(1 - (row_y / 22) ** 2) - 9
+            count = max(2, int(half_width * 2 // 9))
+            for index in range(count + 1):
+                base_x = center_x - half_width + index * 2 * half_width / count
+                base_y = center_y + row_y
+                sway = 3 * math.sin(wind - base_x * .12)
+                top_x, top_y = base_x + sway, base_y - height
+                # Unit vectors along the stalk and across it, for the ear of grain.
+                along_x, along_y = sway / height, -1
+                length = math.hypot(along_x, along_y)
+                along_x, along_y = along_x / length, along_y / length
+                across_x, across_y = -along_y, along_x
+                canvas.create_line(base_x, base_y, top_x, top_y, fill="#a8913f", tags="live")
+                tip_x, tip_y = top_x + along_x * 3, top_y + along_y * 3
+                mid_x, mid_y = top_x - along_x * 2.5, top_y - along_y * 2.5
+                canvas.create_polygon(
+                    tip_x, tip_y,
+                    mid_x + across_x * 1.8, mid_y + across_y * 1.8,
+                    top_x - along_x * 8, top_y - along_y * 8,
+                    mid_x - across_x * 1.8, mid_y - across_y * 1.8,
+                    fill="#f2cc63" if index % 2 else "#e0b44a", outline="#a87b2c", tags="live",
+                )
+                canvas.create_line(tip_x, tip_y, tip_x + along_x * 4 + across_x * 1.5,
+                                   tip_y + along_y * 4 + across_y * 1.5, fill="#e8c66a", tags="live")
 
     def mine_mesh(self, site, vertices, faces, tag="city"):
         self.draw_mesh(site.x+109, site.y+83, vertices, faces, skew=-0.65, tag=tag)
@@ -828,7 +868,7 @@ class Game:
                 x, y, right, bottom = site.bounds
                 canvas.create_rectangle(x-2, y-2, right+2, bottom+2, outline=GOLD, width=2, tags="live")
         self.draw_mine_cart()
-        self.draw_gold_pile()
+        self.draw_wheat_field()
         if town.power_up is not None:
             name, symbol, color, power_x, power_y = POWER_UPS[town.power_up]
             canvas.create_oval(power_x-16, power_y-16, power_x+16, power_y+16,
