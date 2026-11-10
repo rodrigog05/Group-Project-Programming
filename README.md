@@ -2,6 +2,13 @@
 
 Run **Play Foundry Town.cmd** on Windows or run `python tycoon.py` with Python 3 and Tkinter. No pip packages are required.
 
+On macOS, double-click **Play Foundry Town.command**. The `.cmd` file only works on Windows. The first time, macOS may block the launcher because it was downloaded. If it does, right-click it, choose **Open**, then confirm.
+
+The game needs Python with Tk 8.6 or newer. Apple's built-in Python uses Tk 8.5, which shows a black window on recent macOS. Install a newer Python in either of these ways, and the launcher finds it automatically:
+
+- With [uv](https://docs.astral.sh/uv/): `uv python install 3.12`
+- From [python.org](https://www.python.org/downloads/macos/)
+
 Move with **WASD** or the arrow keys. Walk to a colored doorstep and press **E** to interact. At a supplier, **Q** buys up to four units at once.
 
 | Route | Buy | Produce and collect | Sell |
@@ -30,12 +37,20 @@ python save_api.py serve
 
 Run `add-player` once per player. Give each player their own private key. The server listens on loopback port 8765. For internet play, put it behind an HTTPS reverse proxy and keep the SQLite database on persistent storage. Both commands accept `--database PATH` to select the same database.
 
-On each player's computer, set the server address and key in PowerShell, then launch from that same window:
+On each player's computer, set the server address and key, then launch from that same window. On Windows, use PowerShell:
 
 ```powershell
 $env:FOUNDRY_SAVE_URL = 'https://your-save-server.example'
 $env:FOUNDRY_PLAYER_KEY = 'your-private-player-key'
 & '.\Play Foundry Town.cmd'
+```
+
+On macOS, use Terminal:
+
+```bash
+export FOUNDRY_SAVE_URL='https://your-save-server.example'
+export FOUNDRY_PLAYER_KEY='your-private-player-key'
+./'Play Foundry Town.command'
 ```
 
 For testing on the server computer, use `http://127.0.0.1:8765`. The first launch with a new key starts a new game. Reuse the same key to resume on another device.
