@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from tycoon import DAY_SECONDS, TRADES, Town, pack_save, unpack_save
+from tycoon import DAY_SECONDS, LEGACY_DAY_SECONDS, TRADES, Town, pack_save, unpack_save
 
 
 class DynamicMarketTest(unittest.TestCase):
@@ -38,6 +38,15 @@ class DynamicMarketTest(unittest.TestCase):
         old_save = {"version": 1, "marketStart": 1_000, "state": old_state}
         restored, _ = unpack_save(old_save)
         self.assertEqual(restored.total_sold, [0] * len(TRADES))
+
+    def test_day_length_is_five_minutes_and_legacy_progress_is_scaled(self):
+        self.assertEqual(DAY_SECONDS, 5 * 60)
+        town = Town()
+        town.market_elapsed = LEGACY_DAY_SECONDS + LEGACY_DAY_SECONDS // 2
+        old_save = pack_save(town, 1_000)
+        old_save.pop("dayLength")
+        restored, _ = unpack_save(old_save)
+        self.assertEqual(restored.market_elapsed, DAY_SECONDS * 1.5)
 
 
 if __name__ == "__main__":
