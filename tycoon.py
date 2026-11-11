@@ -10,7 +10,7 @@ import time
 import tkinter as tk
 from tkinter import messagebox
 
-from saves import SaveConflict, desktop_storage
+from saves import RemoteSaves, SaveConflict, desktop_storage
 
 
 WIDTH = 1200
@@ -20,6 +20,7 @@ DAY_SECONDS = 24 * 60 * 60
 START_CASH, CASH_GOAL, BAG_SIZE = 60, 500, 12
 PLAYER_RADIUS, REACH = 10, 35
 POWER_INTERVAL = 30
+FRAME_SECONDS = 1 / 60
 POWER_UPS = (
     ("Bag upgrade", "+", "#80e2b9", 315, 321),
     ("Speed boost", "»", "#86caff", 646, 904),
@@ -411,19 +412,24 @@ def unpack_save(data):
 class Game:
     display_scale = 1
 
-    def __init__(self, root):
+    def __init__(self, root, session=None):
         self.root = root
         self.town = Town()
         self.market_started_at = market_start()
-        self.storage, self.player = desktop_storage()
-        self.revision, saved = self.storage.load(self.player)
+        if session is None:
+            self.storage, self.player = desktop_storage()
+            self.revision, saved = self.storage.load(self.player)
+        else:
+            self.storage, self.player, self.revision, saved = session
+            if saved is None:
+                self.market_started_at = time.time()
         if saved is not None:
             self.town, self.market_started_at = unpack_save(saved)
         self.writer = ThreadPoolExecutor(max_workers=1)
         self.pending_save = None
         self.save_conflict = False
         root.protocol("WM_DELETE_WINDOW", self.close)
-        root.after(10000, self.autosave)
+        self.autosave_timer = root.after(10000, self.autosave)
         self.keys = set()
         self.profile_window = None
         # Casino state lives only in this session, so old saves still load.
@@ -455,6 +461,8 @@ class Game:
         self.canvas = tk.Canvas(root, width=round(WIDTH * self.display_scale),
                                 height=round(HEIGHT * self.display_scale), highlightthickness=0, bg=INK)
         self.canvas.pack()
+        self.menu_button = tk.Button(root, text="Save and return to menu", command=self.return_to_menu)
+        self.menu_button.pack()
         root.bind("<KeyPress>", self.key_down)
         root.bind("<KeyRelease>", self.key_up)
         root.bind("<FocusOut>", lambda event: self.keys.clear())
@@ -477,7 +485,7 @@ class Game:
     def autosave(self):
         if self.pending_save is not None:
             if not self.pending_save.done():
-                self.root.after(200, self.autosave)
+                self.autosave_timer = self.root.after(200, self.autosave)
                 return
             try:
                 self.revision = self.pending_save.result()
@@ -490,12 +498,15 @@ class Game:
                 self.root.title(f"Foundry Town | Save failed: {exc}")
             finally:
                 self.pending_save = None
-            self.root.after(10000, self.autosave)
+            self.autosave_timer = self.root.after(10000, self.autosave)
         else:
             self.pending_save = self.write_save()
-            self.root.after(200, self.autosave)
+            self.autosave_timer = self.root.after(200, self.autosave)
 
-    def close(self):
+    def return_to_menu(self):
+        self.close(to_menu=True)
+
+    def close(self, to_menu=False):
         # Pay out a spin that is still running so quitting never loses a win.
         self.settle_spin()
         try:
@@ -512,7 +523,16 @@ class Game:
                                        parent=self.root):
                 return
         self.writer.shutdown()
-        self.root.destroy()
+        if to_menu:
+            self.root.after_cancel(self.tick_timer)
+            self.root.after_cancel(self.autosave_timer)
+            for event in ("<KeyPress>", "<KeyRelease>", "<FocusOut>"):
+                self.root.unbind(event)
+            self.canvas.destroy()
+            self.menu_button.destroy()
+            StartMenu(self.root, (self.storage, self.player))
+        else:
+            self.root.destroy()
 
     def key_down(self, event):
         if self.profile_window is not None:
@@ -552,7 +572,9 @@ class Game:
             self.town.move(dx, dy, min(dt, 0.05))
         self.draw_live()
         self.canvas.scale("live", 0, 0, self.display_scale, self.display_scale)
-        self.root.after(25, self.tick)
+        # Include rendering time in the frame budget instead of adding it to every frame.
+        remaining = FRAME_SECONDS - (time.monotonic() - now)
+        self.tick_timer = self.root.after(max(1, round(remaining * 1000)), self.tick)
 
     # ----- Casino -----
 
@@ -1259,10 +1281,82 @@ class Game:
             self.draw_casino_screen()
 
 
+class StartMenu:
+    """Load player progress without blocking Tk while the API responds."""
+
+    def __init__(self, root, connection=None):
+        self.root = root
+        self.connection = connection
+        self.session = None
+        self.worker = ThreadPoolExecutor(max_workers=1)
+        root.title("Foundry Town")
+        root.configure(bg=INK)
+        root.protocol("WM_DELETE_WINDOW", self.close)
+        self.frame = tk.Frame(root, bg=INK, padx=48, pady=32)
+        self.frame.pack()
+        tk.Label(self.frame, text="FOUNDRY TOWN", font=(FONT, 24, "bold"),
+                 bg=INK, fg=GOLD).pack(pady=12)
+        tk.Label(self.frame, text="Buy supplies. Make goods. Build your fortune.",
+                 bg=INK, fg=WHITE).pack(pady=8)
+        self.status = tk.StringVar(value="Loading your save…")
+        tk.Label(self.frame, textvariable=self.status, bg=INK, fg=MINT,
+                 wraplength=440).pack(pady=12)
+        self.new_button = tk.Button(self.frame, text="New Game", command=self.new_game, state="disabled")
+        self.new_button.pack(fill="x", pady=4)
+        self.continue_button = tk.Button(self.frame, text="Continue", command=self.continue_game, state="disabled")
+        self.continue_button.pack(fill="x", pady=4)
+        self.future = self.worker.submit(self.load, connection)
+        self.poll_timer = root.after(50, self.poll)
+
+    @staticmethod
+    def load(connection):
+        storage, player = connection if connection is not None else desktop_storage()
+        revision, saved = storage.load(player)
+        if saved is not None:
+            unpack_save(saved)
+        return storage, player, revision, saved
+
+    def poll(self):
+        if not self.future.done():
+            self.poll_timer = self.root.after(50, self.poll)
+            return
+        try:
+            self.session = self.future.result()
+        except Exception as exc:
+            self.status.set(f"Could not load your save. {exc}")
+            return
+        storage, _, _, saved = self.session
+        location = "Online save" if isinstance(storage, RemoteSaves) else "Saved on this computer"
+        self.status.set(f"{location} · ${saved['state']['cash']:,}" if saved else f"{location} · No game yet")
+        self.new_button.configure(state="normal")
+        self.continue_button.configure(state="normal" if saved else "disabled")
+
+    def new_game(self):
+        if self.session[3] is not None and not messagebox.askyesno(
+            "New Game", "Replace this player's existing progress with a new game?", parent=self.root
+        ):
+            return
+        storage, player, revision, _ = self.session
+        self.start((storage, player, revision, None))
+
+    def continue_game(self):
+        self.start(self.session)
+
+    def start(self, session):
+        self.worker.shutdown(wait=False)
+        self.frame.destroy()
+        Game(self.root, session)
+
+    def close(self):
+        self.root.after_cancel(self.poll_timer)
+        self.worker.shutdown(wait=False)
+        self.root.destroy()
+
+
 if __name__ == "__main__":
     window = tk.Tk()
     try:
-        Game(window)
+        StartMenu(window)
     except Exception as exc:
         messagebox.showerror("Could not open Foundry Town", str(exc), parent=window)
         window.destroy()
