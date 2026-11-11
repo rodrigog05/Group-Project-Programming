@@ -2,7 +2,7 @@
 
 Run **Play Foundry Town.cmd** on Windows or run `python tycoon.py` with Python 3 and Tkinter. No pip packages are required.
 
-On macOS, double-click **Play Foundry Town.command**. The `.cmd` file only works on Windows. The first time, macOS may block the launcher because it was downloaded. If it does, right-click it, choose **Open**, then confirm.
+On macOS, double-click **Play Foundry Town (Mac)**. The other **Play Foundry Town** file is the Windows launcher and won't open on a Mac. Finder hides file extensions, so the two can look alike. The first time, macOS may block the launcher because it was downloaded. If it does, right-click it, choose **Open**, then confirm.
 
 The game needs Python with Tk 8.6 or newer. Apple's built-in Python uses Tk 8.5, which shows a black window on recent macOS. Install a newer Python in either of these ways, and the launcher finds it automatically:
 
@@ -23,6 +23,21 @@ Each unit of supply makes one finished good. Press **E** at the factory to drop 
 A game day lasts 24 real hours. The market calendar starts on first launch and keeps moving while the game is closed. Every third day, a one-day market event changes a route's material cost, selling price, and customer demand. Look for the market banner to see the changes.
 
 You start with $60 and 12 bag slots. Factory orders reserve space for pickup. Reach $500 to hit the cash goal. You can keep trading afterward.
+
+## Foundry Casino
+
+The Foundry Casino is in the Casino District on the right of the map. Walk to its door and press **E** to play roulette. It uses a real European wheel with 37 pockets: 18 red, 18 black, and a green 0.
+
+1. Pick a chip of $5, $10, $25, $50, or $100 by clicking it or with the left and right arrow keys.
+2. Bet on a color by clicking it or pressing **R**, **B**, or **G**.
+
+| Bet | Wins on | Pays |
+| --- | --- | --- |
+| Red | 18 red numbers | 2× your chip |
+| Black | 18 black numbers | 2× your chip |
+| Green | 0 only | 36× your chip |
+
+The stake leaves your cash when the wheel starts spinning. Winnings arrive when the ball lands. When the ball lands on 0, red and black bets lose, so the house wins over time. If you lose everything, the $30 cash power-up still appears on the map. Press **Esc** or **E** to leave. Game time pauses while you are in the casino.
 
 ## Desktop saves and the Python API
 
@@ -50,7 +65,7 @@ On macOS, use Terminal:
 ```bash
 export FOUNDRY_SAVE_URL='https://your-save-server.example'
 export FOUNDRY_PLAYER_KEY='your-private-player-key'
-./'Play Foundry Town.command'
+./'Play Foundry Town (Mac).command'
 ```
 
 For testing on the server computer, use `http://127.0.0.1:8765`. The first launch with a new key starts a new game. Reuse the same key to resume on another device.
