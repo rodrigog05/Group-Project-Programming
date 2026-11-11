@@ -1,0 +1,103 @@
+"""Build antialiased background PNGs. Pillow is used only when rebuilding assets."""
+import math
+from pathlib import Path
+from types import SimpleNamespace
+
+from PIL import Image, ImageDraw, ImageFont
+
+from lisbon_scene import LisbonScene, MAP_BOTTOM
+from tycoon import SITES, HEIGHT
+
+
+class Painter:
+    def __init__(self, scale=2, viewport=None):
+        self.scale_x = scale if viewport is None else viewport[0]/1200*scale
+        self.scale_y = scale if viewport is None else viewport[1]/HEIGHT*scale
+        self.scale = min(self.scale_x, self.scale_y)
+        self.image = Image.new("RGB", (round(1200*self.scale_x), round(MAP_BOTTOM*self.scale_y)), "#dfd5bd")
+        self.draw = ImageDraw.Draw(self.image)
+        self.fonts = {}
+
+    def points(self, coords):
+        if len(coords) == 1 and isinstance(coords[0], (tuple, list)):
+            coords = coords[0]
+        return [(coords[i]*self.scale_x, coords[i+1]*self.scale_y) for i in range(0, len(coords), 2)]
+
+    def skip(self, options):
+        return options.get("tags") == "tram"
+
+    def create_rectangle(self, *coords, **options):
+        if not self.skip(options):
+            self.draw.rectangle(self.points(coords), fill=options.get("fill"), outline=options.get("outline") or None,
+                                width=max(1, round(options.get("width", 1)*self.scale)))
+
+    def create_polygon(self, *coords, **options):
+        if not self.skip(options):
+            self.draw.polygon(self.points(coords), fill=options.get("fill"), outline=options.get("outline") or None)
+
+    def create_oval(self, *coords, **options):
+        if not self.skip(options):
+            self.draw.ellipse(self.points(coords), fill=options.get("fill"), outline=options.get("outline") or None)
+
+    def create_line(self, *coords, **options):
+        if self.skip(options):
+            return
+        points = self.points(coords)
+        dx, dy = points[-1][0]-points[0][0], points[-1][1]-points[0][1]
+        length = math.hypot(dx/self.scale_x, dy/self.scale_y)
+        perpendicular_scale = (math.hypot(dy/self.scale_y*self.scale_x, dx/self.scale_x*self.scale_y)/length
+                               if length else self.scale)
+        width = max(1, round(options.get("width", 1)*perpendicular_scale))
+        dash = options.get("dash")
+        if dash:
+            on, off = dash[0]*self.scale, dash[1]*self.scale
+            for (x1, y1), (x2, y2) in zip(points, points[1:]):
+                length = math.hypot(x2-x1, y2-y1)
+                cursor = 0
+                while cursor < length:
+                    end = min(length, cursor+on)
+                    self.draw.line((x1+(x2-x1)*cursor/length, y1+(y2-y1)*cursor/length,
+                                    x1+(x2-x1)*end/length, y1+(y2-y1)*end/length),
+                                   fill=options["fill"], width=width)
+                    cursor += on+off
+        else:
+            self.draw.line(points, fill=options["fill"], width=width, joint="curve")
+
+    def label(self, x, y, text, size=10, color="#304b54", bold=False, anchor="w", tag="city"):
+        if tag == "tram":
+            return
+        key = size, bold
+        if key not in self.fonts:
+            font_name = "segoeuib.ttf" if bold else "segoeui.ttf"
+            candidates = (Path("C:/Windows/Fonts")/font_name,
+                          Path("/usr/share/fonts/truetype/dejavu")/("DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf"))
+            font_path = next((p for p in candidates if p.exists()), None)
+            self.fonts[key] = ImageFont.truetype(str(font_path), round(size*4/3*self.scale)) if font_path else ImageFont.load_default()
+        self.draw.text((x*self.scale_x, y*self.scale_y), text, fill=color, font=self.fonts[key],
+                       anchor={"w": "lm", "e": "rm", "center": "mm"}.get(anchor, "lm"))
+
+
+def build():
+    painter = Painter()
+    LisbonScene(SimpleNamespace(canvas=painter, label=painter.label), SITES)
+    directory = Path(__file__).parent / "assets"
+    directory.mkdir(exist_ok=True)
+    for factor in range(4, 21):
+        scale = factor/10
+        image = painter.image.resize((round(1200*scale), round(MAP_BOTTOM*scale)), Image.Resampling.LANCZOS)
+        image.save(directory/f"lisbon_{factor*10:03}.png", optimize=True)
+    print("Built 17 Lisbon background sizes")
+    screens = {(1280, 720), (1280, 800), (1366, 768), (1440, 900), (1536, 864),
+               (1600, 900), (1920, 1080), (1920, 1200), (2560, 1080), (2560, 1440),
+               (3440, 1440), (3840, 2160)}
+    viewports = screens | {(round(w*.85), round(h*.85)) for w, h in screens}
+    for width, height in sorted(viewports):
+        painter = Painter(viewport=(width, height))
+        LisbonScene(SimpleNamespace(canvas=painter, label=painter.label), SITES)
+        image = painter.image.resize((width, round(MAP_BOTTOM*height/HEIGHT)), Image.Resampling.LANCZOS)
+        image.save(directory/f"lisbon_view_{width}x{height}.png", optimize=True)
+    print(f"Built {len(viewports)} widescreen backgrounds")
+
+
+if __name__ == "__main__":
+    build()

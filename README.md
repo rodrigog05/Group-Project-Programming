@@ -11,6 +11,16 @@ The game needs Python with Tk 8.6 or newer. Apple's built-in Python uses Tk 8.5,
 
 Move with **WASD** or the arrow keys. Walk to a colored doorstep and press **E** to interact. At a supplier, **Q** buys up to four units at once.
 
+At the fullscreen start menu, choose your character's name, skin tone, hair, and outfit before starting or continuing.
+
+The city fills the monitor in fullscreen and follows the window size in windowed mode. The entire map stays visible; character and text proportions are preserved while the city layout adapts to the display.
+
+Windows startup uses the monitor's physical resolution, including 1920 × 1080 displays with Windows scaling enabled. Settings shows the current display size. **Save and Close Game** writes progress to the configured save storage before exiting; a failed save keeps the game open so you can retry.
+
+The Lisboa edition has a compact west-to-east layout inspired by Belém, Alcântara, Baixa/Chiado, Alfama/Graça and Oriente. The Tejo separates Lisbon from Almada. Both Ponte 25 de Abril and Ponte Vasco da Gama are usable crossings. Precision Works is on the Almada bank. A yellow elétrico follows a fictional waterfront line between the neighborhoods. The architecture uses tiled roofs, azulejos, balconies and calçada, with antialiased scenery cached as PNGs for smooth movement. Geographic references come from [Turismo de Portugal](https://www.visitportugal.com/en/destinos/lisboa/73775) and [Visit Lisboa's Tagus route](https://www.visitlisboa.com/en/lisbon-stories/15-tagus-route/pois?page=2).
+
+**Saudade do Tejo** is a bundled original 60-second fado-inspired guitar instrumental, composed for this game. It loops locally without an internet connection. Use the gold **Settings** button or **F1** to toggle music, change fullscreen mode, and read the rules. Windows uses its built-in WAV player; macOS uses `afplay`; Linux uses `paplay` or `aplay` when available. To rebuild assets, run `python compose_fado.py` for audio, or `python render_lisbon.py` for scenery (the scenery build requires Pillow; playing does not).
+
 | Route | Buy | Produce and collect | Sell |
 | --- | --- | --- | --- |
 | Metal | Iron ore at Iron Hill Mine for $5 | Tools at Ironworks | Tool Market customers pay $18 each |
@@ -20,7 +30,11 @@ Move with **WASD** or the arrow keys. Walk to a colored doorstep and press **E**
 
 Each unit of supply makes one finished good. Press **E** at the factory to drop off supplies, then press it again when the order is ready. Each public shop buys as many finished goods as its customers still want that day.
 
-A game day lasts 24 real hours. The market calendar starts on first launch and keeps moving while the game is closed. Every third day, a one-day market event changes a route's material cost, selling price, and customer demand. Look for the market banner to see the changes.
+Foundry Precision Works is the Tier 2 factory. Bring one Tool and one Furniture to craft one Precision Machinery. It takes 12 seconds. Press **E** to collect it, then press **E** again to sell it at Precision Works.
+
+A game day lasts five minutes, with three minutes of daylight and two minutes of night. Every third day, a one-day market event changes a route's material cost, selling price, and customer demand. Look for the market banner to see the changes.
+
+Choose **Rules & How to Play** on the start menu for game instructions. During play, click **Settings** in the top bar to switch between fullscreen and windowed mode, toggle moving traffic, or reopen the rules.
 
 You start with $60 and 12 bag slots. Factory orders reserve space for pickup. Reach $500 to hit the cash goal. You can keep trading afterward.
 

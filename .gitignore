@@ -1,1 +1,3 @@
 .foundry-market-start
+__pycache__/
+*.py[cod]
