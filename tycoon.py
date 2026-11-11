@@ -159,6 +159,10 @@ class Town:
         self.market_elapsed = 0
         self.costs = [trade.cost for trade in TRADES]
         self.prices = [trade.price for trade in TRADES]
+        self.sales_today = [0] * len(TRADES)
+        self.revenue_today = [0] * len(TRADES)
+        self.expenses_today = [0] * len(TRADES)
+        self.total_sold = [0] * len(TRADES)
         self.market_event = None
         self.elapsed = 0.0
         self.x, self.y = 480.0, 321.0
@@ -197,6 +201,18 @@ class Town:
         self.costs = [trade.cost for trade in TRADES]
         self.prices = [trade.price for trade in TRADES]
         self.demand = [trade.demand for trade in TRADES]
+        # Daily demand fluctuates, with occasional spikes. Unsold inventory weighs
+        # on prices while unusually strong demand pushes them up sharply.
+        for index, trade in enumerate(TRADES):
+            demand_factor = 2.5 if random.random() < 0.12 else random.uniform(0.85, 1.15)
+            today_demand = max(1, round(trade.demand * demand_factor))
+            available_supply = self.sales_today[index] + self.goods[index]
+            price_factor = 1 + 0.6 * (today_demand / trade.demand - 1) - 0.5 * (available_supply / trade.demand)
+            self.prices[index] = max(1, round(trade.price * max(0.4, min(2.5, price_factor))))
+            self.demand[index] = today_demand
+        self.sales_today = [0] * len(TRADES)
+        self.revenue_today = [0] * len(TRADES)
+        self.expenses_today = [0] * len(TRADES)
         self.market_event = None
         self.message = f"Day {self.day}. New customers have arrived at the markets."
         if self.day % 3 == 0:
@@ -306,6 +322,7 @@ class Town:
                 return
             cost = quantity * self.costs[index]
             self.cash -= cost
+            self.expenses_today[index] += cost
             self.supplies[index] += quantity
             self.message = f"Picked up {quantity} × {trade.supply} for ${cost}."
             self.congratulate(quantity, trade.supply.lower())
@@ -342,6 +359,9 @@ class Town:
             revenue = quantity * self.prices[index]
             self.goods[index] -= quantity
             self.demand[index] -= quantity
+            self.sales_today[index] += quantity
+            self.total_sold[index] += quantity
+            self.revenue_today[index] += revenue
             self.message = f"Sold {quantity} × {trade.product} to customers for ${revenue}."
             self.congratulate(quantity, trade.product.lower())
             self.add_cash(revenue)
@@ -399,6 +419,8 @@ def pack_save(town, market_started_at):
 def unpack_save(data):
     town = Town()
     state = dict(data["state"])
+    for name in ("sales_today", "revenue_today", "expenses_today", "total_sold"):
+        state.setdefault(name, [0] * len(TRADES))
     if data["version"] != 1 or state.keys() != vars(town).keys():
         raise ValueError("Unsupported Foundry Town save")
     for name in ("supplies", "goods", "orders", "demand", "costs", "prices"):
@@ -442,6 +464,11 @@ class Game:
         self.casino_result = ("Pick a chip, then bet on a color.", WHITE)
         self.casino_buttons = []
         self.casino_bulbs = []
+        self.traffic = [(offset, lane, speed, color) for offset, lane, speed, color in (
+            (0.05, 287, 150, "#e8455a"), (0.48, 298, -112, "#ffc66c"),
+            (0.76, 480, 124, "#86caff"), (0.28, 491, -95, "#e6e9df"),
+            (0.67, 673, 138, "#80dab9"), (0.15, 684, -105, "#bea0ec"),
+        )]
         self.last_tick = time.monotonic()
         root.title("Foundry Town | Business Tycoon")
         root.configure(bg=INK)
@@ -672,6 +699,36 @@ class Game:
         if not (PROFILE_X <= x <= PROFILE_X + 56 and 19 <= y <= 77) or self.profile_window is not None:
             return
         self.keys.clear()
+        panel = self.profile_window = tk.Toplevel(self.root)
+        panel.title("Town financial analytics")
+        panel.transient(self.root)
+        panel.resizable(False, False)
+        panel.grab_set()
+        frame = tk.Frame(panel, padx=18, pady=14)
+        frame.pack()
+        def close():
+            panel.destroy()
+            self.profile_window = None
+            self.root.focus_set()
+
+        town = self.town
+        frame.columnconfigure(1, weight=1)
+        tk.Label(frame, text="PROFIT & LOSS", font=(FONT, 16, "bold")).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
+        tk.Label(frame, text=f"Day {town.day} revenue  ${sum(town.revenue_today):,}").grid(row=1, column=0, columnspan=2, sticky="w")
+        tk.Label(frame, text=f"Day {town.day} expenses  ${sum(town.expenses_today):,}").grid(row=2, column=0, columnspan=2, sticky="w")
+        tk.Label(frame, text="District sales today").grid(row=3, column=0, columnspan=2, sticky="w", pady=(10, 3))
+        districts = ("Metal", "Timber", "Clay", "Farm")
+        for index, trade in enumerate(TRADES):
+            tk.Label(frame, text=f"{districts[index]} · {trade.product} · {town.sales_today[index]} sold").grid(row=4 + index, column=0, sticky="w")
+            tk.Label(frame, text=f"Revenue ${town.revenue_today[index]:,} · Costs ${town.expenses_today[index]:,}").grid(row=4 + index, column=1, sticky="e")
+        best = max(range(len(TRADES)), key=lambda index: town.total_sold[index])
+        tk.Label(frame, text=f"Top seller overall  {TRADES[best].product} · {town.total_sold[best]} sold").grid(row=8, column=0, columnspan=2, sticky="w", pady=(8, 4))
+        tk.Button(frame, text="Edit player profile", command=lambda: self.open_profile_editor(close)).grid(row=9, column=0, sticky="w", pady=(8, 0))
+        tk.Button(frame, text="Close", command=close).grid(row=9, column=1, sticky="e", pady=(8, 0))
+        panel.protocol("WM_DELETE_WINDOW", close)
+
+    def open_profile_editor(self, close_analytics):
+        close_analytics()
         panel = self.profile_window = tk.Toplevel(self.root)
         panel.title("Player profile")
         panel.transient(self.root)
@@ -1226,6 +1283,10 @@ class Game:
         self.draw_mine_cart()
         self.draw_wheat_field()
         self.draw_casino_lights()
+        for offset, lane, speed, color in self.traffic:
+            x = (offset * WIDTH + town.elapsed * speed) % (WIDTH + 50) - 25
+            canvas.create_rectangle(x, lane, x + 23, lane + 10, fill=color, outline=INK, width=1, tags="live")
+            canvas.create_rectangle(x + 4, lane + 2, x + 10, lane + 5, fill="#b9d7d7", width=0, tags="live")
         if town.power_up is not None:
             name, symbol, color, power_x, power_y = POWER_UPS[town.power_up]
             canvas.create_oval(power_x-16, power_y-16, power_x+16, power_y+16,
