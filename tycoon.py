@@ -11,12 +11,16 @@ import tkinter as tk
 from tkinter import messagebox
 
 from saves import RemoteSaves, SaveConflict, desktop_storage
+from lisbon_scene import LisbonScene, MAP_BOTTOM, draw_character, walkable_terrain
+from soundtrack import music_for
 
 
 WIDTH = 1200
-MAP_TOP, MAP_BOTTOM = 104, 940
+MAP_TOP = 104
 HEIGHT = MAP_BOTTOM + 95
 DAY_SECONDS = 5 * 60
+DAYLIGHT_SECONDS = 3 * 60
+NIGHT_SECONDS = 2 * 60
 LEGACY_DAY_SECONDS = 24 * 60 * 60
 START_CASH, CASH_GOAL, BAG_SIZE = 60, 500, 12
 PLAYER_RADIUS, REACH = 10, 35
@@ -24,7 +28,7 @@ POWER_INTERVAL = 30
 FRAME_SECONDS = 1 / 60
 POWER_UPS = (
     ("Bag upgrade", "+", "#80e2b9", 315, 321),
-    ("Speed boost", "»", "#86caff", 646, 904),
+    ("Speed boost", "»", "#86caff", 600, 1055),
     ("Cash bonus", "$", "#ffc66c", 812, 708),
 )
 IS_MAC = sys.platform == "darwin"
@@ -32,8 +36,8 @@ FONT = "Helvetica Neue" if IS_MAC else "Segoe UI"
 # Tk on macOS draws 1 pixel per point, while Windows draws 96/72 pixels per point.
 # Sizing text in pixels on macOS keeps the layout the same as on Windows.
 FONT_PIXELS_PER_POINT = 96 / 72
-WHITE, MUTED, INK = "#f2f7f6", "#a3babb", "#101f28"
-GOLD, MINT = "#ffc66c", "#6de0b3"
+WHITE, MUTED, INK = "#f8faf7", "#bdced0", "#18343f"
+GOLD, MINT = "#f1c568", "#a5cbbb"
 BODY_COLORS = {"Peach": "#f4bd93", "Amber": "#c78658", "Brown": "#89553c", "Mint": "#80dab9", "Lilac": "#bea0ec"}
 HAIR_COLORS = {"Chestnut": "#673b2d", "Black": "#242027", "Blonde": "#f4cc73", "Silver": "#d3d8df", "Pink": "#e675af"}
 COSTUMES = {
@@ -44,6 +48,59 @@ COSTUMES = {
     "Astronaut": ("#b2bfd7", "#80dce4"),
     "Wizard": ("#885bbb", "#c6a0ff"),
 }
+RULES_TEXT = (
+    "MOVE  ·  WASD or arrow keys\n"
+    "INTERACT  ·  Walk to a colored entrance and press E\n"
+    "BULK BUY  ·  Press Q at a supplier to buy up to four supplies\n\n"
+    "PRODUCTION\n"
+    "Buy Iron ore, Timber, Clay, or Wheat from a supplier. Drop it off at its matching factory, "
+    "wait for production, and return to collect the finished goods. Sell goods at the matching public market.\n\n"
+    "TIER 2 FACTORY\n"
+    "Foundry Precision Works combines 1 Tool and 1 Furniture into 1 Precision Machinery. "
+    "Wait 12 seconds, collect it, then interact again to sell it at the factory. It is in Almada, across either bridge.\n\n"
+    "LISBOA\n"
+    "Cross the Tejo using Ponte 25 de Abril or Ponte Vasco da Gama. The yellow elétrico travels along the north bank. "
+    "Click the gold Settings button or press F1 for fullscreen, music, and help.\n\n"
+    "TOWN & GOAL\n"
+    "Each day lasts 5 minutes: 3 minutes of daylight and 2 minutes of night. Prices and customer demand "
+    "change daily. Reach $500 to win. Your progress saves automatically."
+)
+
+
+def configure_display_dpi():
+    """Let Windows report physical monitor pixels before Tk creates a window."""
+    if sys.platform != "win32":
+        return
+    import ctypes
+    try:
+        if ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4)):
+            return
+    except (AttributeError, OSError):
+        pass
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    except (AttributeError, OSError):
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
+        except (AttributeError, OSError):
+            pass
+
+
+def show_rules(parent):
+    panel = tk.Toplevel(parent)
+    panel.title("Foundry Town · How to Play")
+    panel.transient(parent)
+    panel.resizable(False, False)
+    frame = tk.Frame(panel, padx=24, pady=18)
+    frame.pack(fill="both", expand=True)
+    tk.Label(frame, text="RULES & HOW TO PLAY", font=(FONT, 17, "bold")).pack(anchor="w", pady=(0, 12))
+    tk.Label(frame, text=RULES_TEXT, justify="left", wraplength=520, font=(FONT, 10)).pack(anchor="w")
+    close = tk.Button(frame, text="Close", command=panel.destroy)
+    close.pack(anchor="e", pady=(16, 0))
+    panel.bind("<Escape>", lambda event: panel.destroy())
+    panel.protocol("WM_DELETE_WINDOW", panel.destroy)
+    panel.grab_set()
+    return panel
 
 
 @dataclass(frozen=True)
@@ -127,22 +184,23 @@ class Site:
 
 
 SITES = (
-    Site("Iron Hill Mine", "SUPPLIER", 0, 60, 155, "#d6a46e"),
-    Site("Ironworks", "FACTORY", 0, 392, 155, "#ef8f76"),
-    Site("Tool Market", "PUBLIC SHOP", 0, 724, 155, "#72d8bc"),
-    Site("Pine Mill", "SUPPLIER", 1, 60, 362, "#d6a46e"),
-    Site("Oak Workshop", "FACTORY", 1, 392, 362, "#ef8f76"),
-    Site("Home Market", "PUBLIC SHOP", 1, 724, 362, "#72d8bc"),
-    Site("Redbank Clay Pit", "SUPPLIER", 2, 60, 555, "#e6a17f"),
-    Site("Ember Kiln", "FACTORY", 2, 392, 555, "#f3a376"),
-    Site("The Pottery Shop", "PUBLIC SHOP", 2, 724, 555, "#d2a7e5"),
-    Site("Goldenfield Farm", "SUPPLIER", 3, 60, 748, "#e3c77e"),
-    Site("Sunrise Bakery", "FACTORY", 3, 392, 748, "#ebbe83"),
-    Site("Daily Bread Market", "PUBLIC SHOP", 3, 724, 748, "#f3ca85"),
+    Site("Iron Hill Mine", "SUPPLIER", 0, 28, 160, "#d6a46e"),
+    Site("Ironworks", "FACTORY", 0, 268, 345, "#ef8f76"),
+    Site("Tool Market", "PUBLIC SHOP", 0, 508, 345, "#72d8bc"),
+    Site("Pine Mill", "SUPPLIER", 1, 28, 345, "#d6a46e"),
+    Site("Oak Workshop", "FACTORY", 1, 268, 160, "#ef8f76"),
+    Site("Home Market", "PUBLIC SHOP", 1, 508, 160, "#72d8bc"),
+    Site("Redbank Clay Pit", "SUPPLIER", 2, 748, 160, "#e6a17f"),
+    Site("Ember Kiln", "FACTORY", 2, 748, 345, "#f3a376"),
+    Site("The Pottery Shop", "PUBLIC SHOP", 2, 748, 530, "#d2a7e5"),
+    Site("Goldenfield Farm", "SUPPLIER", 3, 28, 530, "#e3c77e"),
+    Site("Sunrise Bakery", "FACTORY", 3, 508, 530, "#ebbe83"),
+    Site("Daily Bread Market", "PUBLIC SHOP", 3, 268, 530, "#f3ca85"),
     # The casino has no trade route, so its trade index is unused.
-    Site("Foundry Casino", "CASINO", -1, 992, 362, "#e8455a"),
-    Site("Motorworks Garage", "GARAGE", -1, 992, 748, "#86caff"),
-    Site("Foundry Warehouse", "WAREHOUSE", -1, 992, 155, "#d2a7e5"),
+    Site("Foundry Casino", "CASINO", -1, 988, 345, "#e8455a"),
+    Site("Motorworks Garage", "GARAGE", -1, 988, 530, "#86caff"),
+    Site("Foundry Warehouse", "WAREHOUSE", -1, 988, 160, "#d2a7e5"),
+    Site("Foundry Precision Works", "TIER2", -1, 650, 935, "#ffc66c"),
 )
 
 
@@ -166,6 +224,13 @@ class Town:
         self.revenue_today = [0] * len(TRADES)
         self.expenses_today = [0] * len(TRADES)
         self.total_sold = [0] * len(TRADES)
+        self.tier2_order = None
+        self.tier2_goods = 0
+        self.tier2_demand = 5
+        self.tier2_price = 80
+        self.tier2_sales_today = 0
+        self.tier2_revenue_today = 0
+        self.tier2_total_sold = 0
         self.vehicle = None
         self.market_event = None
         self.elapsed = 0.0
@@ -215,9 +280,16 @@ class Town:
             price_factor = 1 + 0.6 * (today_demand / trade.demand - 1) - 0.5 * (available_supply / trade.demand)
             self.prices[index] = max(1, round(trade.price * max(0.4, min(2.5, price_factor))))
             self.demand[index] = today_demand
+        tier2_demand = max(1, round(5 * (2.5 if random.random() < 0.12 else random.uniform(0.85, 1.15))))
+        tier2_supply = self.tier2_sales_today + self.tier2_goods
+        tier2_factor = 1 + 0.6 * (tier2_demand / 5 - 1) - 0.5 * (tier2_supply / 5)
+        self.tier2_price = max(32, round(80 * max(0.4, min(2.5, tier2_factor))))
+        self.tier2_demand = tier2_demand
         self.sales_today = [0] * len(TRADES)
         self.revenue_today = [0] * len(TRADES)
         self.expenses_today = [0] * len(TRADES)
+        self.tier2_sales_today = 0
+        self.tier2_revenue_today = 0
         self.market_event = None
         self.message = f"Day {self.day}. New customers have arrived at the markets."
         if self.day % 3 == 0:
@@ -238,11 +310,13 @@ class Town:
 
     @property
     def cargo(self):
-        return sum(self.supplies) + sum(self.goods)
+        return sum(self.supplies) + sum(self.goods) + self.tier2_goods
 
     @property
     def reserved(self):
-        return sum(order.quantity for order in self.orders if order is not None)
+        return sum(order.quantity for order in self.orders if order is not None) + (
+            self.tier2_order.quantity if self.tier2_order is not None else 0
+        )
 
     def advance(self, seconds):
         previous_spawn = int(self.elapsed // POWER_INTERVAL)
@@ -294,7 +368,7 @@ class Town:
         self.collect_power_up()
 
     def can_walk(self, x, y):
-        return not any(
+        return walkable_terrain(x, y, PLAYER_RADIUS) and not any(
             left - PLAYER_RADIUS < x < right + PLAYER_RADIUS
             and top - PLAYER_RADIUS < y < bottom + PLAYER_RADIUS
             for left, top, right, bottom in (site.bounds for site in SITES)
@@ -320,6 +394,48 @@ class Town:
             return
         if site.role == "WAREHOUSE":
             self.message = "Foundry Warehouse · E to expand your carrying capacity."
+            return
+        if site.role == "TIER2":
+            order = self.tier2_order
+            if order is not None:
+                if self.elapsed < order.ready_at:
+                    self.message = "Precision Works production is still running."
+                    return
+                space = self.bag_size - self.cargo
+                if not space:
+                    self.message = "Free up space in your bag before collecting your order."
+                    return
+                quantity = min(space, order.quantity)
+                self.tier2_goods += quantity
+                order.quantity -= quantity
+                if not order.quantity:
+                    self.tier2_order = None
+                self.message = f"Collected {quantity} × Precision Machinery. Sell it here."
+                self.congratulate(quantity, "precision machinery")
+                return
+            if self.tier2_goods:
+                quantity = min(self.tier2_goods, self.tier2_demand)
+                if not quantity:
+                    self.message = "Today's customers are served. Come back tomorrow."
+                    return
+                revenue = quantity * self.tier2_price
+                self.tier2_goods -= quantity
+                self.tier2_demand -= quantity
+                self.tier2_sales_today += quantity
+                self.tier2_total_sold += quantity
+                self.tier2_revenue_today += revenue
+                self.message = f"Sold {quantity} × Precision Machinery for ${revenue}."
+                self.congratulate(quantity, "precision machinery")
+                self.add_cash(revenue)
+                return
+            quantity = min(self.goods[0], self.goods[1])
+            if not quantity:
+                self.message = "Bring Tools and Furniture to craft Precision Machinery."
+                return
+            self.goods[0] -= quantity
+            self.goods[1] -= quantity
+            self.tier2_order = Order(quantity, self.elapsed + 12)
+            self.message = f"Crafting {quantity} × Precision Machinery. Ready in 12s."
             return
         index = site.trade
         trade = TRADES[index]
@@ -399,6 +515,13 @@ class Town:
             return f"Driving: {self.vehicle or 'on foot'}"
         if site.role == "WAREHOUSE":
             return f"Capacity upgrade {self.warehouse_level} · {self.bag_size} slots"
+        if site.role == "TIER2":
+            if self.tier2_order:
+                status = "Ready to collect" if self.tier2_order.ready_at <= self.elapsed else f"Crafting · {math.ceil(self.tier2_order.ready_at-self.elapsed)}s"
+                return f"Tools + Furniture → Precision Machinery · {status}"
+            if self.tier2_goods:
+                return f"Precision Machinery · ${self.tier2_price} · {self.tier2_demand} buyers"
+            return "Tools + Furniture → Precision Machinery"
         index = site.trade
         trade = TRADES[index]
         if site.role == "SUPPLIER":
@@ -419,6 +542,8 @@ class Town:
             return "E  Browse vehicles"
         if site.role == "WAREHOUSE":
             return "E  Buy more storage"
+        if site.role == "TIER2":
+            return "E  Craft, collect, or sell"
         if site.role == "SUPPLIER":
             return "E  Buy one    •    Q  Buy up to four"
         if site.role == "PUBLIC SHOP":
@@ -434,6 +559,7 @@ class Town:
 def pack_save(town, market_started_at):
     state = deepcopy(vars(town))
     state["orders"] = [asdict(order) if order else None for order in town.orders]
+    state["tier2_order"] = asdict(town.tier2_order) if town.tier2_order else None
     return {"version": 1, "dayLength": DAY_SECONDS, "marketStart": market_started_at, "state": state}
 
 
@@ -451,21 +577,33 @@ def unpack_save(data):
         state.setdefault(name, [0] * len(TRADES))
     state.setdefault("vehicle", None)
     state.setdefault("warehouse_level", 0)
+    state.setdefault("tier2_order", None)
+    state.setdefault("tier2_goods", 0)
+    state.setdefault("tier2_demand", 5)
+    state.setdefault("tier2_price", 80)
+    state.setdefault("tier2_sales_today", 0)
+    state.setdefault("tier2_revenue_today", 0)
+    state.setdefault("tier2_total_sold", 0)
     if data["version"] != 1 or state.keys() != vars(town).keys():
         raise ValueError("Unsupported Foundry Town save")
     for name in ("supplies", "goods", "orders", "demand", "costs", "prices"):
         if len(state[name]) != len(TRADES):
             raise ValueError("Invalid trade data in save")
     state["orders"] = [Order(**order) if order is not None else None for order in state["orders"]]
+    if state["tier2_order"] is not None:
+        state["tier2_order"] = Order(**state["tier2_order"])
     vars(town).update(state)
+    if not town.can_walk(town.x, town.y) or not (MAP_TOP+15 <= town.y <= MAP_BOTTOM-15):
+        town.x, town.y = 480.0, 321.0
     return town, float(data["marketStart"])
 
 
 class Game:
     display_scale = 1
 
-    def __init__(self, root, session=None):
+    def __init__(self, root, session=None, initial_profile=None):
         self.root = root
+        self.music = music_for(root)
         self.town = Town()
         self.market_started_at = market_start()
         if session is None:
@@ -477,6 +615,8 @@ class Game:
                 self.market_started_at = time.time()
         if saved is not None:
             self.town, self.market_started_at = unpack_save(saved)
+        if initial_profile is not None:
+            self.town.set_profile(initial_profile)
         self.writer = ThreadPoolExecutor(max_workers=1)
         self.pending_save = None
         self.save_conflict = False
@@ -495,13 +635,18 @@ class Game:
         self.casino_result = ("Pick a chip, then bet on a color.", WHITE)
         self.casino_buttons = []
         self.casino_bulbs = []
+        self.casino_light_frame = -1
+        self.traffic_enabled = True
+        self.hud_label_items = {}
+        self.resize_timer = None
         self.traffic = [(offset, lane, speed, color) for offset, lane, speed, color in (
             (0.05, 287, 150, "#e8455a"), (0.48, 298, -112, "#ffc66c"),
             (0.76, 480, 124, "#86caff"), (0.28, 491, -95, "#e6e9df"),
             (0.67, 673, 138, "#80dab9"), (0.15, 684, -105, "#bea0ec"),
         )]
         self.last_tick = time.monotonic()
-        root.title("Foundry Town | Business Tycoon")
+        self.next_frame_time = self.last_tick
+        root.title("Foundry Town | Lisboa")
         root.configure(bg=INK)
         root.attributes("-fullscreen", True)
         if IS_MAC:
@@ -513,24 +658,30 @@ class Game:
             root.bind("<Map>", lock_size)
         else:
             root.resizable(False, False)
-        # Leave room for the menu bar, title bar, and Dock on macOS.
-        self.display_scale = min(root.winfo_screenheight() / HEIGHT,
-                                 root.winfo_screenwidth() / WIDTH)
-        self.canvas = tk.Canvas(root, width=round(WIDTH * self.display_scale),
-                                height=round(HEIGHT * self.display_scale), highlightthickness=0, bg=INK)
-        self.canvas.pack()
+        self.viewport_width, self.viewport_height = root.winfo_screenwidth(), root.winfo_screenheight()
+        self.scale_x = self.viewport_width/WIDTH
+        self.scale_y = self.viewport_height/HEIGHT
+        self.display_scale = min(self.scale_x, self.scale_y)
+        self.canvas = tk.Canvas(root, width=self.viewport_width, height=self.viewport_height,
+                                highlightthickness=0, borderwidth=0, bg=INK)
+        self.canvas.pack(fill="both", expand=True)
+        self.settings_button = tk.Button(
+            self.canvas, text="⚙ Settings", command=self.open_settings,
+            bg=GOLD, fg=INK, activebackground="#ffe0a0", activeforeground=INK,
+            font=(FONT, 11, "bold"), relief="flat", borderwidth=0, cursor="hand2", takefocus=True,
+        )
         self.minimize_button = tk.Button(root, text="—", font=(FONT, 12, "bold"),
                                          command=root.iconify, takefocus=False)
         self.minimize_button.place(relx=1, x=-12, y=12, anchor="ne")
         self.menu_button = tk.Button(root, text="Save and return to menu", command=self.return_to_menu)
-        self.menu_button.pack()
         root.bind("<KeyPress>", self.key_down)
         root.bind("<Control-m>", lambda event: root.iconify())
         root.bind("<KeyRelease>", self.key_up)
         root.bind("<FocusOut>", lambda event: self.keys.clear())
         self.canvas.bind("<Button-1>", self.click)
         self.draw_city()
-        self.canvas.scale("all", 0, 0, self.display_scale, self.display_scale)
+        self.canvas.scale("all", 0, 0, self.scale_x, self.scale_y)
+        self.canvas.bind("<Configure>", self.on_canvas_resize)
         if IS_MAC:
             # Apps started from Terminal open behind other windows on macOS, and the
             # game clock only runs while its window has focus.
@@ -568,7 +719,10 @@ class Game:
     def return_to_menu(self):
         self.close(to_menu=True)
 
-    def close(self, to_menu=False):
+    def save_and_close(self):
+        self.close(require_save=True)
+
+    def close(self, to_menu=False, require_save=False):
         # Pay out a spin that is still running so quitting never loses a win.
         self.settle_spin()
         try:
@@ -581,13 +735,19 @@ class Game:
         except Exception as exc:
             if isinstance(exc, SaveConflict):
                 self.save_conflict = True
+            if require_save:
+                messagebox.showerror("Save failed", f"{exc}\n\nYour game is still open. Try saving again.", parent=self.root)
+                return
             if not messagebox.askyesno("Save failed", f"{exc}\n\nQuit without saving this session?",
                                        parent=self.root):
                 return
         self.writer.shutdown()
+        if self.resize_timer is not None:
+            self.root.after_cancel(self.resize_timer)
+            self.resize_timer = None
+        self.root.after_cancel(self.tick_timer)
+        self.root.after_cancel(self.autosave_timer)
         if to_menu:
-            self.root.after_cancel(self.tick_timer)
-            self.root.after_cancel(self.autosave_timer)
             for event in ("<KeyPress>", "<KeyRelease>", "<FocusOut>", "<Control-m>"):
                 self.root.unbind(event)
             self.canvas.destroy()
@@ -595,12 +755,16 @@ class Game:
             self.menu_button.destroy()
             StartMenu(self.root, (self.storage, self.player))
         else:
+            self.music.stop()
             self.root.destroy()
 
     def key_down(self, event):
         if self.profile_window is not None:
             return
         key = event.keysym.lower()
+        if key == "f1":
+            self.open_settings()
+            return
         if self.casino_open:
             # Ignore key repeats, so holding E does not close the casino straight away.
             if key not in self.keys:
@@ -642,12 +806,18 @@ class Game:
         if not self.casino_open:
             dx = int("d" in self.keys or "right" in self.keys) - int("a" in self.keys or "left" in self.keys)
             dy = int("s" in self.keys or "down" in self.keys) - int("w" in self.keys or "up" in self.keys)
-            self.town.move(dx, dy, min(dt, 0.05))
+            move_time = min(dt, 0.25)
+            move_steps = max(1, math.ceil(move_time / 0.05))
+            for _ in range(move_steps):
+                self.town.move(dx, dy, move_time / move_steps)
         self.draw_live()
-        self.canvas.scale("live", 0, 0, self.display_scale, self.display_scale)
-        # Include rendering time in the frame budget instead of adding it to every frame.
-        remaining = FRAME_SECONDS - (time.monotonic() - now)
-        self.tick_timer = self.root.after(max(1, round(remaining * 1000)), self.tick)
+        self.canvas.scale("live", 0, 0, self.scale_x, self.scale_y)
+        # Pace against an absolute clock so timer jitter does not accumulate.
+        self.next_frame_time += FRAME_SECONDS
+        if now-self.next_frame_time > FRAME_SECONDS*4:
+            self.next_frame_time = now+FRAME_SECONDS
+        remaining = self.next_frame_time-time.monotonic()
+        self.tick_timer = self.root.after(max(1, int(remaining*1000)), self.tick)
 
     # ----- Casino -----
 
@@ -828,14 +998,138 @@ class Game:
         return wheel, (ball_angle, radius)
 
     def click(self, event):
-        x, y = event.x / self.display_scale, event.y / self.display_scale
+        x, y = event.x/self.scale_x, event.y/self.scale_y
         if self.casino_open:
             for left, top, right, bottom, action in self.casino_buttons:
                 if left <= x <= right and top <= y <= bottom:
                     action()
                     return
             return
+        if 1005 <= x <= 1105 and 19 <= y <= 77:
+            self.open_settings()
+            return
         self.click_profile(x, y)
+
+    def open_settings(self):
+        if self.profile_window is not None:
+            return
+        self.keys.clear()
+        panel = self.profile_window = tk.Toplevel(self.root)
+        panel.title("Foundry Town · Settings")
+        panel.transient(self.root)
+        panel.resizable(False, False)
+        frame = tk.Frame(panel, padx=22, pady=18)
+        frame.pack(fill="both", expand=True)
+
+        def close():
+            panel.destroy()
+            self.profile_window = None
+            self.root.focus_set()
+
+        traffic = tk.BooleanVar(value=self.traffic_enabled)
+        music_enabled = tk.BooleanVar(value=self.music.enabled)
+
+        def toggle_fullscreen():
+            enabled = not self.fullscreen_active()
+            self.set_fullscreen(enabled)
+            fullscreen_button.configure(text="Exit Fullscreen" if enabled else "Enter Fullscreen")
+
+        def set_traffic():
+            self.traffic_enabled = traffic.get()
+            state = "normal" if self.traffic_enabled else "hidden"
+            for body, window, *_ in self.traffic_items:
+                self.canvas.itemconfigure(body, state=state)
+                self.canvas.itemconfigure(window, state=state)
+
+        tk.Label(frame, text="SETTINGS", font=(FONT, 17, "bold")).pack(anchor="w", pady=(0, 10))
+        self.resolution_text = tk.StringVar(value=f"Display: {self.viewport_width} × {self.viewport_height}")
+        tk.Label(frame, textvariable=self.resolution_text, fg="#52636b").pack(anchor="w", pady=(0, 8))
+        fullscreen_button = tk.Button(
+            frame,
+            text="Exit Fullscreen" if self.fullscreen_active() else "Enter Fullscreen",
+            command=toggle_fullscreen,
+        )
+        fullscreen_button.pack(anchor="w", pady=3)
+        tk.Checkbutton(frame, text="Show moving town traffic", variable=traffic, command=set_traffic).pack(anchor="w", pady=3)
+        tk.Checkbutton(frame, text="Fado guitar background music", variable=music_enabled,
+                       command=lambda: self.music.set_enabled(music_enabled.get())).pack(anchor="w", pady=3)
+        tk.Label(frame, text="Saudade do Tejo · original instrumental", fg="#52636b").pack(anchor="w", pady=(2, 8))
+        tk.Label(frame, text="Daylight 3 minutes  ·  Night 2 minutes", fg="#52636b").pack(anchor="w", pady=(8, 14))
+        buttons = tk.Frame(frame)
+        buttons.pack(fill="x")
+        tk.Button(buttons, text="Rules & How to Play", command=lambda: (close(), show_rules(self.root))).pack(side="left")
+        tk.Button(buttons, text="Close", command=close).pack(side="right")
+        tk.Button(frame, text="Save and return to main menu", command=lambda: (close(), self.return_to_menu())).pack(fill="x", pady=(14, 0))
+        tk.Button(frame, text="Save and Close Game", command=lambda: (close(), self.save_and_close()),
+                  bg=INK, fg=WHITE, activebackground="#2c5360", activeforeground=WHITE,
+                  font=(FONT, 10, "bold"), pady=6).pack(fill="x", pady=(6, 0))
+        panel.bind("<Escape>", lambda event: close())
+        panel.protocol("WM_DELETE_WINDOW", close)
+        panel.grab_set()
+
+    def fullscreen_active(self):
+        value = self.root.attributes("-fullscreen")
+        return str(value).lower() in ("1", "true", "yes")
+
+    def set_fullscreen(self, enabled):
+        self.root.attributes("-fullscreen", enabled)
+        self.root.update_idletasks()
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        if enabled:
+            self.root.resizable(False, False)
+            width, height = screen_width, screen_height
+        else:
+            self.root.resizable(True, True)
+            width, height = round(screen_width*.85), round(screen_height*.85)
+            left = max(0, (screen_width - width) // 2)
+            top = max(0, (screen_height - height) // 2)
+            self.root.state("normal")
+            self.root.geometry(f"{width}x{height}+{left}+{top}")
+            self.root.update_idletasks()
+        self.resize_canvas(width, height)
+        if self.profile_window is not None and self.profile_window.winfo_exists():
+            self.root.after(100, self.center_settings_window)
+        self.next_frame_time = time.monotonic()
+
+    def on_canvas_resize(self, event):
+        if self.resize_timer is not None:
+            self.root.after_cancel(self.resize_timer)
+            self.resize_timer = None
+        if event.width < 320 or event.height < 240:
+            return
+        if (event.width, event.height) != (self.viewport_width, self.viewport_height):
+            self.resize_timer = self.root.after(120, lambda: self.resize_canvas(event.width, event.height))
+
+    def resize_canvas(self, width, height):
+        if self.resize_timer is not None:
+            self.root.after_cancel(self.resize_timer)
+            self.resize_timer = None
+        self.viewport_width, self.viewport_height = width, height
+        if hasattr(self, "resolution_text"):
+            self.resolution_text.set(f"Display: {width} × {height}")
+        self.scale_x, self.scale_y = width/WIDTH, height/HEIGHT
+        self.display_scale = min(self.scale_x, self.scale_y)
+        self.canvas.delete("all")
+        self.hud_label_items = {}
+        self.draw_city()
+        self.canvas.scale("all", 0, 0, self.scale_x, self.scale_y)
+        self.draw_live()
+        self.canvas.scale("live", 0, 0, self.scale_x, self.scale_y)
+
+    def center_settings_window(self):
+        panel = self.profile_window
+        if panel is None or not panel.winfo_exists():
+            return
+        panel.update_idletasks()
+        width, height = panel.winfo_width(), panel.winfo_height()
+        screen_width, screen_height = panel.winfo_screenwidth(), panel.winfo_screenheight()
+        left = self.root.winfo_rootx() + (self.root.winfo_width() - width) // 2
+        top = self.root.winfo_rooty() + (self.root.winfo_height() - height) // 2
+        left = min(max(0, left), max(0, screen_width - width))
+        top = min(max(0, top), max(0, screen_height - height))
+        panel.geometry(f"+{left}+{top}")
+        panel.lift()
 
     def click_profile(self, x, y):
         if not (PROFILE_X <= x <= PROFILE_X + 56 and 19 <= y <= 77) or self.profile_window is not None:
@@ -856,17 +1150,20 @@ class Game:
         town = self.town
         frame.columnconfigure(1, weight=1)
         tk.Label(frame, text="PROFIT & LOSS", font=(FONT, 16, "bold")).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
-        tk.Label(frame, text=f"Day {town.day} revenue  ${sum(town.revenue_today):,}").grid(row=1, column=0, columnspan=2, sticky="w")
+        tk.Label(frame, text=f"Day {town.day} revenue  ${sum(town.revenue_today) + town.tier2_revenue_today:,}").grid(row=1, column=0, columnspan=2, sticky="w")
         tk.Label(frame, text=f"Day {town.day} expenses  ${sum(town.expenses_today):,}").grid(row=2, column=0, columnspan=2, sticky="w")
         tk.Label(frame, text="District sales today").grid(row=3, column=0, columnspan=2, sticky="w", pady=(10, 3))
         districts = ("Metal", "Timber", "Clay", "Farm")
         for index, trade in enumerate(TRADES):
             tk.Label(frame, text=f"{districts[index]} · {trade.product} · {town.sales_today[index]} sold").grid(row=4 + index, column=0, sticky="w")
             tk.Label(frame, text=f"Revenue ${town.revenue_today[index]:,} · Costs ${town.expenses_today[index]:,}").grid(row=4 + index, column=1, sticky="e")
-        best = max(range(len(TRADES)), key=lambda index: town.total_sold[index])
-        tk.Label(frame, text=f"Top seller overall  {TRADES[best].product} · {town.total_sold[best]} sold").grid(row=8, column=0, columnspan=2, sticky="w", pady=(8, 4))
-        tk.Button(frame, text="Edit player profile", command=lambda: self.open_profile_editor(close)).grid(row=9, column=0, sticky="w", pady=(8, 0))
-        tk.Button(frame, text="Close", command=close).grid(row=9, column=1, sticky="e", pady=(8, 0))
+        totals = town.total_sold + [town.tier2_total_sold]
+        products = [trade.product for trade in TRADES] + ["Precision Machinery"]
+        best = max(range(len(totals)), key=lambda index: totals[index])
+        tk.Label(frame, text=f"Precision Works · {town.tier2_sales_today} sold · Revenue ${town.tier2_revenue_today:,}").grid(row=8, column=0, columnspan=2, sticky="w")
+        tk.Label(frame, text=f"Top seller overall  {products[best]} · {totals[best]} sold").grid(row=9, column=0, columnspan=2, sticky="w", pady=(8, 4))
+        tk.Button(frame, text="Edit player profile", command=lambda: self.open_profile_editor(close)).grid(row=10, column=0, sticky="w", pady=(8, 0))
+        tk.Button(frame, text="Close", command=close).grid(row=10, column=1, sticky="e", pady=(8, 0))
         panel.protocol("WM_DELETE_WINDOW", close)
 
     def open_profile_editor(self, close_analytics):
@@ -915,6 +1212,35 @@ class Game:
             font=(FONT, font_size, "bold" if bold else "normal"), tags=tag,
         )
 
+    def hud_label(self, key, x, y, value, size=11, color=WHITE, bold=False, anchor="w", visible=True):
+        item = self.hud_label_items.get(key)
+        state = "normal" if visible else "hidden"
+        style = (size, color, bold, anchor)
+        if item is None:
+            if IS_MAC:
+                font_size = -max(1, round(size * FONT_PIXELS_PER_POINT * self.display_scale))
+            else:
+                font_size = max(1, round(size * self.display_scale))
+            item = self.canvas.create_text(
+                x*self.scale_x, y*self.scale_y, text=value, fill=color, anchor=anchor,
+                font=(FONT, font_size, "bold" if bold else "normal"), state=state, tags="hud_cache",
+            )
+            self.hud_label_items[key] = (item, value, x, y, visible, style)
+        else:
+            item_id, old_value, old_x, old_y, old_visible, old_style = item
+            if old_value != value:
+                self.canvas.itemconfigure(item_id, text=value)
+            if (old_x, old_y) != (x, y):
+                self.canvas.coords(item_id, x*self.scale_x, y*self.scale_y)
+            if old_visible != visible:
+                self.canvas.itemconfigure(item_id, state=state)
+            if old_style != style:
+                font_size = (-max(1, round(size*FONT_PIXELS_PER_POINT*self.display_scale)) if IS_MAC
+                             else max(1, round(size*self.display_scale)))
+                self.canvas.itemconfigure(item_id, fill=color, anchor=anchor,
+                                          font=(FONT, font_size, "bold" if bold else "normal"))
+            self.hud_label_items[key] = (item_id, value, x, y, visible, style)
+
     def box(self, x1, y1, x2, y2, color, tag="city"):
         self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, width=0, tags=tag)
 
@@ -948,6 +1274,35 @@ class Game:
             self.draw_mesh(x, y, vertices, faces)
 
     def draw_city(self):
+        background = Path(__file__).parent / "assets" / f"lisbon_view_{self.viewport_width}x{self.viewport_height}.png"
+        if background.exists():
+            self.background_image = tk.PhotoImage(file=str(background))
+            self.canvas.create_image(0, 0, image=self.background_image, anchor="nw", tags="city")
+            self.scene = LisbonScene(self, SITES, draw=False)
+            self.scene.create_tram()
+        else:
+            self.scene = LisbonScene(self, SITES)
+        self.box(0, 0, WIDTH, MAP_TOP, INK)
+        self.label(24, 30, "FOUNDRY TOWN", 19, WHITE, True)
+        self.label(25, 62, "L I S B O A   /   TEJO EDITION", 8, GOLD, True)
+        self.box(0, 101, WIDTH, MAP_TOP, "#bfae86")
+        self.box(0, MAP_BOTTOM, WIDTH, HEIGHT, INK)
+        self.label(24, MAP_BOTTOM+73, "WASD / Arrows  Move     E  Interact     Q  Buy four     F1  Settings", 9, MUTED)
+        self.night_overlay = self.canvas.create_rectangle(
+            0, MAP_TOP, WIDTH, MAP_BOTTOM, fill="#172e45", stipple="gray25", outline="", state="hidden", tags="city"
+        )
+        self._night_visible = False
+        self.traffic_items = []
+        for offset, lane, speed, color in self.traffic:
+            state = "normal" if self.traffic_enabled else "hidden"
+            body = self.canvas.create_rectangle(0, lane, 23, lane+10, fill=color, outline="#465b5c", state=state, tags="traffic")
+            window = self.canvas.create_rectangle(4, lane+2, 10, lane+5, fill="#adc8cc", width=0, state=state, tags="traffic")
+            self.traffic_items.append((body, window, offset, lane, speed))
+        self.settings_button.configure(font=(FONT, max(9, round(11*self.display_scale)), "bold"))
+        self.canvas.create_window(1055, 48, window=self.settings_button,
+                                  width=max(90, 112*self.display_scale), height=max(32, 46*self.display_scale), tags="controls")
+
+    def draw_legacy_city(self):
         self.box(0, MAP_TOP, WIDTH, MAP_BOTTOM, "#2a4b43")
         for left, right in ((262, 365), (595, 698)):
             self.box(left, MAP_TOP, right, MAP_BOTTOM, "#586768")
@@ -979,6 +1334,14 @@ class Game:
         self.box(0, MAP_BOTTOM, WIDTH, HEIGHT, INK)
         self.box(0, MAP_BOTTOM, WIDTH, MAP_BOTTOM + 2, "#385159")
         self.label(24, MAP_BOTTOM + 73, "W A S D   Move       E   Interact       Q   Buy four at suppliers", 10, MUTED)
+        self.night_overlay = self.canvas.create_rectangle(
+            0, MAP_TOP, WIDTH, MAP_BOTTOM, fill="#15213d", stipple="gray50", outline="", state="hidden", tags="city"
+        )
+        self.traffic_items = []
+        for offset, lane, speed, color in self.traffic:
+            body = self.canvas.create_rectangle(0, lane, 23, lane + 10, fill=color, outline=INK, width=1, tags="traffic")
+            window = self.canvas.create_rectangle(4, lane + 2, 10, lane + 5, fill="#b9d7d7", width=0, tags="traffic")
+            self.traffic_items.append((body, window, offset, lane, speed))
 
     def draw_casino_district(self):
         """Pine groves and a car park around the casino."""
@@ -987,23 +1350,6 @@ class Game:
                                               (138, 32, .9), (166, 48, .8), (42, 70, .95),
                                               (84, 76, 1.0), (126, 72, .9), (160, 84, 1.0)):
                 self.draw_pine(992 + offset_x, top + offset_y, scale)
-        # Car park beside the casino.
-        left, top, right, bottom = 992, 568, 1168, 652
-        self.box(left, top, right, bottom, "#3b4448")
-        self.box(left, top, right, top + 3, "#e8455a")
-        for stall in range(7):
-            stall_x = left + 8 + stall * 25
-            self.box(stall_x, top + 10, stall_x + 2, top + 34, "#c9d2d4")
-            self.box(stall_x, bottom - 34, stall_x + 2, bottom - 10, "#c9d2d4")
-        for stall, color in ((0, "#d65655"), (2, "#86caff"), (3, "#ffc66c"), (5, "#80dab9")):
-            car_x = left + 14 + stall * 25
-            self.box(car_x, top + 13, car_x + 15, top + 33, color)
-            self.box(car_x + 3, top + 17, car_x + 12, top + 22, "#253842")
-        for stall, color in ((1, "#bea0ec"), (4, "#e6e9df")):
-            car_x = left + 14 + stall * 25
-            self.box(car_x, bottom - 33, car_x + 15, bottom - 13, color)
-            self.box(car_x + 3, bottom - 22, car_x + 12, bottom - 17, "#253842")
-        self.label(left + 88, bottom + 10, "CASINO PARKING", 7, MUTED, True, anchor="center")
 
     def draw_casino(self, site):
         x, y, right, bottom = site.bounds
@@ -1015,8 +1361,15 @@ class Game:
         # The sign on the roof, with marquee bulbs that blink in draw_live.
         self.box(x + 46, y + 3, right - 46, y + 21, "#120a12")
         self.label(door_x, y + 12, "CASINO", 10, GOLD, True, anchor="center")
-        self.casino_bulbs = [(bulb_x, bulb_y) for bulb_x in range(x + 48, right - 45, 6)
-                             for bulb_y in (y + 1, y + 23)]
+        self.casino_bulbs = []
+        self.casino_light_frame = -1
+        for index, (bulb_x, bulb_y) in enumerate(
+            (position for bulb_x in range(x + 48, right - 45, 6)
+             for position in ((bulb_x, y + 1), (bulb_x, y + 23)))
+        ):
+            item = self.canvas.create_oval(bulb_x - 1.6, bulb_y - 1.6, bulb_x + 1.6, bulb_y + 1.6,
+                                           fill="#7a5520", width=0, tags="city")
+            self.casino_bulbs.append((item, index))
         self.box(x + 8, y + 30, right - 8, y + 81, "#1d0f1c")
         self.box(x + 8, y + 30, right - 8, y + 33, site.color)
         for left in (x + 14, right - 52):
@@ -1062,6 +1415,20 @@ class Game:
             self.box(door_x - 15, bottom, door_x + 15, bottom + 6, site.color)
             self.label(x + 13, y + 39, "STORAGE", 8, site.color, True)
             self.label(x + 13, y + 53, site.name, 11, WHITE, True)
+            return
+        if site.role == "TIER2":
+            self.box(x + 5, y + 7, right + 5, bottom + 6, "#1a322d")
+            self.canvas.create_polygon(x, y+24, x+22, y+2, right-22, y+2, right, y+24, fill="#6b4c31")
+            self.box(x, y + 24, right, bottom, "#55432e")
+            self.box(x + 8, y + 27, right - 8, y + 31, site.color)
+            for furnace_x in (x + 24, x + 76, x + 128):
+                self.box(furnace_x, y + 48, furnace_x + 24, y + 79, "#282a2a")
+                self.box(furnace_x + 5, y + 56, furnace_x + 19, y + 73, "#e08143")
+                self.box(furnace_x + 8, y + 60, furnace_x + 16, y + 72, "#ffc66c")
+            self.box(door_x - 17, bottom - 25, door_x + 17, bottom, "#302a21")
+            self.box(door_x - 15, bottom, door_x + 15, bottom + 6, site.color)
+            self.label(x + 13, y + 39, "TIER 2 FACTORY", 8, site.color, True)
+            self.label(x + 13, y + 54, site.name, 11, WHITE, True)
             return
         if site.role == "SUPPLIER":
             self.draw_supplier(site)
@@ -1305,10 +1672,12 @@ class Game:
 
     def draw_casino_lights(self):
         frame = int(time.monotonic() * 5)
-        for index, (bulb_x, bulb_y) in enumerate(self.casino_bulbs):
+        if frame == self.casino_light_frame:
+            return
+        self.casino_light_frame = frame
+        for item, index in self.casino_bulbs:
             color = GOLD if (index // 2 + frame) % 3 == 0 else "#7a5520"
-            self.canvas.create_oval(bulb_x - 1.6, bulb_y - 1.6, bulb_x + 1.6, bulb_y + 1.6,
-                                    fill=color, width=0, tags="live")
+            self.canvas.itemconfigure(item, fill=color)
 
     def draw_casino_screen(self):
         canvas, town = self.canvas, self.town
@@ -1419,46 +1788,58 @@ class Game:
     def draw_live(self):
         canvas, town = self.canvas, self.town
         canvas.delete("live")
+        phase = town.market_elapsed % DAY_SECONDS
+        is_daytime = phase < DAYLIGHT_SECONDS
+        phase_length = DAYLIGHT_SECONDS if is_daytime else NIGHT_SECONDS
+        phase_elapsed = phase if is_daytime else phase - DAYLIGHT_SECONDS
+        phase_fraction = phase_elapsed / phase_length
+        if self._night_visible == is_daytime:
+            self._night_visible = not is_daytime
+            canvas.itemconfigure(self.night_overlay, state="normal" if self._night_visible else "hidden")
         nearby = town.nearby()
-        self.label(308, 30, f"DAY {town.day:02}", 14, WHITE, True, tag="live")
-        day_fraction = (town.market_elapsed % DAY_SECONDS) / DAY_SECONDS
+        self.hud_label("day", 308, 30, f"DAY {town.day:02}", 14, WHITE, True)
         self.box(308, 52, 412, 59, "#304851", "live")
-        self.box(308, 52, 308 + 104 * day_fraction, 59, MINT, "live")
-        minutes_left = math.ceil(DAY_SECONDS * (1 - day_fraction) / 60)
-        hours, minutes = divmod(minutes_left, 60)
-        self.label(308, 77, f"{hours}h {minutes:02}m left", 9, MUTED, tag="live")
-        self.label(451, 30, f"CASH  ${town.cash:,}", 14, GOLD, True, tag="live")
+        self.box(308, 52, 308 + 104 * phase_fraction, 59, GOLD if not is_daytime else MINT, "live")
+        seconds_left = max(0, math.ceil(phase_length - phase_elapsed))
+        minutes, seconds = divmod(seconds_left, 60)
+        phase_name = "DAY" if is_daytime else "NIGHT"
+        self.hud_label("phase", 308, 77, f"{phase_name} · {minutes}:{seconds:02} left", 9, MUTED)
+        self.hud_label("cash", 451, 30, f"CASH  ${town.cash:,}", 14, GOLD, True)
         self.box(451, 52, 631, 59, "#304851", "live")
         self.box(451, 52, 451 + 180 * min(town.cash / CASH_GOAL, 1), 59, GOLD, "live")
         goal_text = "GOAL REACHED" if town.won else f"${CASH_GOAL} GOAL"
-        self.label(451, 77, goal_text, 9, MUTED, tag="live")
+        self.hud_label("goal", 451, 77, goal_text, 9, MUTED)
         reserved = f"   +{town.reserved} at factory" if town.reserved else ""
-        self.label(673, 25, f"BAG  {town.cargo}/{town.bag_size}{reserved}", 12, WHITE, True, tag="live")
+        self.hud_label("bag", 673, 25, f"BAG  {town.cargo}/{town.bag_size}{reserved}", 12, WHITE, True)
         supplies = "  ".join(f"{name} {quantity}" for name, quantity in zip(("Ore", "Wood", "Clay", "Wheat"), town.supplies))
         goods = "  ".join(f"{name} {quantity}" for name, quantity in zip(("Tools", "Furn.", "Pots", "Bread"), town.goods))
-        self.label(673, 51, supplies, 9, MUTED, tag="live")
-        self.label(673, 74, goods, 9, MUTED, tag="live")
+        self.hud_label("supplies", 673, 51, supplies, 9, MUTED)
+        self.hud_label("goods", 673, 74, goods, 9, MUTED)
         self.box(PROFILE_X, 19, PROFILE_X + 56, 77, "#304851", "live")
         canvas.create_oval(PROFILE_X + 19, 28, PROFILE_X + 37, 46, fill=GOLD, width=0, tags="live")
         canvas.create_oval(PROFILE_X + 12, 46, PROFILE_X + 44, 65, fill=GOLD, width=0, tags="live")
         for site in SITES:
-            status_y = 34 if site.role == "SUPPLIER" else 72
-            self.label(site.x + 12, site.y + status_y, town.site_status(site), 10, MUTED, tag="live")
+            self.hud_label(f"site-{site.name}", site.x + 8, site.y + 123,
+                           town.site_status(site), 7, "#385360")
             if site == nearby:
                 x, y, right, bottom = site.bounds
                 canvas.create_rectangle(x-2, y-2, right+2, bottom+2, outline=GOLD, width=2, tags="live")
-        self.draw_mine_cart()
-        self.draw_casino_lights()
-        for offset, lane, speed, color in self.traffic:
+        self.scene.animate(town.elapsed)
+        for body, window, offset, lane, speed in self.traffic_items:
             x = (offset * WIDTH + town.elapsed * speed) % (WIDTH + 50) - 25
-            canvas.create_rectangle(x, lane, x + 23, lane + 10, fill=color, outline=INK, width=1, tags="live")
-            canvas.create_rectangle(x + 4, lane + 2, x + 10, lane + 5, fill="#b9d7d7", width=0, tags="live")
+            canvas.coords(body, x*self.scale_x, lane*self.scale_y,
+                          (x+23)*self.scale_x, (lane+10)*self.scale_y)
+            canvas.coords(window, (x+4)*self.scale_x, (lane+2)*self.scale_y,
+                          (x+10)*self.scale_x, (lane+5)*self.scale_y)
         if town.power_up is not None:
             name, symbol, color, power_x, power_y = POWER_UPS[town.power_up]
             canvas.create_oval(power_x-16, power_y-16, power_x+16, power_y+16,
                                fill=INK, outline=color, width=3, tags="live")
-            self.label(power_x, power_y, symbol, 15, color, True, anchor="center", tag="live")
-            self.label(power_x, power_y-24, name, 10, WHITE, True, anchor="center", tag="live")
+            self.hud_label("power-symbol", power_x, power_y, symbol, 15, color, True, "center")
+            self.hud_label("power-name", power_x, power_y-24, name, 10, WHITE, True, "center")
+        else:
+            self.hud_label("power-symbol", 0, 0, "", visible=False)
+            self.hud_label("power-name", 0, 0, "", visible=False)
         x, y = town.x, town.y
         if town.vehicle:
             wheel_radius = 5 if town.vehicle == "motorcycle" else 7
@@ -1471,48 +1852,37 @@ class Game:
                                     outline=INK, tags="live")
         if town.elapsed < town.speed_until:
             canvas.create_oval(x-14, y-14, x+14, y+14, outline="#86caff", width=2, tags="live")
-        profile = town.profile
-        outfit, accessory = COSTUMES[profile["costume"]]
-        canvas.create_oval(x-11, y+4, x+11, y+12, fill="#1d3330", width=0, tags="live")
-        canvas.create_oval(x-9, y-4, x+9, y+9, fill=outfit, outline=INK, width=2, tags="live")
-        canvas.create_oval(x-7, y-13, x+7, y, fill=BODY_COLORS[profile["body"]], outline=INK, width=2, tags="live")
-        self.box(x-7, y-13, x+7, y-8, HAIR_COLORS[profile["hair"]], "live")
-        self.box(x-8, y-16, x+8, y-13, accessory, "live")
-        self.box(x-3, y+3, x+3, y+6, accessory, "live")
-        if profile["costume"] == "Chef":
-            canvas.create_oval(x-6, y-22, x+6, y-14, fill=accessory, width=0, tags="live")
-        elif profile["costume"] == "Explorer":
-            self.box(x-11, y-15, x+11, y-12, accessory, "live")
-        elif profile["costume"] == "Racer":
-            self.box(x-8, y-2, x+8, y+1, accessory, "live")
-        elif profile["costume"] == "Astronaut":
-            canvas.create_oval(x-9, y-17, x+9, y+1, outline=accessory, width=2, tags="live")
-        elif profile["costume"] == "Wizard":
-            self.box(x-4, y-19, x+4, y-15, accessory, "live")
-            self.box(x-2, y-22, x+2, y-18, accessory, "live")
-        eye_x = x + 3 * town.facing
-        self.box(eye_x, y-6, eye_x+2, y-4, INK, "live")
-        self.label(24, MAP_BOTTOM + 23, town.message, 11, WHITE, True, tag="live")
+        moving = bool(self.keys.intersection({"w", "a", "s", "d", "up", "down", "left", "right"}))
+        draw_character(canvas, town.profile, BODY_COLORS, HAIR_COLORS, COSTUMES,
+                       x, y, town.elapsed, moving, town.facing, tag=("live", "avatar"))
+        canvas.scale("avatar", x, y, self.display_scale/self.scale_x, self.display_scale/self.scale_y)
+        self.hud_label("message", 24, MAP_BOTTOM + 23, town.message, 11, WHITE, True)
         hint = f"{nearby.name}   ·   {town.action_hint(nearby)}" if nearby else "Follow the colored doorsteps to interact with businesses."
-        self.label(24, MAP_BOTTOM + 46, hint, 10, GOLD if nearby else MUTED, tag="live")
+        self.hud_label("hint", 24, MAP_BOTTOM + 46, hint, 10, GOLD if nearby else MUTED)
         if town.elapsed < town.speed_until:
             power_status = f"Speed boost  ·  {math.ceil(town.speed_until-town.elapsed)}s"
         elif town.power_up is not None:
             power_status = "Power-up on the map"
         else:
             power_status = f"Next power-up in {math.ceil(POWER_INTERVAL-town.elapsed % POWER_INTERVAL)}s"
-        self.label(WIDTH - 24, MAP_BOTTOM + 73, power_status, 10, MINT, anchor="e", tag="live")
+        self.hud_label("power-status", WIDTH - 24, MAP_BOTTOM + 73, power_status, 10, MINT, anchor="e")
         if town.market_event:
             title, effects = town.market_event
             self.box(WIDTH // 2 - 243, 107, WIDTH // 2 + 243, 146, INK, "live")
             self.box(WIDTH // 2 - 243, 107, WIDTH // 2 + 243, 109, GOLD, "live")
-            self.label(WIDTH // 2, 119, f"MARKET EVENT  ·  {title}", 10, GOLD, True, anchor="center", tag="live")
-            self.label(WIDTH // 2, 135, effects, 9, WHITE, anchor="center", tag="live")
+            self.hud_label("market-title", WIDTH // 2, 119, f"MARKET EVENT  ·  {title}", 10, GOLD, True, "center")
+            self.hud_label("market-effects", WIDTH // 2, 135, effects, 9, WHITE, anchor="center")
+        else:
+            self.hud_label("market-title", 0, 0, "", visible=False)
+            self.hud_label("market-effects", 0, 0, "", visible=False)
         if town.elapsed < town.notice_until:
             offset = 42 if town.market_event else 0
             self.box(WIDTH // 2 - 286, 106+offset, WIDTH // 2 + 286, 144+offset, INK, "live")
             self.box(WIDTH // 2 - 286, 106+offset, WIDTH // 2 + 286, 109+offset, GOLD, "live")
-            self.label(WIDTH // 2, 126+offset, town.notice, 11, GOLD, True, anchor="center", tag="live")
+            self.hud_label("notice", WIDTH // 2, 126+offset, town.notice, 11, GOLD, True, "center")
+        else:
+            self.hud_label("notice", 0, 0, "", visible=False)
+        canvas.tag_raise("hud_cache")
         if self.casino_open:
             self.draw_casino_screen()
 
@@ -1525,22 +1895,53 @@ class StartMenu:
         self.connection = connection
         self.session = None
         self.worker = ThreadPoolExecutor(max_workers=1)
-        root.title("Foundry Town")
+        self.music = music_for(root)
+        root.title("Foundry Town | Lisboa")
         root.configure(bg=INK)
+        root.attributes("-fullscreen", True)
+        root.resizable(False, False)
         root.protocol("WM_DELETE_WINDOW", self.close)
-        self.frame = tk.Frame(root, bg=INK, padx=48, pady=32)
-        self.frame.pack()
+        self.frame = tk.Frame(root, bg=INK, padx=48, pady=28)
+        self.frame.pack(expand=True)
         tk.Label(self.frame, text="FOUNDRY TOWN", font=(FONT, 24, "bold"),
                  bg=INK, fg=GOLD).pack(pady=12)
-        tk.Label(self.frame, text="Buy supplies. Make goods. Build your fortune.",
+        tk.Label(self.frame, text="LISBOA · Build your fortune along the Tejo.",
                  bg=INK, fg=WHITE).pack(pady=8)
         self.status = tk.StringVar(value="Loading your save…")
         tk.Label(self.frame, textvariable=self.status, bg=INK, fg=MINT,
                  wraplength=440).pack(pady=12)
+        tk.Label(self.frame, text="CREATE YOUR CHARACTER", font=(FONT, 14, "bold"),
+                 bg=INK, fg=WHITE).pack(anchor="w", pady=(4, 8))
+        self.character_vars = {
+            "name": tk.StringVar(root, "Player"),
+            "body": tk.StringVar(root, "Peach"),
+            "hair": tk.StringVar(root, "Chestnut"),
+            "costume": tk.StringVar(root, "Builder"),
+        }
+        character_frame = tk.Frame(self.frame, bg=INK)
+        character_frame.pack(fill="x", pady=(0, 8))
+        self.preview = tk.Canvas(character_frame, width=100, height=116, bg="#20343c", highlightthickness=0)
+        self.preview.pack(side="right", padx=(22, 0), pady=4)
+        options = tk.Frame(character_frame, bg=INK)
+        options.pack(side="left", fill="x", expand=True)
+        tk.Label(options, text="Name", bg=INK, fg=WHITE).grid(row=0, column=0, sticky="w", pady=3)
+        tk.Entry(options, textvariable=self.character_vars["name"], width=24).grid(row=0, column=1, sticky="ew", pady=3)
+        for row, (key, label, choices) in enumerate((
+            ("body", "Skin", BODY_COLORS), ("hair", "Hair", HAIR_COLORS), ("costume", "Outfit", COSTUMES),
+        ), start=1):
+            tk.Label(options, text=label, bg=INK, fg=WHITE).grid(row=row, column=0, sticky="w", pady=3)
+            tk.OptionMenu(options, self.character_vars[key], *choices).grid(row=row, column=1, sticky="ew", pady=3)
+        options.columnconfigure(1, weight=1)
+        for variable in self.character_vars.values():
+            variable.trace_add("write", lambda *_: self.draw_character_preview())
+        self.draw_character_preview()
         self.new_button = tk.Button(self.frame, text="New Game", command=self.new_game, state="disabled")
         self.new_button.pack(fill="x", pady=4)
         self.continue_button = tk.Button(self.frame, text="Continue", command=self.continue_game, state="disabled")
         self.continue_button.pack(fill="x", pady=4)
+        self.rules_button = tk.Button(self.frame, text="Rules & How to Play", command=lambda: show_rules(self.root))
+        self.rules_button.pack(fill="x", pady=4)
+        tk.Button(self.frame, text="Quit", command=self.close).pack(fill="x", pady=(10, 4))
         self.future = self.worker.submit(self.load, connection)
         self.poll_timer = root.after(50, self.poll)
 
@@ -1564,6 +1965,10 @@ class StartMenu:
         storage, _, _, saved = self.session
         location = "Online save" if isinstance(storage, RemoteSaves) else "Saved on this computer"
         self.status.set(f"{location} · ${saved['state']['cash']:,}" if saved else f"{location} · No game yet")
+        if saved is not None:
+            for key, value in saved["state"].get("profile", {}).items():
+                if key in self.character_vars:
+                    self.character_vars[key].set(value)
         self.new_button.configure(state="normal")
         self.continue_button.configure(state="normal" if saved else "disabled")
 
@@ -1581,15 +1986,29 @@ class StartMenu:
     def start(self, session):
         self.worker.shutdown(wait=False)
         self.frame.destroy()
-        Game(self.root, session)
+        Game(self.root, session, self.character_values())
+
+    def character_values(self):
+        return {key: variable.get() for key, variable in self.character_vars.items()}
+
+    def draw_character_preview(self):
+        if not hasattr(self, "preview") or not self.preview.winfo_exists():
+            return
+        preview = self.preview
+        preview.delete("all")
+        profile = self.character_values()
+        draw_character(preview, profile, BODY_COLORS, HAIR_COLORS, COSTUMES, 25, 40, tag="preview")
+        preview.scale("all", 0, 0, 2, 2)
 
     def close(self):
         self.root.after_cancel(self.poll_timer)
         self.worker.shutdown(wait=False)
+        self.music.stop()
         self.root.destroy()
 
 
 if __name__ == "__main__":
+    configure_display_dpi()
     window = tk.Tk()
     try:
         StartMenu(window)
