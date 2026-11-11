@@ -4,6 +4,7 @@ from copy import deepcopy
 from dataclasses import asdict, dataclass
 import math
 from pathlib import Path
+import random
 import sys
 import time
 import tkinter as tk
@@ -12,7 +13,7 @@ from tkinter import messagebox
 from saves import SaveConflict, desktop_storage
 
 
-WIDTH = 960
+WIDTH = 1200
 MAP_TOP, MAP_BOTTOM = 104, 940
 HEIGHT = MAP_BOTTOM + 95
 DAY_SECONDS = 24 * 60 * 60
@@ -68,6 +69,29 @@ MARKET_EVENTS = (
     ("Harvest festival", 3, -1, 4, 6),
 )
 
+# A European roulette wheel: the 37 pockets in their real order, clockwise from 0.
+ROULETTE_POCKETS = (
+    0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10,
+    5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26,
+)
+RED_NUMBERS = frozenset((1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36))
+# Money returned for each $1 staked, including the stake, when the bet wins.
+ROULETTE_PAYOUTS = {"red": 2, "black": 2, "green": 36}
+CHIPS = (5, 10, 25, 50, 100)
+SPIN_SECONDS = 4.5
+# Casino screen layout, in map pixels. The ball circles the rim, then drops into a pocket.
+CASINO_CENTER = (WIDTH // 2, 380)
+CASINO_TRACK_RADIUS = 172
+CASINO_POCKET_RADIUS = 122
+PROFILE_X = WIDTH - 80
+POCKET_COLORS = {"red": "#c8313c", "black": "#1b1d22", "green": "#1f8a4c"}
+
+
+def roulette_color(number):
+    if number == 0:
+        return "green"
+    return "red" if number in RED_NUMBERS else "black"
+
 
 def market_start():
     marker = Path(__file__).with_name(".foundry-market-start")
@@ -113,6 +137,8 @@ SITES = (
     Site("Goldenfield Farm", "SUPPLIER", 3, 60, 748, "#e3c77e"),
     Site("Sunrise Bakery", "FACTORY", 3, 392, 748, "#ebbe83"),
     Site("Daily Bread Market", "PUBLIC SHOP", 3, 724, 748, "#f3ca85"),
+    # The casino has no trade route, so its trade index is unused.
+    Site("Foundry Casino", "CASINO", -1, 992, 362, "#e8455a"),
 )
 
 
@@ -262,6 +288,9 @@ class Town:
         if site is None:
             self.message = "Walk up to a marked entrance to trade."
             return
+        if site.role == "CASINO":
+            self.message = "Welcome to the Foundry Casino. Place your bets!"
+            return
         index = site.trade
         trade = TRADES[index]
         space = self.bag_size - self.cargo
@@ -316,7 +345,22 @@ class Town:
             self.congratulate(quantity, trade.product.lower())
             self.add_cash(revenue)
 
+    def bet_roulette(self, choice, stake, number):
+        """Take a stake on red, black, or green and return the payout for `number`.
+
+        The stake leaves the player's cash now. The caller adds the payout once the
+        ball has landed, so the cash display does not give the result away early.
+        """
+        if choice not in ROULETTE_PAYOUTS:
+            raise ValueError(f"Unknown roulette bet: {choice}")
+        if not 0 < stake <= self.cash:
+            return None
+        self.cash -= stake
+        return stake * ROULETTE_PAYOUTS[choice] if roulette_color(number) == choice else 0
+
     def site_status(self, site):
+        if site.role == "CASINO":
+            return "Roulette  ·  Win up to 36×"
         index = site.trade
         trade = TRADES[index]
         if site.role == "SUPPLIER":
@@ -331,6 +375,8 @@ class Town:
         return f"In production  ·  {math.ceil(order.ready_at - self.elapsed)}s"
 
     def action_hint(self, site):
+        if site.role == "CASINO":
+            return "E  Play roulette"
         if site.role == "SUPPLIER":
             return "E  Buy one    •    Q  Buy up to four"
         if site.role == "PUBLIC SHOP":
@@ -380,6 +426,16 @@ class Game:
         root.after(10000, self.autosave)
         self.keys = set()
         self.profile_window = None
+        # Casino state lives only in this session, so old saves still load.
+        self.casino_open = False
+        self.chip_index = 1
+        self.wheel_angle = 0.0
+        self.ball_pocket = None
+        self.spin = None
+        self.roulette_history = []
+        self.casino_result = ("Pick a chip, then bet on a color.", WHITE)
+        self.casino_buttons = []
+        self.casino_bulbs = []
         self.last_tick = time.monotonic()
         root.title("Foundry Town | Business Tycoon")
         root.configure(bg=INK)
@@ -402,7 +458,7 @@ class Game:
         root.bind("<KeyPress>", self.key_down)
         root.bind("<KeyRelease>", self.key_up)
         root.bind("<FocusOut>", lambda event: self.keys.clear())
-        self.canvas.bind("<Button-1>", self.click_profile)
+        self.canvas.bind("<Button-1>", self.click)
         self.draw_city()
         self.canvas.scale("all", 0, 0, self.display_scale, self.display_scale)
         if IS_MAC:
@@ -440,6 +496,8 @@ class Game:
             self.root.after(200, self.autosave)
 
     def close(self):
+        # Pay out a spin that is still running so quitting never loses a win.
+        self.settle_spin()
         try:
             if self.pending_save is not None:
                 pending, self.pending_save = self.pending_save, None
@@ -460,8 +518,18 @@ class Game:
         if self.profile_window is not None:
             return
         key = event.keysym.lower()
+        if self.casino_open:
+            # Ignore key repeats, so holding E does not close the casino straight away.
+            if key not in self.keys:
+                self.casino_key(key)
+            self.keys.add(key)
+            return
         if key not in self.keys and key in ("e", "q"):
-            if key == "e" or (self.town.nearby() and self.town.nearby().role == "SUPPLIER"):
+            nearby = self.town.nearby()
+            if key == "e" and nearby is not None and nearby.role == "CASINO":
+                self.open_casino()
+                return
+            if key == "e" or (nearby and nearby.role == "SUPPLIER"):
                 self.town.interact(bulk=(key == "q"))
         self.keys.add(key)
 
@@ -473,18 +541,113 @@ class Game:
         dt = now - self.last_tick
         self.last_tick = now
         self.town.sync_market(time.time() - self.market_started_at)
-        if self.profile_window is None and self.root.focus_displayof() is not None:
+        if self.spin is not None and now - self.spin["start"] >= SPIN_SECONDS:
+            self.settle_spin()
+        paused = self.profile_window is not None or self.casino_open
+        if not paused and self.root.focus_displayof() is not None:
             self.town.advance(dt)
-        dx = int("d" in self.keys or "right" in self.keys) - int("a" in self.keys or "left" in self.keys)
-        dy = int("s" in self.keys or "down" in self.keys) - int("w" in self.keys or "up" in self.keys)
-        self.town.move(dx, dy, min(dt, 0.05))
+        if not self.casino_open:
+            dx = int("d" in self.keys or "right" in self.keys) - int("a" in self.keys or "left" in self.keys)
+            dy = int("s" in self.keys or "down" in self.keys) - int("w" in self.keys or "up" in self.keys)
+            self.town.move(dx, dy, min(dt, 0.05))
         self.draw_live()
         self.canvas.scale("live", 0, 0, self.display_scale, self.display_scale)
         self.root.after(25, self.tick)
 
-    def click_profile(self, event):
+    # ----- Casino -----
+
+    def open_casino(self):
+        # E is still held down. Recording it stops its key repeats from closing the casino.
+        self.keys = {"e"}
+        self.casino_open = True
+        self.town.interact()
+
+    def close_casino(self):
+        # Held keys stay recorded until released, so a held E does not reopen the casino.
+        self.settle_spin()
+        self.casino_open = False
+        self.town.message = "Thanks for visiting the Foundry Casino."
+
+    def casino_key(self, key):
+        if key in ("escape", "e"):
+            self.close_casino()
+        elif key in ("r", "b", "g"):
+            self.spin_wheel({"r": "red", "b": "black", "g": "green"}[key])
+        elif key in ("left", "a"):
+            self.chip_index = max(0, self.chip_index - 1)
+        elif key in ("right", "d"):
+            self.chip_index = min(len(CHIPS) - 1, self.chip_index + 1)
+        elif key in ("1", "2", "3", "4", "5"):
+            self.chip_index = int(key) - 1
+
+    def spin_wheel(self, choice):
+        if self.spin is not None:
+            return
+        stake = CHIPS[self.chip_index]
+        pocket = random.randrange(len(ROULETTE_POCKETS))
+        number = ROULETTE_POCKETS[pocket]
+        payout = self.town.bet_roulette(choice, stake, number)
+        if payout is None:
+            self.casino_result = (f"You need ${stake} in cash for that chip.", GOLD)
+            return
+        self.spin = {
+            "start": time.monotonic(), "choice": choice, "stake": stake,
+            "pocket": pocket, "number": number, "payout": payout,
+            "wheel_from": self.wheel_angle,
+            "wheel_to": self.wheel_angle + math.tau * (2.5 + random.random()),
+        }
+        self.casino_result = (f"${stake} on {choice.upper()}  ·  No more bets!", WHITE)
+
+    def settle_spin(self):
+        spin, self.spin = self.spin, None
+        if spin is None:
+            return
+        self.wheel_angle = spin["wheel_to"] % math.tau
+        self.ball_pocket = spin["pocket"]
+        number, color = spin["number"], roulette_color(spin["number"])
+        self.roulette_history = ([number] + self.roulette_history)[:12]
+        landed = f"{number} {color.upper()}"
+        if spin["payout"]:
+            self.town.add_cash(spin["payout"])
+            profit = spin["payout"] - spin["stake"]
+            self.casino_result = (f"{landed}  ·  You win ${profit}!", MINT)
+            self.town.message = f"Roulette: {landed}. You won ${profit}."
+        else:
+            self.casino_result = (f"{landed}  ·  You lose ${spin['stake']}.", "#ff8a8a")
+            self.town.message = f"Roulette: {landed}. You lost ${spin['stake']}."
+
+    def wheel_state(self):
+        """Wheel angle, ball angle, and ball radius right now, in wheel units."""
+        seg = math.tau / len(ROULETTE_POCKETS)
+        spin = self.spin
+        if spin is None:
+            ball = None
+            if self.ball_pocket is not None:
+                ball = (self.wheel_angle + self.ball_pocket * seg, CASINO_POCKET_RADIUS)
+            return self.wheel_angle, ball
+        progress = min(1, (time.monotonic() - spin["start"]) / SPIN_SECONDS)
+        # The wheel slows down evenly and stops when the spin ends.
+        wheel = spin["wheel_from"] + (spin["wheel_to"] - spin["wheel_from"]) * (1 - (1 - progress) ** 2)
+        # The ball runs the other way and slows down to finish in its pocket.
+        ball_angle = spin["wheel_to"] + spin["pocket"] * seg + math.tau * 6 * (1 - progress) ** 2
+        drop = min(1, max(0, (progress - .6) / .3))
+        drop = drop * drop * (3 - 2 * drop)
+        bounce = 6 * abs(math.sin(progress * 38)) * (1 - progress) if .6 < progress < .95 else 0
+        radius = CASINO_TRACK_RADIUS - (CASINO_TRACK_RADIUS - CASINO_POCKET_RADIUS) * drop + bounce
+        return wheel, (ball_angle, radius)
+
+    def click(self, event):
         x, y = event.x / self.display_scale, event.y / self.display_scale
-        if not (880 <= x <= 936 and 19 <= y <= 77) or self.profile_window is not None:
+        if self.casino_open:
+            for left, top, right, bottom, action in self.casino_buttons:
+                if left <= x <= right and top <= y <= bottom:
+                    action()
+                    return
+            return
+        self.click_profile(x, y)
+
+    def click_profile(self, x, y):
+        if not (PROFILE_X <= x <= PROFILE_X + 56 and 19 <= y <= 77) or self.profile_window is not None:
             return
         self.keys.clear()
         panel = self.profile_window = tk.Toplevel(self.root)
@@ -576,13 +739,15 @@ class Game:
             for x in range(14, WIDTH, 32):
                 self.box(x, y + 30, x + 15, y + 32, "#657273")
         for y in (137, 375, 568, 761, 929):
-            for x in (23, 249, 378, 580, 708, 934):
+            for x in (23, 249, 378, 580, 708, 934, 1180):
                 self.canvas.create_oval(x-10, y-7, x+12, y+10, fill="#203a34", width=0)
                 self.canvas.create_oval(x-10, y-12, x+9, y+6, fill="#41775b", width=0)
                 self.canvas.create_oval(x-6, y-11, x+5, y, fill="#53956d", width=0)
-        for name, y in (("01   METAL DISTRICT", 131), ("02   TIMBER DISTRICT", 352),
-                        ("03   CLAY DISTRICT", 545), ("04   FARM DISTRICT", 738)):
-            self.label(60, y, name, 10, "#bee2c4", True)
+        for name, x, y in (("01   METAL DISTRICT", 60, 131), ("02   TIMBER DISTRICT", 60, 352),
+                           ("03   CLAY DISTRICT", 60, 545), ("04   FARM DISTRICT", 60, 738),
+                           ("05   CASINO DISTRICT", 992, 352)):
+            self.label(x, y, name, 10, "#bee2c4", True)
+        self.draw_casino_district()
         for site in SITES:
             self.draw_site(site)
         self.box(0, 0, WIDTH, MAP_TOP, INK)
@@ -593,9 +758,65 @@ class Game:
         self.box(0, MAP_BOTTOM, WIDTH, MAP_BOTTOM + 2, "#385159")
         self.label(24, MAP_BOTTOM + 73, "W A S D   Move       E   Interact       Q   Buy four at suppliers", 10, MUTED)
 
+    def draw_casino_district(self):
+        """Pine groves and a car park around the casino."""
+        for top in (170, 765):
+            for offset_x, offset_y, scale in ((22, 40, 1.0), (60, 30, .85), (98, 44, 1.05),
+                                              (138, 32, .9), (166, 48, .8), (42, 70, .95),
+                                              (84, 76, 1.0), (126, 72, .9), (160, 84, 1.0)):
+                self.draw_pine(992 + offset_x, top + offset_y, scale)
+        # Car park beside the casino.
+        left, top, right, bottom = 992, 568, 1168, 652
+        self.box(left, top, right, bottom, "#3b4448")
+        self.box(left, top, right, top + 3, "#e8455a")
+        for stall in range(7):
+            stall_x = left + 8 + stall * 25
+            self.box(stall_x, top + 10, stall_x + 2, top + 34, "#c9d2d4")
+            self.box(stall_x, bottom - 34, stall_x + 2, bottom - 10, "#c9d2d4")
+        for stall, color in ((0, "#d65655"), (2, "#86caff"), (3, "#ffc66c"), (5, "#80dab9")):
+            car_x = left + 14 + stall * 25
+            self.box(car_x, top + 13, car_x + 15, top + 33, color)
+            self.box(car_x + 3, top + 17, car_x + 12, top + 22, "#253842")
+        for stall, color in ((1, "#bea0ec"), (4, "#e6e9df")):
+            car_x = left + 14 + stall * 25
+            self.box(car_x, bottom - 33, car_x + 15, bottom - 13, color)
+            self.box(car_x + 3, bottom - 22, car_x + 12, bottom - 17, "#253842")
+        self.label(left + 88, bottom + 10, "CASINO PARKING", 7, MUTED, True, anchor="center")
+
+    def draw_casino(self, site):
+        x, y, right, bottom = site.bounds
+        door_x, _ = site.door
+        self.box(x + 5, y + 7, right + 5, bottom + 6, "#1a322d")
+        self.canvas.create_polygon(x, y+24, x+24, y+2, right-24, y+2, right, y+24, fill="#2b1427")
+        self.box(x, y + 24, right, bottom, "#4a2340")
+        self.box(x, y + 24, right, y + 27, GOLD)
+        # The sign on the roof, with marquee bulbs that blink in draw_live.
+        self.box(x + 46, y + 3, right - 46, y + 21, "#120a12")
+        self.label(door_x, y + 12, "CASINO", 10, GOLD, True, anchor="center")
+        self.casino_bulbs = [(bulb_x, bulb_y) for bulb_x in range(x + 48, right - 45, 6)
+                             for bulb_y in (y + 1, y + 23)]
+        self.box(x + 8, y + 30, right - 8, y + 81, "#1d0f1c")
+        self.box(x + 8, y + 30, right - 8, y + 33, site.color)
+        for left in (x + 14, right - 52):
+            self.box(left, bottom - 20, left + 38, bottom - 4, "#2b1427")
+            self.box(left + 3, bottom - 17, left + 35, bottom - 7, "#e8b04a")
+            self.box(left + 3, bottom - 17, left + 9, bottom - 7, "#8e1f2e")
+            self.box(left + 29, bottom - 17, left + 35, bottom - 7, "#8e1f2e")
+        self.box(door_x - 15, bottom - 17, door_x + 15, bottom, "#7a1424")
+        self.box(door_x - 1, bottom - 17, door_x + 1, bottom, "#4a0c16")
+        self.box(door_x - 6, bottom - 9, door_x - 3, bottom - 7, GOLD)
+        self.box(door_x + 3, bottom - 9, door_x + 6, bottom - 7, GOLD)
+        self.box(door_x - 15, bottom, door_x + 15, bottom + 6, site.color)
+        self.box(door_x - 10, bottom + 9, door_x + 10, bottom + 11, "#b3c7bd")
+        self.label(x + 13, y + 42, site.role, 8, site.color, True)
+        self.label(x + 13, y + 57, site.name, 12, WHITE, True)
+
     def draw_site(self, site):
         x, y, right, bottom = site.bounds
         door_x, _ = site.door
+        if site.role == "CASINO":
+            self.draw_casino(site)
+            return
         if site.role == "SUPPLIER":
             self.draw_supplier(site)
             self.box(door_x - 15, bottom, door_x + 15, bottom + 6, site.color)
@@ -836,6 +1057,119 @@ class Game:
                                       (x+3, front, 14), (x-1, front, 14)),
                                (((0, 1, 3), "#a79a67"), ((1, 2, 3), "#c3b17e")), "live")
 
+    def draw_casino_lights(self):
+        frame = int(time.monotonic() * 5)
+        for index, (bulb_x, bulb_y) in enumerate(self.casino_bulbs):
+            color = GOLD if (index // 2 + frame) % 3 == 0 else "#7a5520"
+            self.canvas.create_oval(bulb_x - 1.6, bulb_y - 1.6, bulb_x + 1.6, bulb_y + 1.6,
+                                    fill=color, width=0, tags="live")
+
+    def draw_casino_screen(self):
+        canvas, town = self.canvas, self.town
+        center_x, center_y = CASINO_CENTER
+        buttons = self.casino_buttons = []
+        spinning = self.spin is not None
+
+        def ring(radius, color, outline="", width=0):
+            canvas.create_oval(center_x - radius, center_y - radius, center_x + radius, center_y + radius,
+                               fill=color, outline=outline, width=width, tags="live")
+
+        def point(angle, radius):
+            return center_x + radius * math.sin(angle), center_y - radius * math.cos(angle)
+
+        # Table
+        self.box(center_x - 300, 116, center_x + 300, 930, "#123b2c", "live")
+        self.box(center_x - 300, 116, center_x + 300, 119, GOLD, "live")
+        self.box(center_x - 292, 124, center_x + 292, 922, "#15452f", "live")
+        self.label(center_x, 146, "FOUNDRY CASINO", 18, GOLD, True, anchor="center", tag="live")
+        self.label(center_x, 170, "EUROPEAN ROULETTE  ·  37 POCKETS", 8, MINT, True, anchor="center", tag="live")
+        self.box(center_x + 252, 130, center_x + 284, 162, "#0d2d21", "live")
+        self.label(center_x + 268, 146, "✕", 13, WHITE, True, anchor="center", tag="live")
+        buttons.append((center_x + 252, 130, center_x + 284, 162, self.close_casino))
+
+        # Wheel
+        wheel, ball = self.wheel_state()
+        seg = math.tau / len(ROULETTE_POCKETS)
+        ring(194, "#4a2614")
+        ring(186, "#7a4424")
+        ring(182, "#2a1a10")
+        ring(163, GOLD)
+        dark = {"red": "#8e1f2a", "black": "#0c0d10", "green": "#13633a"}
+        for index, number in enumerate(ROULETTE_POCKETS):
+            color = roulette_color(number)
+            start, end = wheel + (index - .5) * seg, wheel + (index + .5) * seg
+            winner = not spinning and index == self.ball_pocket
+            canvas.create_polygon(*point(start, 161), *point(end, 161), *point(end, 133), *point(start, 133),
+                                  fill=POCKET_COLORS[color], outline=GOLD if winner else "",
+                                  width=2 if winner else 0, tags="live")
+            canvas.create_polygon(*point(start, 133), *point(end, 133), *point(end, 111), *point(start, 111),
+                                  fill=dark[color], tags="live")
+            canvas.create_line(*point(start, 111), *point(start, 161), fill="#c9a24a", tags="live")
+            self.label(*point(wheel + index * seg, 147), str(number), 8, WHITE, True,
+                       anchor="center", tag="live")
+        ring(111, "#6b3d22", "#c9a24a", 1)
+        ring(84, "#8a5a33")
+        ring(46, "#b07a45")
+        for arm in range(4):
+            angle = wheel + arm * math.tau / 4 + seg / 2
+            canvas.create_line(*point(angle, 8), *point(angle, 58), fill=GOLD, width=3, tags="live")
+            knob_x, knob_y = point(angle, 60)
+            canvas.create_oval(knob_x - 5, knob_y - 5, knob_x + 5, knob_y + 5, fill=GOLD, width=0, tags="live")
+        ring(13, GOLD)
+        if ball is not None:
+            ball_x, ball_y = point(*ball)
+            canvas.create_oval(ball_x - 6, ball_y - 6, ball_x + 6, ball_y + 6,
+                               fill="#f7f7f2", outline="#9aa3a6", tags="live")
+
+        # Result
+        text, color = self.casino_result
+        self.label(center_x, 604, text, 13, color, True, anchor="center", tag="live")
+
+        # Chips
+        self.label(center_x, 634, "CHIP", 8, MUTED, True, anchor="center", tag="live")
+        chip_colors = ("#e6e9df", "#d65655", "#3f8fd2", "#2f9e5e", "#1b1d22")
+        for index, value in enumerate(CHIPS):
+            chip_x, chip_y = center_x + (index - 2) * 64, 670
+            affordable = value <= town.cash
+            if index == self.chip_index:
+                canvas.create_oval(chip_x - 28, chip_y - 28, chip_x + 28, chip_y + 28,
+                                   outline=GOLD, width=3, tags="live")
+            fill = chip_colors[index] if affordable else "#4a5559"
+            canvas.create_oval(chip_x - 22, chip_y - 22, chip_x + 22, chip_y + 22,
+                               fill=fill, outline="#f2f7f6", width=2, tags="live")
+            canvas.create_oval(chip_x - 15, chip_y - 15, chip_x + 15, chip_y + 15,
+                               outline="#f2f7f6" if index else INK, width=1, tags="live")
+            text_color = INK if index == 0 and affordable else (WHITE if affordable else MUTED)
+            self.label(chip_x, chip_y, f"${value}", 10, text_color, True, anchor="center", tag="live")
+            buttons.append((chip_x - 24, chip_y - 24, chip_x + 24, chip_y + 24,
+                            lambda index=index: setattr(self, "chip_index", index)))
+
+        # Bets
+        for offset, choice, title, detail in ((-190, "red", "RED  (R)", "Pays 2×  ·  18 numbers"),
+                                              (0, "black", "BLACK  (B)", "Pays 2×  ·  18 numbers"),
+                                              (190, "green", "GREEN 0  (G)", "Pays 36×  ·  1 number")):
+            left, right = center_x + offset - 85, center_x + offset + 85
+            fill = "#3a4044" if spinning else POCKET_COLORS[choice]
+            canvas.create_rectangle(left, 712, right, 772, fill=fill, outline=GOLD, width=2, tags="live")
+            self.label(center_x + offset, 734, title, 13, WHITE, True, anchor="center", tag="live")
+            self.label(center_x + offset, 756, detail, 8, "#e9dccb", anchor="center", tag="live")
+            buttons.append((left, 712, right, 772, lambda choice=choice: self.spin_wheel(choice)))
+
+        # Recent results
+        self.label(center_x - 270, 812, "LAST SPINS", 8, MUTED, True, tag="live")
+        if not self.roulette_history:
+            self.label(center_x - 170, 812, "No spins yet", 9, MUTED, tag="live")
+        for index, number in enumerate(self.roulette_history):
+            spot_x = center_x - 160 + index * 34
+            canvas.create_oval(spot_x - 13, 799, spot_x + 13, 825,
+                               fill=POCKET_COLORS[roulette_color(number)], outline=GOLD if index == 0 else "",
+                               width=2, tags="live")
+            self.label(spot_x, 812, str(number), 9, WHITE, True, anchor="center", tag="live")
+
+        self.label(center_x, 862, "Click a color or press R, B or G   ·   ← →  change chip   ·   Esc or E  leave",
+                   9, MUTED, anchor="center", tag="live")
+        self.label(center_x, 894, f"CASH  ${town.cash:,}", 13, GOLD, True, anchor="center", tag="live")
+
     def draw_live(self):
         canvas, town = self.canvas, self.town
         canvas.delete("live")
@@ -858,9 +1192,9 @@ class Game:
         goods = "  ".join(f"{name} {quantity}" for name, quantity in zip(("Tools", "Furn.", "Pots", "Bread"), town.goods))
         self.label(673, 51, supplies, 9, MUTED, tag="live")
         self.label(673, 74, goods, 9, MUTED, tag="live")
-        self.box(880, 19, 936, 77, "#304851", "live")
-        canvas.create_oval(899, 28, 917, 46, fill=GOLD, width=0, tags="live")
-        canvas.create_oval(892, 46, 924, 65, fill=GOLD, width=0, tags="live")
+        self.box(PROFILE_X, 19, PROFILE_X + 56, 77, "#304851", "live")
+        canvas.create_oval(PROFILE_X + 19, 28, PROFILE_X + 37, 46, fill=GOLD, width=0, tags="live")
+        canvas.create_oval(PROFILE_X + 12, 46, PROFILE_X + 44, 65, fill=GOLD, width=0, tags="live")
         for site in SITES:
             status_y = 34 if site.role == "SUPPLIER" else 72
             self.label(site.x + 12, site.y + status_y, town.site_status(site), 10, MUTED, tag="live")
@@ -869,6 +1203,7 @@ class Game:
                 canvas.create_rectangle(x-2, y-2, right+2, bottom+2, outline=GOLD, width=2, tags="live")
         self.draw_mine_cart()
         self.draw_wheat_field()
+        self.draw_casino_lights()
         if town.power_up is not None:
             name, symbol, color, power_x, power_y = POWER_UPS[town.power_up]
             canvas.create_oval(power_x-16, power_y-16, power_x+16, power_y+16,
@@ -908,18 +1243,20 @@ class Game:
             power_status = "Power-up on the map"
         else:
             power_status = f"Next power-up in {math.ceil(POWER_INTERVAL-town.elapsed % POWER_INTERVAL)}s"
-        self.label(936, MAP_BOTTOM + 73, power_status, 10, MINT, anchor="e", tag="live")
+        self.label(WIDTH - 24, MAP_BOTTOM + 73, power_status, 10, MINT, anchor="e", tag="live")
         if town.market_event:
             title, effects = town.market_event
-            self.box(237, 107, 723, 146, INK, "live")
-            self.box(237, 107, 723, 109, GOLD, "live")
-            self.label(480, 119, f"MARKET EVENT  ·  {title}", 10, GOLD, True, anchor="center", tag="live")
-            self.label(480, 135, effects, 9, WHITE, anchor="center", tag="live")
+            self.box(WIDTH // 2 - 243, 107, WIDTH // 2 + 243, 146, INK, "live")
+            self.box(WIDTH // 2 - 243, 107, WIDTH // 2 + 243, 109, GOLD, "live")
+            self.label(WIDTH // 2, 119, f"MARKET EVENT  ·  {title}", 10, GOLD, True, anchor="center", tag="live")
+            self.label(WIDTH // 2, 135, effects, 9, WHITE, anchor="center", tag="live")
         if town.elapsed < town.notice_until:
             offset = 42 if town.market_event else 0
-            self.box(194, 106+offset, 766, 144+offset, INK, "live")
-            self.box(194, 106+offset, 766, 109+offset, GOLD, "live")
-            self.label(480, 126+offset, town.notice, 11, GOLD, True, anchor="center", tag="live")
+            self.box(WIDTH // 2 - 286, 106+offset, WIDTH // 2 + 286, 144+offset, INK, "live")
+            self.box(WIDTH // 2 - 286, 106+offset, WIDTH // 2 + 286, 109+offset, GOLD, "live")
+            self.label(WIDTH // 2, 126+offset, town.notice, 11, GOLD, True, anchor="center", tag="live")
+        if self.casino_open:
+            self.draw_casino_screen()
 
 
 if __name__ == "__main__":
