@@ -16,7 +16,8 @@ from saves import RemoteSaves, SaveConflict, desktop_storage
 WIDTH = 1200
 MAP_TOP, MAP_BOTTOM = 104, 940
 HEIGHT = MAP_BOTTOM + 95
-DAY_SECONDS = 24 * 60 * 60
+DAY_SECONDS = 5 * 60
+LEGACY_DAY_SECONDS = 24 * 60 * 60
 START_CASH, CASH_GOAL, BAG_SIZE = 60, 500, 12
 PLAYER_RADIUS, REACH = 10, 35
 POWER_INTERVAL = 30
@@ -140,6 +141,8 @@ SITES = (
     Site("Daily Bread Market", "PUBLIC SHOP", 3, 724, 748, "#f3ca85"),
     # The casino has no trade route, so its trade index is unused.
     Site("Foundry Casino", "CASINO", -1, 992, 362, "#e8455a"),
+    Site("Motorworks Garage", "GARAGE", -1, 992, 748, "#86caff"),
+    Site("Foundry Warehouse", "WAREHOUSE", -1, 992, 155, "#d2a7e5"),
 )
 
 
@@ -163,12 +166,14 @@ class Town:
         self.revenue_today = [0] * len(TRADES)
         self.expenses_today = [0] * len(TRADES)
         self.total_sold = [0] * len(TRADES)
+        self.vehicle = None
         self.market_event = None
         self.elapsed = 0.0
         self.x, self.y = 480.0, 321.0
         self.facing = 1
         self.won = False
         self.bag_size = BAG_SIZE
+        self.warehouse_level = 0
         self.speed_until = 0
         self.power_up = None
         self.profile = {"name": "Player", "body": "Peach", "hair": "Chestnut", "costume": "Builder"}
@@ -276,7 +281,9 @@ class Town:
             return
         if dx:
             self.facing = 1 if dx > 0 else -1
-        speed = 342 if self.elapsed < self.speed_until else 228
+        speed = {"motorcycle": 420, "car": 510}.get(self.vehicle, 228)
+        if self.elapsed < self.speed_until:
+            speed *= 1.5
         distance = speed * seconds / length
         next_x = min(WIDTH - 17, max(17, self.x + dx * distance))
         next_y = min(MAP_BOTTOM - 15, max(MAP_TOP + 15, self.y + dy * distance))
@@ -307,6 +314,12 @@ class Town:
             return
         if site.role == "CASINO":
             self.message = "Welcome to the Foundry Casino. Place your bets!"
+            return
+        if site.role == "GARAGE":
+            self.message = "Motorworks Garage · E to browse motorcycles and cars."
+            return
+        if site.role == "WAREHOUSE":
+            self.message = "Foundry Warehouse · E to expand your carrying capacity."
             return
         index = site.trade
         trade = TRADES[index]
@@ -382,6 +395,10 @@ class Town:
     def site_status(self, site):
         if site.role == "CASINO":
             return "Roulette  ·  Win up to 36×"
+        if site.role == "GARAGE":
+            return f"Driving: {self.vehicle or 'on foot'}"
+        if site.role == "WAREHOUSE":
+            return f"Capacity upgrade {self.warehouse_level} · {self.bag_size} slots"
         index = site.trade
         trade = TRADES[index]
         if site.role == "SUPPLIER":
@@ -398,6 +415,10 @@ class Town:
     def action_hint(self, site):
         if site.role == "CASINO":
             return "E  Play roulette"
+        if site.role == "GARAGE":
+            return "E  Browse vehicles"
+        if site.role == "WAREHOUSE":
+            return "E  Buy more storage"
         if site.role == "SUPPLIER":
             return "E  Buy one    •    Q  Buy up to four"
         if site.role == "PUBLIC SHOP":
@@ -413,14 +434,23 @@ class Town:
 def pack_save(town, market_started_at):
     state = deepcopy(vars(town))
     state["orders"] = [asdict(order) if order else None for order in town.orders]
-    return {"version": 1, "marketStart": market_started_at, "state": state}
+    return {"version": 1, "dayLength": DAY_SECONDS, "marketStart": market_started_at, "state": state}
 
 
 def unpack_save(data):
     town = Town()
     state = dict(data["state"])
+    previous_day_length = data.get("dayLength", LEGACY_DAY_SECONDS)
+    old_market_elapsed = state.get("market_elapsed", 0)
+    if previous_day_length != DAY_SECONDS:
+        completed_days, day_progress = divmod(old_market_elapsed, previous_day_length)
+        state["market_elapsed"] = completed_days * DAY_SECONDS + day_progress * DAY_SECONDS / previous_day_length
+        data = dict(data)
+        data["marketStart"] = time.time() - state["market_elapsed"]
     for name in ("sales_today", "revenue_today", "expenses_today", "total_sold"):
         state.setdefault(name, [0] * len(TRADES))
+    state.setdefault("vehicle", None)
+    state.setdefault("warehouse_level", 0)
     if data["version"] != 1 or state.keys() != vars(town).keys():
         raise ValueError("Unsupported Foundry Town save")
     for name in ("supplies", "goods", "orders", "demand", "costs", "prices"):
@@ -454,6 +484,7 @@ class Game:
         self.autosave_timer = root.after(10000, self.autosave)
         self.keys = set()
         self.profile_window = None
+        self.winner_window = None
         # Casino state lives only in this session, so old saves still load.
         self.casino_open = False
         self.chip_index = 1
@@ -472,6 +503,7 @@ class Game:
         self.last_tick = time.monotonic()
         root.title("Foundry Town | Business Tycoon")
         root.configure(bg=INK)
+        root.attributes("-fullscreen", True)
         if IS_MAC:
             # Tk 9 on macOS keeps a window at 200x200 if it is locked before it
             # appears, so lock the size once the window is on screen.
@@ -482,15 +514,18 @@ class Game:
         else:
             root.resizable(False, False)
         # Leave room for the menu bar, title bar, and Dock on macOS.
-        margin = 160 if IS_MAC else 100
-        self.display_scale = min(1, (root.winfo_screenheight() - margin) / HEIGHT,
-                                 (root.winfo_screenwidth() - 40) / WIDTH)
+        self.display_scale = min(root.winfo_screenheight() / HEIGHT,
+                                 root.winfo_screenwidth() / WIDTH)
         self.canvas = tk.Canvas(root, width=round(WIDTH * self.display_scale),
                                 height=round(HEIGHT * self.display_scale), highlightthickness=0, bg=INK)
         self.canvas.pack()
+        self.minimize_button = tk.Button(root, text="—", font=(FONT, 12, "bold"),
+                                         command=root.iconify, takefocus=False)
+        self.minimize_button.place(relx=1, x=-12, y=12, anchor="ne")
         self.menu_button = tk.Button(root, text="Save and return to menu", command=self.return_to_menu)
         self.menu_button.pack()
         root.bind("<KeyPress>", self.key_down)
+        root.bind("<Control-m>", lambda event: root.iconify())
         root.bind("<KeyRelease>", self.key_up)
         root.bind("<FocusOut>", lambda event: self.keys.clear())
         self.canvas.bind("<Button-1>", self.click)
@@ -553,9 +588,10 @@ class Game:
         if to_menu:
             self.root.after_cancel(self.tick_timer)
             self.root.after_cancel(self.autosave_timer)
-            for event in ("<KeyPress>", "<KeyRelease>", "<FocusOut>"):
+            for event in ("<KeyPress>", "<KeyRelease>", "<FocusOut>", "<Control-m>"):
                 self.root.unbind(event)
             self.canvas.destroy()
+            self.minimize_button.destroy()
             self.menu_button.destroy()
             StartMenu(self.root, (self.storage, self.player))
         else:
@@ -576,6 +612,14 @@ class Game:
             if key == "e" and nearby is not None and nearby.role == "CASINO":
                 self.open_casino()
                 return
+            if key == "e" and nearby is not None and nearby.role == "GARAGE":
+                self.open_vehicle_shop()
+                self.keys.add(key)
+                return
+            if key == "e" and nearby is not None and nearby.role == "WAREHOUSE":
+                self.open_warehouse_shop()
+                self.keys.add(key)
+                return
             if key == "e" or (nearby and nearby.role == "SUPPLIER"):
                 self.town.interact(bulk=(key == "q"))
         self.keys.add(key)
@@ -593,6 +637,8 @@ class Game:
         paused = self.profile_window is not None or self.casino_open
         if not paused and self.root.focus_displayof() is not None:
             self.town.advance(dt)
+        if self.town.won and self.winner_window is None:
+            self.show_winner()
         if not self.casino_open:
             dx = int("d" in self.keys or "right" in self.keys) - int("a" in self.keys or "left" in self.keys)
             dy = int("s" in self.keys or "down" in self.keys) - int("w" in self.keys or "up" in self.keys)
@@ -611,11 +657,107 @@ class Game:
         self.casino_open = True
         self.town.interact()
 
+    def show_winner(self):
+        panel = self.winner_window = tk.Toplevel(self.root)
+        self.profile_window = panel
+        panel.title("Foundry Town Champion")
+        panel.transient(self.root)
+        panel.resizable(False, False)
+        panel.grab_set()
+        frame = tk.Frame(panel, padx=40, pady=32, bg=INK)
+        frame.pack()
+        tk.Label(frame, text="YOU ARE THE WINNER!", font=(FONT, 24, "bold"),
+                 bg=INK, fg=GOLD).pack(pady=(0, 12))
+        tk.Label(frame, text=f"Your business reached ${CASH_GOAL:,} on Day {self.town.day}.",
+                 font=(FONT, 13), bg=INK, fg=WHITE).pack(pady=(0, 18))
+        tk.Button(frame, text="Save and exit game", command=self.close).pack(fill="x")
+
+        def finish():
+            self.winner_window = None
+            self.close()
+
+        panel.protocol("WM_DELETE_WINDOW", finish)
+
     def close_casino(self):
         # Held keys stay recorded until released, so a held E does not reopen the casino.
         self.settle_spin()
         self.casino_open = False
         self.town.message = "Thanks for visiting the Foundry Casino."
+
+    def open_vehicle_shop(self):
+        panel = self.profile_window = tk.Toplevel(self.root)
+        panel.title("Motorworks Garage")
+        panel.transient(self.root)
+        panel.resizable(False, False)
+        panel.grab_set()
+        frame = tk.Frame(panel, padx=22, pady=18)
+        frame.pack()
+        status = tk.StringVar(value=f"Cash available  ${self.town.cash:,} · Current ride  {self.town.vehicle or 'On foot'}")
+        tk.Label(frame, text="CHOOSE YOUR RIDE", font=(FONT, 16, "bold")).pack(pady=(0, 10))
+        tk.Label(frame, textvariable=status).pack(pady=(0, 10))
+
+        def buy(vehicle, price):
+            if self.town.vehicle == vehicle:
+                status.set(f"You already own this {vehicle}.")
+            elif self.town.cash < price:
+                status.set(f"You need ${price:,} for the {vehicle}.")
+            else:
+                self.town.cash -= price
+                self.town.vehicle = vehicle
+                self.town.message = f"Bought a {vehicle} for ${price:,}. Enjoy the faster ride!"
+                status.set(f"Purchased {vehicle} · Cash remaining  ${self.town.cash:,}")
+
+        tk.Button(frame, text="Motorcycle · $250 · 420 speed", command=lambda: buy("motorcycle", 250)).pack(fill="x", pady=4)
+        tk.Button(frame, text="Car · $600 · 510 speed", command=lambda: buy("car", 600)).pack(fill="x", pady=4)
+
+        def close():
+            panel.destroy()
+            self.profile_window = None
+            self.keys.clear()
+            self.root.focus_set()
+
+        tk.Button(frame, text="Close garage", command=close).pack(pady=(10, 0))
+        panel.protocol("WM_DELETE_WINDOW", close)
+
+    def open_warehouse_shop(self):
+        panel = self.profile_window = tk.Toplevel(self.root)
+        panel.title("Foundry Warehouse")
+        panel.transient(self.root)
+        panel.resizable(False, False)
+        panel.grab_set()
+        frame = tk.Frame(panel, padx=22, pady=18)
+        frame.pack()
+        tk.Label(frame, text="EXPAND YOUR STORAGE", font=(FONT, 16, "bold")).pack(pady=(0, 10))
+        status = tk.StringVar()
+        tk.Label(frame, textvariable=status).pack(pady=(0, 10))
+        button = tk.Button(frame)
+        button.pack(fill="x", pady=4)
+
+        def refresh():
+            level = self.town.warehouse_level
+            price = 300 + level * 250
+            status.set(f"Bag capacity  {self.town.bag_size} slots · Cash  ${self.town.cash:,}")
+            button.configure(text=f"Buy 12 more slots · ${price:,}", command=lambda: buy(price))
+
+        def buy(price):
+            if self.town.cash < price:
+                status.set(f"You need ${price:,} for this warehouse expansion.")
+                return
+            self.town.cash -= price
+            self.town.bag_size += 12
+            self.town.warehouse_level += 1
+            self.town.message = f"Warehouse expanded. Your bag now holds {self.town.bag_size} items."
+            refresh()
+
+        def close():
+            panel.destroy()
+            self.profile_window = None
+            self.keys.clear()
+            self.root.focus_set()
+
+        refresh()
+        tk.Button(frame, text="Close warehouse", command=close).pack(pady=(10, 0))
+        panel.protocol("WM_DELETE_WINDOW", close)
 
     def casino_key(self, key):
         if key in ("escape", "e"):
@@ -829,6 +971,7 @@ class Game:
         self.draw_casino_district()
         for site in SITES:
             self.draw_site(site)
+        self.draw_wheat_field(tag="city")
         self.box(0, 0, WIDTH, MAP_TOP, INK)
         self.label(24, 31, "FOUNDRY TOWN", 21, WHITE, True)
         self.label(25, 66, "BUSINESS TYCOON", 10, MINT, True)
@@ -895,6 +1038,30 @@ class Game:
         door_x, _ = site.door
         if site.role == "CASINO":
             self.draw_casino(site)
+            return
+        if site.role == "GARAGE":
+            self.box(x + 5, y + 7, right + 5, bottom + 6, "#1a322d")
+            self.box(x, y + 22, right, bottom, "#344e5b")
+            self.box(x + 8, y + 7, right - 8, y + 24, "#182832")
+            self.box(x + 20, y + 34, right - 20, bottom - 5, "#203b49")
+            self.box(door_x - 24, bottom - 36, door_x + 24, bottom, "#111c23")
+            self.box(door_x - 22, bottom - 34, door_x - 1, bottom - 2, "#86caff")
+            self.box(door_x + 2, bottom - 34, door_x + 22, bottom - 2, "#86caff")
+            self.box(door_x - 15, bottom, door_x + 15, bottom + 6, site.color)
+            self.label(x + 13, y + 39, "VEHICLE SHOP", 8, site.color, True)
+            self.label(x + 13, y + 57, site.name, 12, WHITE, True)
+            return
+        if site.role == "WAREHOUSE":
+            self.box(x + 5, y + 7, right + 5, bottom + 6, "#1a322d")
+            self.box(x, y + 24, right, bottom, "#493e57")
+            self.box(x + 14, y + 3, right - 14, y + 28, "#30283b")
+            for crate_x in (x + 25, x + 67, x + 109, x + 143):
+                self.box(crate_x, y + 61, crate_x + 24, y + 88, "#b48762")
+                self.box(crate_x + 3, y + 65, crate_x + 21, y + 68, "#e2c49c")
+            self.box(door_x - 16, bottom - 26, door_x + 16, bottom, "#18252d")
+            self.box(door_x - 15, bottom, door_x + 15, bottom + 6, site.color)
+            self.label(x + 13, y + 39, "STORAGE", 8, site.color, True)
+            self.label(x + 13, y + 53, site.name, 11, WHITE, True)
             return
         if site.role == "SUPPLIER":
             self.draw_supplier(site)
@@ -982,8 +1149,8 @@ class Game:
             self.draw_mesh(x, y, outer+inner, faces, skew=.16)
         self.draw_mesh(x, y, rings[-1], ((tuple(range(8)), "#402823"),), skew=.16)
 
-    def draw_wheat_field(self):
-        """Rows of wheat stalks that sway in the wind on Goldenfield Farm's field."""
+    def draw_wheat_field(self, tag="live"):
+        """Draw the detailed wheat field as static scenery to keep frames light."""
         farm = SITES[9]
         canvas = self.canvas
         center_x, center_y = farm.x + 88, farm.y + 79
@@ -1003,7 +1170,7 @@ class Game:
                 length = math.hypot(along_x, along_y)
                 along_x, along_y = along_x / length, along_y / length
                 across_x, across_y = -along_y, along_x
-                canvas.create_line(base_x, base_y, top_x, top_y, fill="#a8913f", tags="live")
+                canvas.create_line(base_x, base_y, top_x, top_y, fill="#a8913f", tags=tag)
                 tip_x, tip_y = top_x + along_x * 3, top_y + along_y * 3
                 mid_x, mid_y = top_x - along_x * 2.5, top_y - along_y * 2.5
                 canvas.create_polygon(
@@ -1011,10 +1178,10 @@ class Game:
                     mid_x + across_x * 1.8, mid_y + across_y * 1.8,
                     top_x - along_x * 8, top_y - along_y * 8,
                     mid_x - across_x * 1.8, mid_y - across_y * 1.8,
-                    fill="#f2cc63" if index % 2 else "#e0b44a", outline="#a87b2c", tags="live",
+                    fill="#f2cc63" if index % 2 else "#e0b44a", outline="#a87b2c", tags=tag,
                 )
                 canvas.create_line(tip_x, tip_y, tip_x + along_x * 4 + across_x * 1.5,
-                                   tip_y + along_y * 4 + across_y * 1.5, fill="#e8c66a", tags="live")
+                                   tip_y + along_y * 4 + across_y * 1.5, fill="#e8c66a", tags=tag)
 
     def mine_mesh(self, site, vertices, faces, tag="city"):
         self.draw_mesh(site.x+109, site.y+83, vertices, faces, skew=-0.65, tag=tag)
@@ -1281,7 +1448,6 @@ class Game:
                 x, y, right, bottom = site.bounds
                 canvas.create_rectangle(x-2, y-2, right+2, bottom+2, outline=GOLD, width=2, tags="live")
         self.draw_mine_cart()
-        self.draw_wheat_field()
         self.draw_casino_lights()
         for offset, lane, speed, color in self.traffic:
             x = (offset * WIDTH + town.elapsed * speed) % (WIDTH + 50) - 25
@@ -1294,6 +1460,15 @@ class Game:
             self.label(power_x, power_y, symbol, 15, color, True, anchor="center", tag="live")
             self.label(power_x, power_y-24, name, 10, WHITE, True, anchor="center", tag="live")
         x, y = town.x, town.y
+        if town.vehicle:
+            wheel_radius = 5 if town.vehicle == "motorcycle" else 7
+            canvas.create_oval(x - 20, y + 1, x - 20 + wheel_radius * 2, y + 1 + wheel_radius * 2,
+                               fill="#101820", tags="live")
+            canvas.create_oval(x + 8, y + 1, x + 8 + wheel_radius * 2, y + 1 + wheel_radius * 2,
+                               fill="#101820", tags="live")
+            canvas.create_rectangle(x - 16, y - 6, x + 15, y + 5,
+                                    fill="#e8455a" if town.vehicle == "motorcycle" else "#86caff",
+                                    outline=INK, tags="live")
         if town.elapsed < town.speed_until:
             canvas.create_oval(x-14, y-14, x+14, y+14, outline="#86caff", width=2, tags="live")
         profile = town.profile
