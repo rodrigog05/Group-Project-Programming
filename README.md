@@ -32,7 +32,19 @@ Each unit of supply makes one finished good. Press **E** at the factory to drop 
 
 Foundry Precision Works is the Tier 2 factory. Bring one Tool and one Furniture to craft one Precision Machinery. It takes 12 seconds. Press **E** to collect it, then press **E** again to sell it at Precision Works.
 
+**Pastéis de Belém** is in the Belém neighborhood. Buy Wheat at Goldenfield Farm with **E** (one) or **Q** (up to four), and Eggs with **F** (one) or **R** (up to four). Each egg costs $2. Bring **1 Wheat + 1 Egg** per pastel to the pastelaria and press **E** to bake all matching pairs. After eight seconds, press **E** to collect, then **E** again to sell. The base sale price is $24 per pastel, giving a base material cost of $6 and profit of $18. Stock occupies bag space, and baking orders reserve their pickup slots.
+
+**Estaleiro do Tejo** is on the Almada waterfront, next to the repair dock. Bring **2 Timber + 2 Iron ore** and press **E** to accept a boat repair. After 20 seconds, return and press **E** to claim the agreed payment (base $100 against $24 of materials). Boat repairs are services, so boats do not occupy your bag. The quoted payment is fixed when the job starts, including across a save or a market-day change. There are three repair contracts at base daily demand.
+
+Iron Hill Mine has moved to the Almada bank near the Vasco da Gama crossing to make room for the Belém pastelaria. New businesses use the dynamic daily market and appear in the P&L panel. Eggs, pastéis, repair contracts and quoted payments are included in autosaves; older saves receive the new inventory and business defaults.
+
 A game day lasts five minutes, with three minutes of daylight and two minutes of night. Every third day, a one-day market event changes a route's material cost, selling price, and customer demand. Look for the market banner to see the changes.
+
+At night, building windows and entrances, waterfront lamps, both bridges and the elétrico are illuminated. Day and night backgrounds are cached so the lights do not require rebuilding the scenery each frame.
+
+At each full day's end, the game charges **20% of positive net daily profit**, rounded to the nearest whole dollar. This is a cash-based game calculation: all income received (sales, repair fees, bonuses and casino payouts) minus materials, eggs, vehicle/warehouse purchases, casino stakes and tolls. Starting cash is excluded, and loss-making or break-even days pay no tax. The P&L panel shows the estimate, last day's settlement, total taxes and tolls. Settlements are saved and cannot be charged twice after a reload or an offline time jump.
+
+Both bridges charge a **$3 game toll for a completed Almada → Lisboa crossing**, on foot, by motorcycle or by car. Lisboa → Almada and halfway turnarounds are free. A crossing saved mid-bridge resumes normally and charges once at the Lisbon end. The fee still applies if cash is low, so the balance can become negative; buying materials never creates negative quantities. These are fictional game rates.
 
 Choose **Rules & How to Play** on the start menu for game instructions. During play, click **Settings** in the top bar to switch between fullscreen and windowed mode, toggle moving traffic, or reopen the rules.
 

@@ -4,16 +4,23 @@ import random
 
 RIVER_TOP, RIVER_BOTTOM = 718, 900
 MAP_BOTTOM = 1080
+BRIDGE_TOLL = 3
 
 
 def bridge_center(y, eastern=False):
     return 1055 - 0.32 * (y - RIVER_TOP) if eastern else 300
 
 
+def bridge_at(x, y, radius=10):
+    for eastern, name in ((False, "25 de Abril"), (True, "Vasco da Gama")):
+        if abs(x-bridge_center(y, eastern)) <= (27 if eastern else 31)-radius:
+            return name
+    return None
+
+
 def walkable_terrain(x, y, radius=10):
     if RIVER_TOP - radius < y < RIVER_BOTTOM + radius:
-        return any(abs(x - bridge_center(y, east)) <= (31 if not east else 27) - radius
-                   for east in (False, True))
+        return bridge_at(x, y, radius) is not None
     return True
 
 
@@ -84,6 +91,57 @@ class LisbonScene:
         self.text(18, 707, "RIBEIRA DAS NAUS", 7, "#738379", True)
         self.text(687, 878, "RIO TEJO", 23, "#d5edef", True, anchor="center")
         self.text(687, 901, "LISBOA  /  ALMADA", 8, "#587c81", anchor="center")
+        self.text(350, 709, f"↑ LISBOA · PORTAGEM ${BRIDGE_TOLL}", 7, "#5d6d65", True)
+        self.text(1090, 707, f"↑ LISBOA · ${BRIDGE_TOLL}", 7, "#5d6d65", True)
+
+    def night_lighting(self):
+        c = self.c
+
+        def glow(x, y, radius=18, color="#f4c878"):
+            c.create_oval(x-radius, y-radius*.65, x+radius, y+radius*.65,
+                          fill=color, stipple="gray25", outline="", tags="night_lights")
+            c.create_oval(x-radius*.55, y-radius*.4, x+radius*.55, y+radius*.4,
+                          fill=color, stipple="gray50", outline="", tags="night_lights")
+
+        for site in self.sites:
+            for index, x in enumerate((site.x+22, site.x+70, site.x+118)):
+                color = ("#f3d49b", "#e7b96c", "#ffe5b7")[index]
+                glow(x+12, site.y+44, 23)
+                c.create_rectangle(x+1, site.y+32, x+23, site.y+56, fill=color, outline="", tags="night_lights")
+                c.create_line(x+12, site.y+32, x+12, site.y+56, fill="#8b795a", width=1, tags="night_lights")
+            door_x, door_y = site.door
+            glow(door_x, door_y+8, 21)
+            c.create_oval(door_x-2, door_y-16, door_x+2, door_y-12,
+                          fill="#fff1be", outline="", tags="night_lights")
+        # Warm suspension-bridge lights and reflections in the Tejo.
+        for x in (267, 333):
+            c.create_line(x, 711, x, 924, fill="#eaa06c", width=2, tags="night_lights")
+            for y in range(724, 920, 24):
+                glow(x, y, 12)
+                c.create_oval(x-2, y-2, x+2, y+2, fill="#ffe5a4", outline="", tags="night_lights")
+        for y in (755, 860):
+            c.create_line(263, y-31, 336, y-31, fill="#f5bd83", width=2, tags="night_lights")
+        # The cable bridge has cool mast lighting and warm lamps along its deck.
+        for y in range(723, 919, 27):
+            x = bridge_center(y, True)
+            for side in (-1, 1):
+                lx = x+side*25
+                glow(lx, y, 12, "#cce7e6")
+                c.create_oval(lx-2, y-2, lx+2, y+2, fill="#eef4d9", outline="", tags="night_lights")
+        for y in (761, 858):
+            x = bridge_center(y, True)
+            for side in (-1, 1):
+                c.create_line(x+side*29, y+12, x+side*15, y-40,
+                              fill="#d4edf0", width=3, tags="night_lights")
+                glow(x+side*15, y-40, 17, "#bddfec")
+        for x in (55, 372, 653, 920, 1144):
+            glow(x, 674, 28)
+            c.create_oval(x-2, 666, x+2, 670, fill="#fff0ba", outline="", tags="night_lights")
+        for y in range(747, 896, 23):
+            c.create_line(341, y, 360, y, fill="#d2ab69", stipple="gray25", width=2, tags="night_lights")
+            x = bridge_center(y, True)-42
+            c.create_line(x-14, y, x+8, y, fill="#b0d1d2", stipple="gray25", width=2, tags="night_lights")
+        glow(149, 930, 32, "#c5dde0")
 
     def river(self):
         colors = ("#83b9bc", "#78afb6", "#6da7b0", "#629da8", "#5e98a4", "#619daa")
@@ -111,8 +169,18 @@ class LisbonScene:
         self.road((0, 1058, 1200, 1058), 24)
         self.road((300, 902, 300, 1058), 32)
         self.road((996, 902, 980, 1058), 32)
-        self.text(345, 938, "ALMADA", 15, "#6c7f65", True)
-        self.text(345, 960, "MARGEM SUL", 8, "#788b74")
+        self.text(350, 916, "ALMADA", 12, "#6c7f65", True)
+        if any(site.role == "SHIPYARD" for site in self.sites):
+            self.rect(458, 868, 478, 912, "#aa8b63")
+            for y in range(870, 910, 7):
+                self.line((459, y, 477, y), "#d2b98d", 2)
+            self.poly((483, 866, 545, 866, 533, 890, 493, 890), "#9b6051")
+            self.rect(495, 851, 532, 866, "#e9dfc8")
+            self.rect(501, 854, 525, 861, "#5d858c")
+            self.line((470, 882, 486, 875), "#d9c69d", 2)
+            self.line((424, 925, 424, 856, 483, 845), "#747d72", 4)
+            self.line((483, 845, 483, 864), "#747d72", 1)
+            self.text(459, 924, "DOCA DE REPARAÇÕES", 6, "#657e78")
         # Cristo Rei silhouette on the south bank.
         self.rect(130, 971, 167, 982, "#b5af97")
         self.poly((137, 971, 142, 936, 156, 936, 161, 971), "#e4dbc1")
@@ -172,6 +240,10 @@ class LisbonScene:
             wall, roof = "#b98b73", "#5a6c71"
         elif site.role == "WAREHOUSE":
             wall, roof = "#bdd0cd", "#8b8f84"
+        elif site.role == "PASTELARIA":
+            wall, roof = "#f0dca6", "#b77955"
+        elif site.role == "SHIPYARD":
+            wall, roof = "#b8c8c5", "#5a747c"
         # Soft offset shadows, stone side wall, tiled pitched roof.
         self.poly((x+6, y+21, right+11, y+21, right+11, bottom+8, x+7, bottom+8), "#bfb69e")
         self.rect(x, y+12, right, bottom, wall)
@@ -198,8 +270,10 @@ class LisbonScene:
         self.rect(x+8, y+72, right-11, bottom-4, "#314c55")
         self.text(x+15, y+81, site.name, 8, "#fff5df", True)
         roles = {"SUPPLIER": "SUPPLIES", "FACTORY": "WORKSHOP", "PUBLIC SHOP": "MARKET",
-                 "TIER2": "TIER 2 · CRAFT & SELL", "CASINO": "CASINO", "GARAGE": "GARAGE", "WAREHOUSE": "STORAGE"}
-        self.text(x+15, y+96, roles[site.role], 6, "#d1c9a8")
+                 "TIER2": "TIER 2 · CRAFT & SELL", "CASINO": "CASINO", "GARAGE": "GARAGE", "WAREHOUSE": "STORAGE",
+                 "PASTELARIA": "GASTRONOMIA · PASTÉIS", "SHIPYARD": "ESTALEIRO · REPARAÇÕES"}
+        role_label = "WHEAT · EGGS (F / R)" if site.role == "SUPPLIER" and site.trade == 3 else roles[site.role]
+        self.text(x+15, y+96, role_label, 6, "#d1c9a8")
         door_x, _ = site.door
         self.rect(door_x-12, bottom-13, door_x+12, bottom+1, "#98754e")
         self.rect(door_x-14, bottom+2, door_x+14, bottom+6, "#d4a45c")
@@ -222,13 +296,18 @@ class LisbonScene:
         c.create_polygon(-34, 664, -28, 655, 28, 655, 34, 664, 34, 690, 28, 696, -28, 696, -34, 690,
                          fill="#d8a32f", outline="#a47931", smooth=True, tags="tram")
         c.create_rectangle(-30, 660, 30, 665, fill="#f7e8c3", outline="", tags="tram")
+        self.tram_windows = []
         for x in (-25, -10, 5, 20):
-            c.create_rectangle(x, 668, x+10, 681, fill="#55777c", outline="#f4e7bd", tags="tram")
+            self.tram_windows.append(c.create_rectangle(x, 668, x+10, 681, fill="#55777c", outline="#f4e7bd", tags="tram"))
         c.create_line(-30, 684, 30, 684, fill="#f4e4b4", width=2, tags="tram")
         c.create_line(-8, 655, 2, 645, 12, 655, fill="#4a5d5e", width=2, tags="tram")
         c.create_oval(-25, 690, -16, 699, fill="#3c4c4f", outline="", tags="tram")
         c.create_oval(16, 690, 25, 699, fill="#3c4c4f", outline="", tags="tram")
         self.game.label(0, 687, "TEJO", 6, "#fff5dc", True, anchor="center", tag="tram")
+
+    def set_night(self, enabled):
+        for item in self.tram_windows:
+            self.c.itemconfigure(item, fill="#f2d69a" if enabled else "#55777c")
 
     def animate(self, elapsed):
         phase = elapsed % 40

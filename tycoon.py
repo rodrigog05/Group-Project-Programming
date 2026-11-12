@@ -11,7 +11,7 @@ import tkinter as tk
 from tkinter import messagebox
 
 from saves import RemoteSaves, SaveConflict, desktop_storage
-from lisbon_scene import LisbonScene, MAP_BOTTOM, draw_character, walkable_terrain
+from lisbon_scene import LisbonScene, MAP_BOTTOM, RIVER_TOP, RIVER_BOTTOM, BRIDGE_TOLL, bridge_at, draw_character, walkable_terrain
 from soundtrack import music_for
 
 
@@ -26,6 +26,7 @@ START_CASH, CASH_GOAL, BAG_SIZE = 60, 500, 12
 PLAYER_RADIUS, REACH = 10, 35
 POWER_INTERVAL = 30
 FRAME_SECONDS = 1 / 60
+DAILY_TAX_PERCENT = 20
 POWER_UPS = (
     ("Bag upgrade", "+", "#80e2b9", 315, 321),
     ("Speed boost", "»", "#86caff", 600, 1055),
@@ -58,9 +59,18 @@ RULES_TEXT = (
     "TIER 2 FACTORY\n"
     "Foundry Precision Works combines 1 Tool and 1 Furniture into 1 Precision Machinery. "
     "Wait 12 seconds, collect it, then interact again to sell it at the factory. It is in Almada, across either bridge.\n\n"
+    "BELÉM & THE SHIPYARD\n"
+    "At Goldenfield Farm, E/Q buys Wheat (1/4) and F/R buys Eggs (1/4), at $2 per egg. "
+    "Pastéis de Belém combines 1 Wheat + 1 Egg into 1 Pastel in 8 seconds. Collect and sell it there (base price $24). "
+    "Estaleiro do Tejo in Almada uses 2 Timber + 2 Iron ore for a 20-second boat repair (base payment $100). "
+    "Return to claim the agreed payment. Iron Hill Mine is now on the Almada bank.\n\n"
     "LISBOA\n"
     "Cross the Tejo using Ponte 25 de Abril or Ponte Vasco da Gama. The yellow elétrico travels along the north bank. "
     "Click the gold Settings button or press F1 for fullscreen, music, and help.\n\n"
+    "NIGHT, TAX & TOLLS\n"
+    "Buildings and both bridges light up at night. At the end of each full day, 20% tax is charged only on positive net profit "
+    "(all income received minus purchases, upgrades, casino stakes and tolls). Loss-making days pay no tax. "
+    "Each completed Almada-to-Lisbon bridge crossing costs $3, on foot or in a vehicle. Outbound crossings and halfway turnarounds are free.\n\n"
     "TOWN & GOAL\n"
     "Each day lasts 5 minutes: 3 minutes of daylight and 2 minutes of night. Prices and customer demand "
     "change daily. Reach $500 to win. Your progress saves automatically."
@@ -94,7 +104,16 @@ def show_rules(parent):
     frame = tk.Frame(panel, padx=24, pady=18)
     frame.pack(fill="both", expand=True)
     tk.Label(frame, text="RULES & HOW TO PLAY", font=(FONT, 17, "bold")).pack(anchor="w", pady=(0, 12))
-    tk.Label(frame, text=RULES_TEXT, justify="left", wraplength=520, font=(FONT, 10)).pack(anchor="w")
+    body = tk.Frame(frame)
+    body.pack(fill="both", expand=True)
+    scrollbar = tk.Scrollbar(body)
+    scrollbar.pack(side="right", fill="y")
+    rules = tk.Text(body, width=66, height=22, wrap="word", font=(FONT, 10),
+                    relief="flat", padx=6, pady=6, yscrollcommand=scrollbar.set)
+    rules.insert("1.0", RULES_TEXT)
+    rules.configure(state="disabled")
+    rules.pack(side="left", fill="both", expand=True)
+    scrollbar.configure(command=rules.yview)
     close = tk.Button(frame, text="Close", command=panel.destroy)
     close.pack(anchor="e", pady=(16, 0))
     panel.bind("<Escape>", lambda event: panel.destroy())
@@ -119,6 +138,25 @@ TRADES = (
     Trade("Clay", "Pottery", 6, 22, 6, 7),
     Trade("Wheat", "Bread", 4, 14, 4, 10),
 )
+
+EGG_COST = 2
+MATERIAL_ROUTES = {"Iron ore": 0, "Timber": 1, "Wheat": 3}
+
+
+@dataclass(frozen=True)
+class LocalIndustry:
+    product: str
+    ingredients: tuple
+    seconds: int
+    price: int
+    demand: int
+    service: bool = False
+
+
+INDUSTRIES = {
+    "PASTELARIA": LocalIndustry("Pastéis", (("Wheat", 1), ("Eggs", 1)), 8, 24, 12),
+    "SHIPYARD": LocalIndustry("Boat repair", (("Timber", 2), ("Iron ore", 2)), 20, 100, 3, True),
+}
 
 # Name, trade index, and changes to material cost, sale price, and daily demand.
 MARKET_EVENTS = (
@@ -184,7 +222,7 @@ class Site:
 
 
 SITES = (
-    Site("Iron Hill Mine", "SUPPLIER", 0, 28, 160, "#d6a46e"),
+    Site("Iron Hill Mine", "SUPPLIER", 0, 1010, 935, "#d6a46e"),
     Site("Ironworks", "FACTORY", 0, 268, 345, "#ef8f76"),
     Site("Tool Market", "PUBLIC SHOP", 0, 508, 345, "#72d8bc"),
     Site("Pine Mill", "SUPPLIER", 1, 28, 345, "#d6a46e"),
@@ -200,6 +238,8 @@ SITES = (
     Site("Foundry Casino", "CASINO", -1, 988, 345, "#e8455a"),
     Site("Motorworks Garage", "GARAGE", -1, 988, 530, "#86caff"),
     Site("Foundry Warehouse", "WAREHOUSE", -1, 988, 160, "#d2a7e5"),
+    Site("Pastéis de Belém", "PASTELARIA", -1, 28, 160, "#f1d69b"),
+    Site("Estaleiro do Tejo", "SHIPYARD", -1, 380, 935, "#94bdc9"),
     Site("Foundry Precision Works", "TIER2", -1, 650, 935, "#ffc66c"),
 )
 
@@ -231,6 +271,25 @@ class Town:
         self.tier2_sales_today = 0
         self.tier2_revenue_today = 0
         self.tier2_total_sold = 0
+        self.eggs = 0
+        self.egg_expenses_today = 0
+        self.industry_orders = {role: None for role in INDUSTRIES}
+        self.industry_goods = {role: 0 for role in INDUSTRIES}
+        self.industry_demand = {role: recipe.demand for role, recipe in INDUSTRIES.items()}
+        self.industry_prices = {role: recipe.price for role, recipe in INDUSTRIES.items()}
+        self.industry_sales_today = {role: 0 for role in INDUSTRIES}
+        self.industry_revenue_today = {role: 0 for role in INDUSTRIES}
+        self.industry_total_sold = {role: 0 for role in INDUSTRIES}
+        self.shipyard_quote = 0
+        self.other_income_today = 0
+        self.other_expenses_today = 0
+        self.tolls_today = 0
+        self.toll_count_today = 0
+        self.tolls_paid_total = 0
+        self.taxes_paid_total = 0
+        self.last_tax_day = 0
+        self.last_day_summary = None
+        self.bridge_journey = None
         self.vehicle = None
         self.market_event = None
         self.elapsed = 0.0
@@ -263,11 +322,40 @@ class Town:
     def day(self):
         return int(self.market_elapsed // DAY_SECONDS) + 1
 
+    @property
+    def daily_revenue(self):
+        return sum(self.revenue_today)+self.tier2_revenue_today+sum(self.industry_revenue_today.values())+self.other_income_today
+
+    @property
+    def daily_expenses(self):
+        return sum(self.expenses_today)+self.egg_expenses_today+self.other_expenses_today+self.tolls_today
+
+    @property
+    def daily_net_profit(self):
+        return self.daily_revenue-self.daily_expenses
+
+    def settle_day(self, day):
+        if day <= self.last_tax_day:
+            return
+        profit = self.daily_net_profit
+        tax = (max(0, profit)*DAILY_TAX_PERCENT+50)//100
+        self.last_day_summary = {
+            "day": day, "revenue": self.daily_revenue, "expenses": self.daily_expenses,
+            "profit": profit, "tax": tax, "net_profit": profit-tax,
+            "tolls": self.tolls_today, "crossings": self.toll_count_today,
+        }
+        self.cash -= tax
+        self.taxes_paid_total += tax
+        self.last_tax_day = day
+        self.notice = f"Dia {day} fechado · Lucro ${profit} · Imposto ({DAILY_TAX_PERCENT}%) ${tax}"
+        self.notice_until = self.elapsed+6
+
     def sync_market(self, elapsed):
         previous_day = self.day
         self.market_elapsed = max(self.market_elapsed, elapsed)
         if self.day == previous_day:
             return
+        self.settle_day(previous_day)
         self.costs = [trade.cost for trade in TRADES]
         self.prices = [trade.price for trade in TRADES]
         self.demand = [trade.demand for trade in TRADES]
@@ -285,11 +373,25 @@ class Town:
         tier2_factor = 1 + 0.6 * (tier2_demand / 5 - 1) - 0.5 * (tier2_supply / 5)
         self.tier2_price = max(32, round(80 * max(0.4, min(2.5, tier2_factor))))
         self.tier2_demand = tier2_demand
+        for role, recipe in INDUSTRIES.items():
+            factor = 2.5 if random.random() < 0.12 else random.uniform(0.85, 1.15)
+            demand = max(1, round(recipe.demand*factor))
+            supply = self.industry_sales_today[role]+self.industry_goods[role]
+            price_factor = 1+0.6*(demand/recipe.demand-1)-0.5*supply/recipe.demand
+            self.industry_prices[role] = max(1, round(recipe.price*max(0.4, min(2.5, price_factor))))
+            self.industry_demand[role] = demand
+        self.industry_sales_today = {role: 0 for role in INDUSTRIES}
+        self.industry_revenue_today = {role: 0 for role in INDUSTRIES}
+        self.egg_expenses_today = 0
         self.sales_today = [0] * len(TRADES)
         self.revenue_today = [0] * len(TRADES)
         self.expenses_today = [0] * len(TRADES)
         self.tier2_sales_today = 0
         self.tier2_revenue_today = 0
+        self.other_income_today = 0
+        self.other_expenses_today = 0
+        self.tolls_today = 0
+        self.toll_count_today = 0
         self.market_event = None
         self.message = f"Day {self.day}. New customers have arrived at the markets."
         if self.day % 3 == 0:
@@ -310,13 +412,14 @@ class Town:
 
     @property
     def cargo(self):
-        return sum(self.supplies) + sum(self.goods) + self.tier2_goods
+        return sum(self.supplies)+sum(self.goods)+self.tier2_goods+self.eggs+sum(self.industry_goods.values())
 
     @property
     def reserved(self):
         return sum(order.quantity for order in self.orders if order is not None) + (
             self.tier2_order.quantity if self.tier2_order is not None else 0
-        )
+        ) + sum(order.quantity for role, order in self.industry_orders.items()
+                if order is not None and not INDUSTRIES[role].service)
 
     def advance(self, seconds):
         previous_spawn = int(self.elapsed // POWER_INTERVAL)
@@ -343,13 +446,16 @@ class Town:
             self.add_cash(30)
         self.power_up = None
 
-    def add_cash(self, amount):
+    def add_cash(self, amount, business=False):
         self.cash += amount
+        if not business:
+            self.other_income_today += amount
         if self.cash >= CASH_GOAL and not self.won:
             self.won = True
             self.message = f"Goal reached on Day {self.day}! Keep trading to grow your business."
 
     def move(self, dx, dy, seconds):
+        old_y = self.y
         length = math.hypot(dx, dy)
         if not length:
             return
@@ -365,7 +471,33 @@ class Town:
             self.x = next_x
         if self.can_walk(self.x, next_y):
             self.y = next_y
+        self.check_bridge_crossing(old_y)
         self.collect_power_up()
+
+    def check_bridge_crossing(self, old_y):
+        north, south = RIVER_TOP-PLAYER_RADIUS, RIVER_BOTTOM+PLAYER_RADIUS
+        if self.bridge_journey is None:
+            origin = "south" if old_y >= south and self.y < south else (
+                "north" if old_y <= north and self.y > north else None
+            )
+            bridge = bridge_at(self.x, self.y, PLAYER_RADIUS)
+            if origin and bridge:
+                self.bridge_journey = {"origin": origin, "bridge": bridge}
+        if self.bridge_journey is None:
+            return
+        if self.y <= north:
+            if self.bridge_journey["origin"] == "south":
+                name = self.bridge_journey["bridge"]
+                self.cash -= BRIDGE_TOLL
+                self.tolls_today += BRIDGE_TOLL
+                self.tolls_paid_total += BRIDGE_TOLL
+                self.toll_count_today += 1
+                self.message = f"Portagem · Ponte {name} → Lisboa: -${BRIDGE_TOLL}."
+                self.notice = self.message
+                self.notice_until = self.elapsed+4
+            self.bridge_journey = None
+        elif self.y >= south:
+            self.bridge_journey = None
 
     def can_walk(self, x, y):
         return walkable_terrain(x, y, PLAYER_RADIUS) and not any(
@@ -394,6 +526,9 @@ class Town:
             return
         if site.role == "WAREHOUSE":
             self.message = "Foundry Warehouse · E to expand your carrying capacity."
+            return
+        if site.role in INDUSTRIES:
+            self.interact_industry(site.role)
             return
         if site.role == "TIER2":
             order = self.tier2_order
@@ -426,7 +561,7 @@ class Town:
                 self.tier2_revenue_today += revenue
                 self.message = f"Sold {quantity} × Precision Machinery for ${revenue}."
                 self.congratulate(quantity, "precision machinery")
-                self.add_cash(revenue)
+                self.add_cash(revenue, business=True)
                 return
             quantity = min(self.goods[0], self.goods[1])
             if not quantity:
@@ -442,7 +577,7 @@ class Town:
         space = self.bag_size - self.cargo
         if site.role == "SUPPLIER":
             space -= self.reserved
-            quantity = min(4 if bulk else 1, space, self.cash // self.costs[index])
+            quantity = max(0, min(4 if bulk else 1, space, self.cash // self.costs[index]))
             if not quantity:
                 if not space and self.reserved:
                     self.message = "Bag space is reserved for your factory orders."
@@ -493,7 +628,92 @@ class Town:
             self.revenue_today[index] += revenue
             self.message = f"Sold {quantity} × {trade.product} to customers for ${revenue}."
             self.congratulate(quantity, trade.product.lower())
-            self.add_cash(revenue)
+            self.add_cash(revenue, business=True)
+
+    def buy_eggs(self, bulk=False):
+        site = self.nearby()
+        if site is None or site.role != "SUPPLIER" or site.trade != 3:
+            self.message = "Buy eggs at Goldenfield Farm in Belém."
+            return
+        space = max(0, self.bag_size-self.cargo-self.reserved)
+        quantity = max(0, min(4 if bulk else 1, space, self.cash//EGG_COST))
+        if not quantity:
+            self.message = "Your bag is full or reserved for orders." if not space else "You need more cash for eggs."
+            return
+        cost = quantity*EGG_COST
+        self.cash -= cost
+        self.eggs += quantity
+        self.egg_expenses_today += cost
+        self.message = f"Bought {quantity} × Eggs for ${cost}. Take eggs and wheat to Pastéis de Belém."
+
+    def material_amount(self, name):
+        return self.eggs if name == "Eggs" else self.supplies[MATERIAL_ROUTES[name]]
+
+    def interact_industry(self, role):
+        recipe = INDUSTRIES[role]
+        order = self.industry_orders[role]
+        if order is not None:
+            if self.elapsed < order.ready_at:
+                self.message = f"{recipe.product}: work in progress. Ready in {math.ceil(order.ready_at-self.elapsed)}s."
+                return
+            if recipe.service:
+                revenue = order.quantity*self.shipyard_quote
+                self.industry_sales_today[role] += order.quantity
+                self.industry_total_sold[role] += order.quantity
+                self.industry_revenue_today[role] += revenue
+                self.industry_orders[role] = None
+                self.shipyard_quote = 0
+                self.message = f"Boat repaired and returned to its owner. You received ${revenue}."
+                self.add_cash(revenue, business=True)
+                return
+            space = max(0, self.bag_size-self.cargo)
+            if not space:
+                self.message = "Free bag space before collecting your pastéis."
+                return
+            quantity = min(space, order.quantity)
+            self.industry_goods[role] += quantity
+            order.quantity -= quantity
+            if not order.quantity:
+                self.industry_orders[role] = None
+            self.message = f"Collected {quantity} × Pastéis. Press E again here to sell them."
+            self.congratulate(quantity, "pastéis")
+            return
+        if not recipe.service and self.industry_goods[role]:
+            quantity = min(self.industry_goods[role], self.industry_demand[role])
+            if not quantity:
+                self.message = "Today's pastry customers are served. Come back tomorrow."
+                return
+            revenue = quantity*self.industry_prices[role]
+            self.industry_goods[role] -= quantity
+            self.industry_demand[role] -= quantity
+            self.industry_sales_today[role] += quantity
+            self.industry_total_sold[role] += quantity
+            self.industry_revenue_today[role] += revenue
+            self.message = f"Sold {quantity} × Pastéis for ${revenue}."
+            self.add_cash(revenue, business=True)
+            return
+        if recipe.service and not self.industry_demand[role]:
+            self.message = "No boat repair contracts remain today. Come back tomorrow."
+            return
+        quantity = min(self.material_amount(name)//amount for name, amount in recipe.ingredients)
+        if not quantity:
+            ingredients = " + ".join(f"{amount} {name}" for name, amount in recipe.ingredients)
+            self.message = f"Bring {ingredients} to start {recipe.product.lower()}."
+            return
+        if recipe.service:
+            quantity = 1
+            self.industry_demand[role] -= 1
+            self.shipyard_quote = self.industry_prices[role]
+        for name, amount in recipe.ingredients:
+            if name == "Eggs":
+                self.eggs -= quantity*amount
+            else:
+                self.supplies[MATERIAL_ROUTES[name]] -= quantity*amount
+        self.industry_orders[role] = Order(quantity, self.elapsed+recipe.seconds)
+        if recipe.service:
+            self.message = f"Repair started with 2 Timber + 2 Iron ore. Ready in {recipe.seconds}s · Payment ${self.shipyard_quote}."
+        else:
+            self.message = f"Baking {quantity} × Pastéis with Wheat + Eggs. Ready in {recipe.seconds}s."
 
     def bet_roulette(self, choice, stake, number):
         """Take a stake on red, black, or green and return the payout for `number`.
@@ -506,9 +726,20 @@ class Town:
         if not 0 < stake <= self.cash:
             return None
         self.cash -= stake
+        self.other_expenses_today += stake
         return stake * ROULETTE_PAYOUTS[choice] if roulette_color(number) == choice else 0
 
     def site_status(self, site):
+        if site.role in INDUSTRIES:
+            role, recipe = site.role, INDUSTRIES[site.role]
+            order = self.industry_orders[role]
+            if order is not None:
+                if self.elapsed >= order.ready_at:
+                    return f"E · Claim ${self.shipyard_quote}" if recipe.service else f"E · Collect {order.quantity} pastéis"
+                return f"{'Repairing boat' if recipe.service else 'Baking'} · {math.ceil(order.ready_at-self.elapsed)}s"
+            if recipe.service:
+                return f"2 Wood + 2 Ore · ${self.industry_prices[role]} · {self.industry_demand[role]} jobs"
+            return f"Wheat + Egg → Pastel · ${self.industry_prices[role]} · {self.industry_demand[role]} buyers"
         if site.role == "CASINO":
             return "Roulette  ·  Win up to 36×"
         if site.role == "GARAGE":
@@ -525,6 +756,8 @@ class Town:
         index = site.trade
         trade = TRADES[index]
         if site.role == "SUPPLIER":
+            if site.trade == 3:
+                return f"Wheat ${self.costs[index]} · Eggs ${EGG_COST} (F / R)"
             return f"${self.costs[index]} / {trade.supply.lower()}"
         if site.role == "PUBLIC SHOP":
             return f"${self.prices[index]} each  ·  {self.demand[index]} buyers"
@@ -536,6 +769,10 @@ class Town:
         return f"In production  ·  {math.ceil(order.ready_at - self.elapsed)}s"
 
     def action_hint(self, site):
+        if site.role == "PASTELARIA":
+            return "E  Bake, collect or sell · 1 Wheat + 1 Egg = 1 Pastel"
+        if site.role == "SHIPYARD":
+            return "E  Start repair or collect payment · 2 Timber + 2 Iron ore"
         if site.role == "CASINO":
             return "E  Play roulette"
         if site.role == "GARAGE":
@@ -545,6 +782,8 @@ class Town:
         if site.role == "TIER2":
             return "E  Craft, collect, or sell"
         if site.role == "SUPPLIER":
+            if site.trade == 3:
+                return "E / Q  Buy Wheat (1 / 4)    F / R  Buy Eggs (1 / 4)"
             return "E  Buy one    •    Q  Buy up to four"
         if site.role == "PUBLIC SHOP":
             return "E  Sell to today's customers"
@@ -560,6 +799,7 @@ def pack_save(town, market_started_at):
     state = deepcopy(vars(town))
     state["orders"] = [asdict(order) if order else None for order in town.orders]
     state["tier2_order"] = asdict(town.tier2_order) if town.tier2_order else None
+    state["industry_orders"] = {role: asdict(order) if order else None for role, order in town.industry_orders.items()}
     return {"version": 1, "dayLength": DAY_SECONDS, "marketStart": market_started_at, "state": state}
 
 
@@ -584,6 +824,11 @@ def unpack_save(data):
     state.setdefault("tier2_sales_today", 0)
     state.setdefault("tier2_revenue_today", 0)
     state.setdefault("tier2_total_sold", 0)
+    for name in ("eggs", "egg_expenses_today", "industry_orders", "industry_goods", "industry_demand",
+                 "industry_prices", "industry_sales_today", "industry_revenue_today", "industry_total_sold", "shipyard_quote",
+                 "other_income_today", "other_expenses_today", "tolls_today", "toll_count_today", "tolls_paid_total",
+                 "taxes_paid_total", "last_tax_day", "last_day_summary", "bridge_journey"):
+        state.setdefault(name, deepcopy(getattr(town, name)))
     if data["version"] != 1 or state.keys() != vars(town).keys():
         raise ValueError("Unsupported Foundry Town save")
     for name in ("supplies", "goods", "orders", "demand", "costs", "prices"):
@@ -592,9 +837,15 @@ def unpack_save(data):
     state["orders"] = [Order(**order) if order is not None else None for order in state["orders"]]
     if state["tier2_order"] is not None:
         state["tier2_order"] = Order(**state["tier2_order"])
+    for name in ("industry_orders", "industry_goods", "industry_demand", "industry_prices",
+                 "industry_sales_today", "industry_revenue_today", "industry_total_sold"):
+        if state[name].keys() != INDUSTRIES.keys():
+            raise ValueError("Invalid local industry data in save")
+    state["industry_orders"] = {role: Order(**order) if order is not None else None for role, order in state["industry_orders"].items()}
     vars(town).update(state)
     if not town.can_walk(town.x, town.y) or not (MAP_TOP+15 <= town.y <= MAP_BOTTOM-15):
         town.x, town.y = 480.0, 321.0
+        town.bridge_journey = None
     return town, float(data["marketStart"])
 
 
@@ -771,6 +1022,10 @@ class Game:
                 self.casino_key(key)
             self.keys.add(key)
             return
+        if key not in self.keys and key in ("f", "r"):
+            self.town.buy_eggs(bulk=(key == "r"))
+            self.keys.add(key)
+            return
         if key not in self.keys and key in ("e", "q"):
             nearby = self.town.nearby()
             if key == "e" and nearby is not None and nearby.role == "CASINO":
@@ -873,6 +1128,7 @@ class Game:
                 status.set(f"You need ${price:,} for the {vehicle}.")
             else:
                 self.town.cash -= price
+                self.town.other_expenses_today += price
                 self.town.vehicle = vehicle
                 self.town.message = f"Bought a {vehicle} for ${price:,}. Enjoy the faster ride!"
                 status.set(f"Purchased {vehicle} · Cash remaining  ${self.town.cash:,}")
@@ -914,6 +1170,7 @@ class Game:
                 status.set(f"You need ${price:,} for this warehouse expansion.")
                 return
             self.town.cash -= price
+            self.town.other_expenses_today += price
             self.town.bag_size += 12
             self.town.warehouse_level += 1
             self.town.message = f"Warehouse expanded. Your bag now holds {self.town.bag_size} items."
@@ -1150,20 +1407,37 @@ class Game:
         town = self.town
         frame.columnconfigure(1, weight=1)
         tk.Label(frame, text="PROFIT & LOSS", font=(FONT, 16, "bold")).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
-        tk.Label(frame, text=f"Day {town.day} revenue  ${sum(town.revenue_today) + town.tier2_revenue_today:,}").grid(row=1, column=0, columnspan=2, sticky="w")
-        tk.Label(frame, text=f"Day {town.day} expenses  ${sum(town.expenses_today):,}").grid(row=2, column=0, columnspan=2, sticky="w")
+        tk.Label(frame, text=f"Day {town.day} revenue  ${town.daily_revenue:,}").grid(row=1, column=0, columnspan=2, sticky="w")
+        tk.Label(frame, text=f"Day {town.day} expenses  ${town.daily_expenses:,}").grid(row=2, column=0, columnspan=2, sticky="w")
         tk.Label(frame, text="District sales today").grid(row=3, column=0, columnspan=2, sticky="w", pady=(10, 3))
         districts = ("Metal", "Timber", "Clay", "Farm")
         for index, trade in enumerate(TRADES):
             tk.Label(frame, text=f"{districts[index]} · {trade.product} · {town.sales_today[index]} sold").grid(row=4 + index, column=0, sticky="w")
-            tk.Label(frame, text=f"Revenue ${town.revenue_today[index]:,} · Costs ${town.expenses_today[index]:,}").grid(row=4 + index, column=1, sticky="e")
-        totals = town.total_sold + [town.tier2_total_sold]
-        products = [trade.product for trade in TRADES] + ["Precision Machinery"]
+            costs = town.expenses_today[index]+(town.egg_expenses_today if index == 3 else 0)
+            tk.Label(frame, text=f"Revenue ${town.revenue_today[index]:,} · Purchases ${costs:,}").grid(row=4 + index, column=1, sticky="e")
+        totals = town.total_sold+[town.tier2_total_sold]+list(town.industry_total_sold.values())
+        products = [trade.product for trade in TRADES]+["Precision Machinery"]+[recipe.product for recipe in INDUSTRIES.values()]
         best = max(range(len(totals)), key=lambda index: totals[index])
         tk.Label(frame, text=f"Precision Works · {town.tier2_sales_today} sold · Revenue ${town.tier2_revenue_today:,}").grid(row=8, column=0, columnspan=2, sticky="w")
-        tk.Label(frame, text=f"Top seller overall  {products[best]} · {totals[best]} sold").grid(row=9, column=0, columnspan=2, sticky="w", pady=(8, 4))
-        tk.Button(frame, text="Edit player profile", command=lambda: self.open_profile_editor(close)).grid(row=10, column=0, sticky="w", pady=(8, 0))
-        tk.Button(frame, text="Close", command=close).grid(row=10, column=1, sticky="e", pady=(8, 0))
+        for row, (role, district) in enumerate((("PASTELARIA", "Belém · Pastéis"), ("SHIPYARD", "Tejo · Boat repairs")), start=9):
+            tk.Label(frame, text=f"{district} · {town.industry_sales_today[role]} completed").grid(row=row, column=0, sticky="w")
+            tk.Label(frame, text=f"Revenue ${town.industry_revenue_today[role]:,}").grid(row=row, column=1, sticky="e")
+        estimated_tax = (max(0, town.daily_net_profit)*DAILY_TAX_PERCENT+50)//100
+        summary = [
+            f"Lucro antes de imposto: ${town.daily_net_profit:,} · Imposto estimado ({DAILY_TAX_PERCENT}%): ${estimated_tax:,}",
+            f"Portagens hoje: ${town.tolls_today} · {town.toll_count_today} regressos a Lisboa",
+            f"Outras receitas: ${town.other_income_today:,} · Outras despesas: ${town.other_expenses_today:,}",
+            f"Total pago · Impostos: ${town.taxes_paid_total:,} · Portagens: ${town.tolls_paid_total:,}",
+        ]
+        if town.last_day_summary:
+            last = town.last_day_summary
+            summary.append(f"Fecho do dia {last['day']}: lucro ${last['profit']} · imposto ${last['tax']} · líquido ${last['net_profit']}")
+        for row, line in enumerate(summary, start=11):
+            tk.Label(frame, text=line).grid(row=row, column=0, columnspan=2, sticky="w", pady=2)
+        row = 11+len(summary)
+        tk.Label(frame, text=f"Top seller overall  {products[best]} · {totals[best]} sold").grid(row=row, column=0, columnspan=2, sticky="w", pady=(8, 4))
+        tk.Button(frame, text="Edit player profile", command=lambda: self.open_profile_editor(close)).grid(row=row+1, column=0, sticky="w", pady=(8, 0))
+        tk.Button(frame, text="Close", command=close).grid(row=row+1, column=1, sticky="e", pady=(8, 0))
         panel.protocol("WM_DELETE_WINDOW", close)
 
     def open_profile_editor(self, close_analytics):
@@ -1275,9 +1549,14 @@ class Game:
 
     def draw_city(self):
         background = Path(__file__).parent / "assets" / f"lisbon_view_{self.viewport_width}x{self.viewport_height}.png"
+        self.background_item = None
+        self.night_image = None
         if background.exists():
             self.background_image = tk.PhotoImage(file=str(background))
-            self.canvas.create_image(0, 0, image=self.background_image, anchor="nw", tags="city")
+            self.background_item = self.canvas.create_image(0, 0, image=self.background_image, anchor="nw", tags="city")
+            night_path = background.with_name(background.stem+"_night.png")
+            if night_path.exists():
+                self.night_image = tk.PhotoImage(file=str(night_path))
             self.scene = LisbonScene(self, SITES, draw=False)
             self.scene.create_tram()
         else:
@@ -1291,6 +1570,9 @@ class Game:
         self.night_overlay = self.canvas.create_rectangle(
             0, MAP_TOP, WIDTH, MAP_BOTTOM, fill="#172e45", stipple="gray25", outline="", state="hidden", tags="city"
         )
+        if self.night_image is None:
+            self.scene.night_lighting()
+            self.canvas.itemconfigure("night_lights", state="hidden")
         self._night_visible = False
         self.traffic_items = []
         for offset, lane, speed, color in self.traffic:
@@ -1793,9 +2075,17 @@ class Game:
         phase_length = DAYLIGHT_SECONDS if is_daytime else NIGHT_SECONDS
         phase_elapsed = phase if is_daytime else phase - DAYLIGHT_SECONDS
         phase_fraction = phase_elapsed / phase_length
-        if self._night_visible == is_daytime:
-            self._night_visible = not is_daytime
-            canvas.itemconfigure(self.night_overlay, state="normal" if self._night_visible else "hidden")
+        night = not is_daytime
+        if self._night_visible != night:
+            self._night_visible = night
+            if self.night_image is not None:
+                canvas.itemconfigure(self.background_item, image=self.night_image if night else self.background_image)
+            else:
+                canvas.itemconfigure(self.night_overlay, state="normal" if night else "hidden")
+                canvas.itemconfigure("night_lights", state="normal" if night else "hidden")
+            self.scene.set_night(night)
+            for _, window, *_ in self.traffic_items:
+                canvas.itemconfigure(window, fill="#f4dda1" if night else "#adc8cc")
         nearby = town.nearby()
         self.hud_label("day", 308, 30, f"DAY {town.day:02}", 14, WHITE, True)
         self.box(308, 52, 412, 59, "#304851", "live")
@@ -1813,6 +2103,8 @@ class Game:
         self.hud_label("bag", 673, 25, f"BAG  {town.cargo}/{town.bag_size}{reserved}", 12, WHITE, True)
         supplies = "  ".join(f"{name} {quantity}" for name, quantity in zip(("Ore", "Wood", "Clay", "Wheat"), town.supplies))
         goods = "  ".join(f"{name} {quantity}" for name, quantity in zip(("Tools", "Furn.", "Pots", "Bread"), town.goods))
+        supplies += f"  Eggs {town.eggs}"
+        goods += f"  Mach. {town.tier2_goods}  Pastéis {town.industry_goods['PASTELARIA']}"
         self.hud_label("supplies", 673, 51, supplies, 9, MUTED)
         self.hud_label("goods", 673, 74, goods, 9, MUTED)
         self.box(PROFILE_X, 19, PROFILE_X + 56, 77, "#304851", "live")
@@ -1820,7 +2112,7 @@ class Game:
         canvas.create_oval(PROFILE_X + 12, 46, PROFILE_X + 44, 65, fill=GOLD, width=0, tags="live")
         for site in SITES:
             self.hud_label(f"site-{site.name}", site.x + 8, site.y + 123,
-                           town.site_status(site), 7, "#385360")
+                           town.site_status(site), 7, "#385360" if is_daytime else "#e5dab7")
             if site == nearby:
                 x, y, right, bottom = site.bounds
                 canvas.create_rectangle(x-2, y-2, right+2, bottom+2, outline=GOLD, width=2, tags="live")
