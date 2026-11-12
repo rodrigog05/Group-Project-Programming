@@ -11,19 +11,39 @@ The game needs Python with Tk 8.6 or newer. Apple's built-in Python uses Tk 8.5,
 
 Move with **WASD** or the arrow keys. Walk to a colored doorstep and press **E** to interact. At a supplier, **Q** buys up to four units at once.
 
+Follow the numbered building signs: **1 BUY RAW MATERIALS → 2 MAKE PRODUCTS → 3 SELL PRODUCTS**. Matching colors and numbers also appear on the minimap. Press **P** or click **Places** to browse suppliers, factories, markets, services and landmarks, with ingredients and instructions. Choose **Guide me here** to mark a doorstep and show a direction; river crossings point you toward a suitable bridge. Purple **2+3 MAKE + SELL** signs identify businesses where you craft, collect and sell at the same place.
+
+Visit **Mosteiro dos Jerónimos** in Belém, **Castelo de São Jorge** in Alfama, **Torre de Belém** beside the western waterfront and **Praça do Comércio** with its open courtyard. They are drawn into the day/night scenery and marked on the minimap. Pine Mill, Redbank Clay Pit and Sunrise Bakery now occupy nearby eastern business plots; the directory always uses their current locations.
+
+Monuments attract extra **local buyers each day**. Jerónimos adds 6 and Torre de Belém adds 3 for Pastéis de Belém; Praça do Comércio adds 4 each for Daily Bread Market, The Pottery Shop and Tool Market; Castelo adds another 3 for The Pottery Shop. The shop's `buyers` display includes its remaining tourists. Regular customers are served first, then the local tourist pool. These extra buyers refresh once per day, keep their remaining counts through saves, and cannot be spent at unrelated markets. Select a shop or landmark in Places to see its tourism effect.
+
+At **Motorworks Garage**, press **E** to buy a ride. The active vehicle's trunk combines with your personal bag and warehouse upgrades:
+
+| Vehicle | Price | Extra trunk slots | Total with starter bag | Road / off-road speed |
+| --- | ---: | ---: | ---: | ---: |
+| Motorcycle | $120 | 6 | 18 | 520 / 420 |
+| Car | $240 | 48 | 60 | 690 / 510 |
+| Delivery van | $360 | 108 | 120 | 620 / 430 |
+
+The HUD shows **BAG + TRUNK**, total capacity and the active road-speed bonus. All purchases, factory collections and eggs use that combined capacity. Switching to a smaller trunk is blocked while your cargo and reserved orders exceed its limit. Older car saves gain the new trunk automatically without repeatedly adding slots.
+
+For early travel, walk to a yellow **TRAM · E · $3** platform and press **E**. Choose any other stop for a **$3 express trip** between Belém, Alcântara, Baixa/Praça do Comércio, Alfama, Oriente, Marvila and Parque das Nações. Stops are marked **T** on the minimap and listed in Places → Services. Trips keep your cargo, vehicle and orders; fares count as expenses. The tram serves Lisbon's north bank, while the two bridges connect to Almada.
+
 At the fullscreen start menu, choose your character's name, skin tone, hair, and outfit before starting or continuing.
 
 The game fills the monitor in fullscreen and follows the window size in windowed mode. A smooth following camera shows a portion of the world at a readable scale, with the HUD and Settings fixed on screen. Press **M** to toggle the minimap and use **Settings → Camera zoom** to choose 1.0×, 1.25× or 1.5×.
 
 The playable world is **2400 × 1600**, with closer districts and about one third less area than the first expanded map. Destinations include Marvila Timber Depot, Oriente Tool Market, Mercado das Nações, Quinta de Palmela, Cacilhas Garage and Armazém do Seixal. Their prices, daily demand and upgrades belong to the same town economy. Old saves keep their inventory and finances; a saved position that is no longer walkable returns to the starting street. New district positions also save normally.
 
-The city now has 30 walking pedestrians, 12 road vehicles, four moving boats, water movement, the traveling elétrico and repair activity at the shipyard. Actors outside the camera are hidden, and the detailed day/night world is cached as images. The renderer targets **75 FPS** to give headroom above 60, with an actual FPS readout on the minimap. Settings can toggle traffic and ambient activity independently.
+The city now has 30 walking pedestrians, 12 road vehicles, four moving boats, water movement, the traveling elétrico and repair activity at the shipyard. There are 73 additional trees along waterfront paths, streets and parks, baked into the scenery. Windows uses cached map bitmaps and antialiased sprites through its built-in graphics APIs; it needs no additional Python packages. macOS, Linux and systems without that backend use the Tk renderer. The player and power-ups reuse their drawing objects, and the minimap refreshes at 10 Hz. The renderer targets **120 FPS**, using a high-resolution clock for both movement and frame pacing, with an actual FPS readout on the minimap. Settings can toggle traffic and ambient activity independently.
 
-Run `python benchmark_world.py --seconds 6` to measure a moving-camera day/night session at your current resolution. Add `--zoom 1.0` or `--zoom 1.5` to check another view. This benchmark uses temporary progress in memory.
+The Windows renderer keeps a bounded sprite cache, releases its bitmap contexts when the game closes, and pairs its active [high-resolution timer request](https://learn.microsoft.com/en-us/windows/win32/api/timeapi/nf-timeapi-timebeginperiod) with cleanup when returning to the menu or exiting.
+
+Run `python benchmark_world.py --seconds 12` to measure a moving-camera day/night session at your current resolution. It focuses the game, allows one second for the window to warm up, then measures completed frames, day/night FPS, the lowest full one-second frame count and p95/p99 frame times while walking back and forth. Add `--zoom 1.0` or `--zoom 1.5` to check another view, or `--target-fps 90` for a temporary cap comparison. This benchmark uses temporary progress in memory.
 
 Windows startup uses the monitor's physical resolution, including 1920 × 1080 displays with Windows scaling enabled. Settings shows the current display size. **Save and Close Game** writes progress to the configured save storage before exiting; a failed save keeps the game open so you can retry.
 
-The Lisboa edition has a compact west-to-east layout inspired by Belém, Alcântara, Baixa/Chiado, Alfama/Graça and Oriente. The Tejo separates Lisbon from Almada. Both Ponte 25 de Abril and Ponte Vasco da Gama are usable crossings. Precision Works is on the Almada bank. A yellow elétrico follows a fictional waterfront line between the neighborhoods. The architecture uses tiled roofs, azulejos, balconies and calçada, with antialiased scenery cached as PNGs for smooth movement. Geographic references come from [Turismo de Portugal](https://www.visitportugal.com/en/destinos/lisboa/73775) and [Visit Lisboa's Tagus route](https://www.visitlisboa.com/en/lisbon-stories/15-tagus-route/pois?page=2).
+The Lisboa edition has a compact west-to-east layout inspired by Belém, Alcântara, Baixa/Chiado, Alfama/Graça and Oriente. The Tejo separates Lisbon from Almada. Both Ponte 25 de Abril and Ponte Vasco da Gama are usable crossings; Vasco da Gama connects the eastern waterfront beside Parque das Nações to the Seixal side of the map. Both crossings appear on the minimap. Precision Works is on the Almada bank. A yellow elétrico follows a fictional waterfront line between the neighborhoods. The architecture uses tiled roofs, azulejos, balconies and calçada, with antialiased scenery cached as PNGs for smooth movement. Geographic references come from [Turismo de Portugal](https://www.visitportugal.com/en/destinos/lisboa/73775) and [Visit Lisboa's Tagus route](https://www.visitlisboa.com/en/lisbon-stories/15-tagus-route/pois?page=2).
 
 **Saudade do Tejo** is a bundled original 60-second fado-inspired guitar instrumental, composed for this game. It loops locally without an internet connection. Use the gold **Settings** button or **F1** to toggle music, change fullscreen mode, and read the rules. Windows uses its built-in WAV player; macOS uses `afplay`; Linux uses `paplay` or `aplay` when available. To rebuild assets, run `python compose_fado.py` for audio or `python render_world.py` for the expanded world (the scenery build requires Pillow; playing does not). `render_lisbon.py` can still rebuild the compact map previews.
 
@@ -42,7 +62,7 @@ Foundry Precision Works is the Tier 2 factory. Bring one Tool and one Furniture 
 
 **Estaleiro do Tejo** is on the Almada waterfront, next to the repair dock. Bring **2 Timber + 2 Iron ore** and press **E** to accept a boat repair. After 20 seconds, return and press **E** to claim the agreed payment (base $100 against $24 of materials). Boat repairs are services, so boats do not occupy your bag. The quoted payment is fixed when the job starts, including across a save or a market-day change. There are three repair contracts at base daily demand.
 
-Iron Hill Mine has moved to the Almada bank near the Vasco da Gama crossing to make room for the Belém pastelaria. New businesses use the dynamic daily market and appear in the P&L panel. Eggs, pastéis, repair contracts and quoted payments are included in autosaves; older saves receive the new inventory and business defaults.
+Iron Hill Mine is on the Almada bank; use Places guidance to reach it across either bridge. New businesses use the dynamic daily market and appear in the P&L panel. Eggs, pastéis, repair contracts and quoted payments are included in autosaves; older saves receive the new inventory and business defaults.
 
 A game day lasts five minutes, with three minutes of daylight and two minutes of night. Every third day, a one-day market event changes a route's material cost, selling price, and customer demand. Look for the market banner to see the changes.
 

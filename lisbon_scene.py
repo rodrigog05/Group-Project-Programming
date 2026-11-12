@@ -1,21 +1,23 @@
 """Retained vector scenery for a compact, playable interpretation of Lisbon."""
 import math
 import random
+from lisbon_landmarks import draw_landmarks, light_landmarks
 
 RIVER_TOP, RIVER_BOTTOM = 718, 900
 MAP_BOTTOM = 1080
 WORLD_WIDTH, WORLD_BOTTOM = 2400, 1600
+VASCO_NORTH_X = 2035
 BRIDGE_TOLL = 3
 SCENERY_BLOCKS = tuple(
     (x, y, x+176, y+104)
-    for x, y in ((1280, 160), (1540, 160), (2080, 160), (1540, 345), (2080, 345),
-                 (1280, 530), (1540, 530), (700, 1180), (940, 1180),
+    for x, y in ((1540, 160), (1540, 345), (2080, 345),
+                 (1280, 530), (700, 1180), (940, 1180),
                  (1280, 1180), (1800, 1180), (1280, 1430), (1540, 1430), (1800, 1430))
 )
 
 
 def bridge_center(y, eastern=False):
-    return 1055 - 0.32 * (y - RIVER_TOP) if eastern else 300
+    return VASCO_NORTH_X - 0.32 * (y - RIVER_TOP) if eastern else 300
 
 
 def bridge_at(x, y, radius=10):
@@ -29,6 +31,21 @@ def walkable_terrain(x, y, radius=10):
     if RIVER_TOP - radius < y < RIVER_BOTTOM + radius:
         return bridge_at(x, y, radius) is not None
     return True
+
+
+# These trees are rendered into the static day/night maps, outside doorways.
+STREET_TREES = (
+    tuple((x, 697, 12) for x in range(60, WORLD_WIDTH-40, 80)
+          if all(abs(x-bridge_center(697, eastern)) > 85 for eastern in (False, True)))
+    + tuple((x, 952, 19) for x in range(1230, WORLD_WIDTH-40, 85)
+            if abs(x-bridge_center(952, True)) > 90)
+    + tuple((x, y, 16) for x in (1260, 1740, 2300) for y in (205, 390, 575))
+    + tuple((x, y, 19) for x in (690, 930, 1260, 1525, 1810, 2085, 2300) for y in (1150, 1405))
+    + tuple((x, y, 22) for x, y in ((90, 1240), (175, 1235), (440, 1235), (515, 1240),
+                                   (90, 1330), (515, 1330), (90, 1435), (515, 1435),
+                                   (180, 1500), (270, 1500), (400, 1500), (490, 1500)))
+    + ((1835, 595, 15), (1985, 605, 15))
+)
 
 
 class LisbonScene:
@@ -83,7 +100,7 @@ class LisbonScene:
             self.line((x, 707, x+13, 701, x+26, 707, x+39, 713, x+52, 707), "#a5a294", 2, smooth=True)
         for name, x in (("BELÉM", 28), ("ALCÂNTARA", 268), ("BAIXA · CHIADO", 508),
                         ("ALFAMA · GRAÇA", 748), ("ORIENTE", 988)):
-            self.text(x, 133, name, 10, "#6e7767", True)
+            self.text(x, 124, name, 10, "#6e7767", True)
         for site in self.sites:
             if site.y < RIVER_TOP:
                 self.building(site)
@@ -95,19 +112,22 @@ class LisbonScene:
         self.south_bank()
         self.suspension_bridge()
         self.cable_bridge()
+        draw_landmarks(self)
+        for x, y, size in STREET_TREES:
+            self.tree(x, y, size)
         self.tramway()
-        self.text(18, 707, "RIBEIRA DAS NAUS", 7, "#738379", True)
+        self.text(18, 730, "RIBEIRA DAS NAUS", 7, "#3c5d61", True)
         self.text(687, 878, "RIO TEJO", 23, "#d5edef", True, anchor="center")
         self.text(687, 901, "LISBOA  /  ALMADA", 8, "#587c81", anchor="center")
-        self.text(350, 709, f"↑ LISBOA · PORTAGEM ${BRIDGE_TOLL}", 7, "#5d6d65", True)
-        self.text(1090, 707, f"↑ LISBOA · ${BRIDGE_TOLL}", 7, "#5d6d65", True)
+        self.text(350, 729, f"↑ LISBOA · PORTAGEM ${BRIDGE_TOLL}", 7, "#3c5d61", True)
+        self.text(bridge_center(729, True)+35, 729, f"↑ LISBOA · ${BRIDGE_TOLL}", 7, "#3c5d61", True)
 
     def expanded_north(self):
         self.rect(1200, 104, WORLD_WIDTH, RIVER_TOP, "#d9d7bf")
-        for x in (1225, 1495, 1775, 2035, 2350):
+        for x in (1225, 1495, 1775, VASCO_NORTH_X, 2350):
             self.road((x, 140, x, 660), 29)
-        self.text(1300, 126, "MARVILA", 19, "#6b7d6c", True)
-        self.text(1810, 126, "PARQUE DAS NAÇÕES", 19, "#6b7d6c", True)
+        self.text(1300, 122, "MARVILA", 19, "#6b7d6c", True)
+        self.text(1810, 122, "PARQUE DAS NAÇÕES", 19, "#6b7d6c", True)
         self.rect(1810, 520, 2010, 640, "#b7c5a0")
         self.line((1830, 610, 1910, 545, 1990, 610), "#ece3c7", 13, smooth=True)
         for x, y in ((1830, 550), (1985, 550), (1910, 615), (2300, 215),
@@ -133,11 +153,11 @@ class LisbonScene:
         self.rect(0, 1085, WORLD_WIDTH, WORLD_BOTTOM, "#c5c9a6")
         for y in (1110, 1370, 1570):
             self.road((0, y, WORLD_WIDTH, y), 34)
-        for x in (620, 1190, 1495, 1775, 2035, 2350):
+        for x in (620, 1190, 1495, 1775, VASCO_NORTH_X, 2350):
             self.road((x, 1060, x, 1580), 30)
         self.text(1290, 1010, "CACILHAS", 20, "#65795e", True)
         self.text(2070, 1010, "SEIXAL", 20, "#65795e", True)
-        self.text(2020, 1405, "QUINTAS DA MARGEM SUL", 12, "#708461", True)
+        self.text(2020, 1392, "QUINTAS DA MARGEM SUL", 12, "#708461", True)
         self.rect(60, 1210, 550, 1530, "#abbc8b")
         self.line((100, 1480, 300, 1250, 495, 1480), "#e1d7b6", 22, smooth=True)
         for x in range(700, 1100, 35):
@@ -195,6 +215,7 @@ class LisbonScene:
             x = bridge_center(y, True)-42
             c.create_line(x-14, y, x+8, y, fill="#b0d1d2", stipple="gray25", width=2, tags="night_lights")
         glow(149, 930, 32, "#c5dde0")
+        light_landmarks(self)
 
     def river(self):
         colors = ("#83b9bc", "#78afb6", "#6da7b0", "#629da8", "#5e98a4", "#619daa")
@@ -222,7 +243,7 @@ class LisbonScene:
         self.rect(0, RIVER_BOTTOM+2, WORLD_WIDTH, RIVER_BOTTOM+9, "#f1e8ce")
         self.road((0, 1058, WORLD_WIDTH, 1058), 24)
         self.road((300, 902, 300, 1058), 32)
-        self.road((996, 902, 980, 1058), 32)
+        self.road((bridge_center(902, True), 902, VASCO_NORTH_X, 1058), 32)
         self.text(350, 916, "ALMADA", 12, "#6c7f65", True)
         if any(site.role == "SHIPYARD" for site in self.sites):
             self.rect(458, 868, 478, 912, "#aa8b63")
@@ -234,7 +255,7 @@ class LisbonScene:
             self.line((470, 882, 486, 875), "#d9c69d", 2)
             self.line((424, 925, 424, 856, 483, 845), "#747d72", 4)
             self.line((483, 845, 483, 864), "#747d72", 1)
-            self.text(459, 924, "DOCA DE REPARAÇÕES", 6, "#657e78")
+            self.text(425, 904, "DOCA DE REPARAÇÕES", 6, "#657e78")
         # Cristo Rei silhouette on the south bank.
         self.rect(130, 971, 167, 982, "#b5af97")
         self.poly((137, 971, 142, 936, 156, 936, 161, 971), "#e4dbc1")
@@ -267,7 +288,8 @@ class LisbonScene:
         self.text(250, 803, "25 DE ABRIL", 8, "#f5dfc5", True, anchor="e")
 
     def cable_bridge(self):
-        start, end = (1061, 698), (992, 919)
+        start, end = (bridge_center(698, True), 698), (bridge_center(919, True), 919)
+        self.road((VASCO_NORTH_X, 660, *start), 32)
         self.line((start[0]+7, start[1]+7, end[0]+7, end[1]+7), "#638d8f", 59)
         self.line((*start, *end), "#c3c9c1", 58)
         self.line((*start, *end), "#747e7e", 45)
@@ -280,10 +302,12 @@ class LisbonScene:
                     target_y = y+spread
                     target_x = bridge_center(target_y, True)+side*26
                     self.line((x+side*15, y-39, target_x, target_y), "#d8e0d6", 1)
-        self.text(1090, 775, "VASCO", 8, "#e0efdf", True)
-        self.text(1090, 789, "DA GAMA", 8, "#e0efdf", True)
+        self.text(bridge_center(775, True)+55, 775, "VASCO", 8, "#e0efdf", True)
+        self.text(bridge_center(775, True)+55, 789, "DA GAMA", 8, "#e0efdf", True)
 
     def building(self, site):
+        from wayfinding import site_guide
+        guide = site_guide(site)
         x, y, right, bottom = site.bounds
         palettes = (("#dec4a0", "#bc785b"), ("#e3c4b5", "#b87356"), ("#c7d3d0", "#ac7058"),
                     ("#e4ce95", "#b97552"))
@@ -323,24 +347,35 @@ class LisbonScene:
             self.poly((tile_x, y+67, tile_x+3, y+64, tile_x+6, y+67, tile_x+3, y+70), "#628b9b")
         self.rect(x+8, y+72, right-11, bottom-4, "#314c55")
         self.text(x+15, y+81, site.name, 8, "#fff5df", True)
-        roles = {"SUPPLIER": "SUPPLIES", "FACTORY": "WORKSHOP", "PUBLIC SHOP": "MARKET",
-                 "TIER2": "TIER 2 · CRAFT & SELL", "CASINO": "CASINO", "GARAGE": "GARAGE", "WAREHOUSE": "STORAGE",
-                 "PASTELARIA": "GASTRONOMIA · PASTÉIS", "SHIPYARD": "ESTALEIRO · REPARAÇÕES"}
-        role_label = "WHEAT · EGGS (F / R)" if site.role == "SUPPLIER" and site.trade == 3 else roles.get(site.role, "LISBOA · RESIDÊNCIAS")
-        self.text(x+15, y+96, roles.get(site.role, "LISBOA · RESIDÊNCIAS") if site.role == "RESIDENTIAL" else role_label, 6, "#d1c9a8")
+        if site.role != "RESIDENTIAL":
+            # The numbered signs make the trading loop readable without relying on color.
+            self.rect(x-1, y-22, right+1, y-4, guide.color)
+            self.rect(x+2, y-19, right-2, y-17, "#f6e7bf")
+            self.text(x+88, y-12, guide.badge, 9, "#ffffff", True, anchor="center")
+            self.rect(x+8, y+72, x+12, bottom-4, guide.color)
+            self.rect(right-15, y+72, right-11, bottom-4, guide.color)
+            self.text(x+15, y+95, guide.detail, 7, "#f2e7cb")
+        else:
+            self.text(x+15, y+96, guide.detail, 6, "#d1c9a8")
         door_x, _ = site.door
         self.rect(door_x-12, bottom-13, door_x+12, bottom+1, "#98754e")
-        self.rect(door_x-14, bottom+2, door_x+14, bottom+6, "#d4a45c")
+        self.rect(door_x-16, bottom+2, door_x+16, bottom+8,
+                  guide.color if site.role != "RESIDENTIAL" else "#d4a45c")
         self.rect(x+3, bottom+13, right-3, bottom+32, "#ede4cf")
 
     def tramway(self):
+        from tram import TRAM_FARE, TRAM_STOPS
         for y in (681, 691):
-            self.line((25, y, 1175, y), "#7f8580", 2)
-            self.line((25, y+1, 1175, y+1), "#f0e6d0")
-        self.line((45, 665, 1155, 665), "#8c9387", 1)
-        for x in (55, 372, 653, 920, 1144):
+            self.line((25, y, WORLD_WIDTH-25, y), "#7f8580", 2)
+            self.line((25, y+1, WORLD_WIDTH-25, y+1), "#f0e6d0")
+        self.line((45, 665, WORLD_WIDTH-45, 665), "#8c9387", 1)
+        for x in range(55, WORLD_WIDTH-30, 280):
             self.line((x, 668, x, 698), "#737e77", 2)
             self.line((x-8, 666, x+8, 666), "#737e77", 2)
+        for stop in TRAM_STOPS:
+            self.rect(stop.x-53, 697, stop.x+53, 717, "#746347")
+            self.rect(stop.x-51, 699, stop.x+51, 715, "#f3d48b")
+            self.text(stop.x, 707, f"TRAM · E · ${TRAM_FARE}", 8, "#3f4c4c", True, "center")
         self.create_tram()
 
     def create_tram(self):
@@ -366,7 +401,7 @@ class LisbonScene:
     def animate(self, elapsed):
         phase = elapsed % 40
         fraction = min(1, phase/17) if phase < 20 else max(0, 1-(phase-20)/17)
-        x = 80+1040*fraction
+        x = 80+(WORLD_WIDTH-180)*fraction
         self.c.move("tram", (x-self.tram_position)*self.game.scale_x, 0)
         self.tram_position = x
 

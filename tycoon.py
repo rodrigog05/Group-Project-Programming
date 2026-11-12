@@ -14,6 +14,9 @@ from saves import RemoteSaves, SaveConflict, desktop_storage
 from lisbon_scene import LisbonScene, MAP_BOTTOM, WORLD_WIDTH, WORLD_BOTTOM, SCENERY_BLOCKS, RIVER_TOP, RIVER_BOTTOM, BRIDGE_TOLL, bridge_at, draw_character, walkable_terrain
 from soundtrack import music_for
 from living_world import LivingWorld
+from lisbon_landmarks import LANDMARK_SOLIDS
+from vehicles import VEHICLES, WALK_SPEED, on_road
+from tourism import new_tourist_pools, tourism_bonus
 
 
 WIDTH = 1200
@@ -26,7 +29,7 @@ LEGACY_DAY_SECONDS = 24 * 60 * 60
 START_CASH, CASH_GOAL, BAG_SIZE = 60, 500, 12
 PLAYER_RADIUS, REACH = 10, 35
 POWER_INTERVAL = 30
-TARGET_FPS = 75
+TARGET_FPS = 120
 FRAME_SECONDS = 1 / TARGET_FPS
 DAILY_TAX_PERCENT = 20
 POWER_UPS = (
@@ -68,11 +71,22 @@ RULES_TEXT = (
     "Return to claim the agreed payment. Iron Hill Mine is now on the Almada bank.\n\n"
     "LISBOA\n"
     "Cross the Tejo using Ponte 25 de Abril or Ponte Vasco da Gama. The yellow elétrico travels along the north bank. "
+    "Visit Mosteiro dos Jerónimos, Castelo de São Jorge, Torre de Belém and Praça do Comércio. "
+    "Building signs follow 1 BUY RAW MATERIALS → 2 MAKE PRODUCTS → 3 SELL PRODUCTS. "
+    "Open Places (P) to see recipes and locations, then choose Guide me here for a destination marker. "
     "Click the gold Settings button or press F1 for fullscreen, music, and help.\n\n"
     "LIVING WORLD\n"
     "Explore Marvila, Parque das Nações, Cacilhas and Seixal in a 2400 × 1600 world. The camera follows you. "
     "M toggles the minimap; Settings offers three camera zoom levels and ambient animation controls. "
     "New markets, depots, a farm, a garage and a warehouse share the town's existing prices, demand and upgrades.\n\n"
+    "TOURISM & TRANSPORT\n"
+    "Monuments attract extra local shoppers each day: Jerónimos and Torre de Belém help Pastéis, "
+    "Praça do Comércio helps bread, pottery and tools, and Castelo adds pottery buyers. "
+    "Their remaining tourist buyers save and reset with each new day. "
+    "At a garage, motorcycles cost $120 (+6 trunk slots), cars $240 (+48) and vans $360 (+108). "
+    "Trunks combine with personal and warehouse storage, and vehicles get a speed bonus on paved roads. "
+    "Walk to a yellow TRAM stop, press E and pay $3 for express travel to another Lisbon district. "
+    "Your cargo and vehicle remain available after the trip.\n\n"
     "NIGHT, TAX & TOLLS\n"
     "Buildings and both bridges light up at night. At the end of each full day, 20% tax is charged only on positive net profit "
     "(all income received minus purchases, upgrades, casino stakes and tolls). Loss-making days pay no tax. "
@@ -231,14 +245,14 @@ SITES = (
     Site("Iron Hill Mine", "SUPPLIER", 0, 1010, 935, "#d6a46e"),
     Site("Ironworks", "FACTORY", 0, 268, 345, "#ef8f76"),
     Site("Tool Market", "PUBLIC SHOP", 0, 508, 345, "#72d8bc"),
-    Site("Pine Mill", "SUPPLIER", 1, 28, 345, "#d6a46e"),
+    Site("Pine Mill", "SUPPLIER", 1, 1280, 160, "#d6a46e"),
     Site("Oak Workshop", "FACTORY", 1, 268, 160, "#ef8f76"),
     Site("Home Market", "PUBLIC SHOP", 1, 508, 160, "#72d8bc"),
-    Site("Redbank Clay Pit", "SUPPLIER", 2, 748, 160, "#e6a17f"),
+    Site("Redbank Clay Pit", "SUPPLIER", 2, 2080, 160, "#e6a17f"),
     Site("Ember Kiln", "FACTORY", 2, 748, 345, "#f3a376"),
     Site("The Pottery Shop", "PUBLIC SHOP", 2, 748, 530, "#d2a7e5"),
     Site("Goldenfield Farm", "SUPPLIER", 3, 28, 530, "#e3c77e"),
-    Site("Sunrise Bakery", "FACTORY", 3, 508, 530, "#ebbe83"),
+    Site("Sunrise Bakery", "FACTORY", 3, 1540, 530, "#ebbe83"),
     Site("Daily Bread Market", "PUBLIC SHOP", 3, 268, 530, "#f3ca85"),
     # The casino has no trade route, so its trade index is unused.
     Site("Foundry Casino", "CASINO", -1, 988, 345, "#e8455a"),
@@ -254,7 +268,7 @@ SITES = (
     Site("Armazém do Seixal", "WAREHOUSE", -1, 2060, 1180, "#d2a7e5"),
     Site("Foundry Precision Works", "TIER2", -1, 650, 935, "#ffc66c"),
 )
-COLLISION_BOUNDS = tuple(site.bounds for site in SITES)+SCENERY_BLOCKS+((1780, 190, 2030, 260),)
+COLLISION_BOUNDS = tuple(site.bounds for site in SITES)+SCENERY_BLOCKS+LANDMARK_SOLIDS+((1780, 190, 2030, 260),)
 
 
 @dataclass
@@ -270,6 +284,7 @@ class Town:
         self.goods = [0] * len(TRADES)
         self.orders = [None] * len(TRADES)
         self.demand = [trade.demand for trade in TRADES]
+        self.tourist_buyers = new_tourist_pools(SITES)
         self.market_elapsed = 0
         self.costs = [trade.cost for trade in TRADES]
         self.prices = [trade.price for trade in TRADES]
@@ -316,7 +331,7 @@ class Town:
         self.profile = {"name": "Player", "body": "Peach", "hair": "Chestnut", "costume": "Builder"}
         self.notice = ""
         self.notice_until = 0
-        self.message = "Start at a supplier. Buy materials, make goods, then sell them in town."
+        self.message = "Open Places (P): 1 Buy raw materials → 2 Make products → 3 Sell products."
 
     def set_profile(self, values):
         name = values.get("name")
@@ -369,6 +384,7 @@ class Town:
         if self.day == previous_day:
             return
         self.settle_day(previous_day)
+        self.tourist_buyers = new_tourist_pools(SITES)
         self.costs = [trade.cost for trade in TRADES]
         self.prices = [trade.price for trade in TRADES]
         self.demand = [trade.demand for trade in TRADES]
@@ -423,6 +439,36 @@ class Town:
             )
             self.message = f"Market event today. {name}."
 
+    def tourism_for(self, site):
+        return min(tourism_bonus(site), max(0, self.tourist_buyers.get(site.name, 0)))
+
+    def buyers_for(self, site):
+        if site.role == "PUBLIC SHOP":
+            base = self.demand[site.trade]
+        elif site.role == "PASTELARIA":
+            base = self.industry_demand[site.role]
+        else:
+            return 0
+        return base+self.tourism_for(site)
+
+    def buyer_status(self, site):
+        status = f"{self.buyers_for(site)} buyers"
+        if tourism_bonus(site):
+            status += f" (+{self.tourism_for(site)} tourists)"
+        return status
+
+    def _consume_buyers(self, site, quantity):
+        if not 0 <= quantity <= self.buyers_for(site):
+            raise ValueError("Sale exceeds remaining buyers")
+        base = self.demand[site.trade] if site.role == "PUBLIC SHOP" else self.industry_demand[site.role]
+        ordinary = min(base, quantity)
+        if site.role == "PUBLIC SHOP":
+            self.demand[site.trade] -= ordinary
+        else:
+            self.industry_demand[site.role] -= ordinary
+        if quantity > ordinary:
+            self.tourist_buyers[site.name] -= quantity-ordinary
+
     @property
     def cargo(self):
         return sum(self.supplies)+sum(self.goods)+self.tier2_goods+self.eggs+sum(self.industry_goods.values())
@@ -433,6 +479,42 @@ class Town:
             self.tier2_order.quantity if self.tier2_order is not None else 0
         ) + sum(order.quantity for role, order in self.industry_orders.items()
                 if order is not None and not INDUSTRIES[role].service)
+
+    @property
+    def carry_capacity(self):
+        vehicle = VEHICLES.get(self.vehicle)
+        return self.bag_size+(vehicle.trunk if vehicle else 0)
+
+    @property
+    def road_bonus_active(self):
+        return self.vehicle in VEHICLES and on_road(self.x, self.y, COLLISION_BOUNDS)
+
+    @property
+    def movement_speed(self):
+        vehicle = VEHICLES.get(self.vehicle)
+        speed = WALK_SPEED if vehicle is None else (vehicle.road_speed if self.road_bonus_active else vehicle.offroad_speed)
+        return speed*(1.5 if self.elapsed < self.speed_until else 1)
+
+    def purchase_vehicle(self, vehicle):
+        ride = VEHICLES.get(vehicle)
+        if ride is None:
+            self.message = "Choose a motorcycle, car or delivery van at the garage."
+            return False
+        if self.vehicle == vehicle:
+            self.message = f"You already own this {ride.label.lower()}."
+            return False
+        capacity = self.bag_size+ride.trunk
+        if self.cargo+self.reserved > capacity:
+            self.message = f"This ride carries {capacity} items. Unload cargo or finish reserved orders before switching."
+            return False
+        if self.cash < ride.price:
+            self.message = f"You need ${ride.price:,} for the {ride.label.lower()}."
+            return False
+        self.cash -= ride.price
+        self.other_expenses_today += ride.price
+        self.vehicle = vehicle
+        self.message = f"Bought {ride.label.lower()} for ${ride.price:,} · {self.carry_capacity} cargo slots · {ride.road_speed} road speed."
+        return True
 
     def advance(self, seconds):
         previous_spawn = int(self.elapsed // POWER_INTERVAL)
@@ -450,7 +532,7 @@ class Town:
             return
         if self.power_up == 0:
             self.bag_size += 4
-            self.message = f"Bag upgrade collected. You now have {self.bag_size} slots."
+            self.message = f"Bag upgrade collected · Personal storage {self.bag_size} · Total cargo {self.carry_capacity}."
         elif self.power_up == 1:
             self.speed_until = self.elapsed + 15
             self.message = "Speed boost collected. Move 50% faster for 15 seconds."
@@ -474,9 +556,7 @@ class Town:
             return
         if dx:
             self.facing = 1 if dx > 0 else -1
-        speed = {"motorcycle": 420, "car": 510}.get(self.vehicle, 228)
-        if self.elapsed < self.speed_until:
-            speed *= 1.5
+        speed = self.movement_speed
         distance = speed * seconds / length
         next_x = min(WORLD_WIDTH - 17, max(17, self.x + dx * distance))
         next_y = min(WORLD_BOTTOM - 15, max(MAP_TOP + 15, self.y + dy * distance))
@@ -536,7 +616,7 @@ class Town:
             self.message = "Welcome to the Foundry Casino. Place your bets!"
             return
         if site.role == "GARAGE":
-            self.message = "Motorworks Garage · E to browse motorcycles and cars."
+            self.message = "Motorworks Garage · E to browse motorcycles, cars and delivery vans."
             return
         if site.role == "WAREHOUSE":
             self.message = "Foundry Warehouse · E to expand your carrying capacity."
@@ -550,7 +630,7 @@ class Town:
                 if self.elapsed < order.ready_at:
                     self.message = "Precision Works production is still running."
                     return
-                space = self.bag_size - self.cargo
+                space = max(0, self.carry_capacity-self.cargo)
                 if not space:
                     self.message = "Free up space in your bag before collecting your order."
                     return
@@ -588,9 +668,9 @@ class Town:
             return
         index = site.trade
         trade = TRADES[index]
-        space = self.bag_size - self.cargo
+        space = max(0, self.carry_capacity-self.cargo)
         if site.role == "SUPPLIER":
-            space -= self.reserved
+            space = max(0, space-self.reserved)
             quantity = max(0, min(4 if bulk else 1, space, self.cash // self.costs[index]))
             if not quantity:
                 if not space and self.reserved:
@@ -627,7 +707,7 @@ class Town:
                 self.message = f"Collected {quantity} × {trade.product}. Take them to the public shop."
                 self.congratulate(quantity, trade.product.lower())
         else:
-            quantity = min(self.goods[index], self.demand[index])
+            quantity = min(self.goods[index], self.buyers_for(site))
             if not quantity:
                 self.message = (
                     f"Bring {trade.product.lower()} to sell." if not self.goods[index]
@@ -636,7 +716,7 @@ class Town:
                 return
             revenue = quantity * self.prices[index]
             self.goods[index] -= quantity
-            self.demand[index] -= quantity
+            self._consume_buyers(site, quantity)
             self.sales_today[index] += quantity
             self.total_sold[index] += quantity
             self.revenue_today[index] += revenue
@@ -649,7 +729,7 @@ class Town:
         if site is None or site.role != "SUPPLIER" or site.trade != 3:
             self.message = "Buy eggs at Goldenfield Farm in Belém or Quinta de Palmela."
             return
-        space = max(0, self.bag_size-self.cargo-self.reserved)
+        space = max(0, self.carry_capacity-self.cargo-self.reserved)
         quantity = max(0, min(4 if bulk else 1, space, self.cash//EGG_COST))
         if not quantity:
             self.message = "Your bag is full or reserved for orders." if not space else "You need more cash for eggs."
@@ -680,7 +760,7 @@ class Town:
                 self.message = f"Boat repaired and returned to its owner. You received ${revenue}."
                 self.add_cash(revenue, business=True)
                 return
-            space = max(0, self.bag_size-self.cargo)
+            space = max(0, self.carry_capacity-self.cargo)
             if not space:
                 self.message = "Free bag space before collecting your pastéis."
                 return
@@ -693,13 +773,15 @@ class Town:
             self.congratulate(quantity, "pastéis")
             return
         if not recipe.service and self.industry_goods[role]:
-            quantity = min(self.industry_goods[role], self.industry_demand[role])
+            nearby = self.nearby()
+            shop = nearby if nearby is not None and nearby.role == role else next(site for site in SITES if site.role == role)
+            quantity = min(self.industry_goods[role], self.buyers_for(shop))
             if not quantity:
                 self.message = "Today's pastry customers are served. Come back tomorrow."
                 return
             revenue = quantity*self.industry_prices[role]
             self.industry_goods[role] -= quantity
-            self.industry_demand[role] -= quantity
+            self._consume_buyers(shop, quantity)
             self.industry_sales_today[role] += quantity
             self.industry_total_sold[role] += quantity
             self.industry_revenue_today[role] += revenue
@@ -753,13 +835,14 @@ class Town:
                 return f"{'Repairing boat' if recipe.service else 'Baking'} · {math.ceil(order.ready_at-self.elapsed)}s"
             if recipe.service:
                 return f"2 Wood + 2 Ore · ${self.industry_prices[role]} · {self.industry_demand[role]} jobs"
-            return f"Wheat + Egg → Pastel · ${self.industry_prices[role]} · {self.industry_demand[role]} buyers"
+            return f"Pastéis ${self.industry_prices[role]} · {self.buyer_status(site)}"
         if site.role == "CASINO":
             return "Roulette  ·  Win up to 36×"
         if site.role == "GARAGE":
-            return f"Driving: {self.vehicle or 'on foot'}"
+            ride = VEHICLES.get(self.vehicle)
+            return f"{ride.label} · {self.carry_capacity} cargo slots" if ride else "Cars & vans: bigger trunks + road speed"
         if site.role == "WAREHOUSE":
-            return f"Capacity upgrade {self.warehouse_level} · {self.bag_size} slots"
+            return f"Personal storage {self.bag_size} · Total cargo {self.carry_capacity}"
         if site.role == "TIER2":
             if self.tier2_order:
                 status = "Ready to collect" if self.tier2_order.ready_at <= self.elapsed else f"Crafting · {math.ceil(self.tier2_order.ready_at-self.elapsed)}s"
@@ -774,7 +857,7 @@ class Town:
                 return f"Wheat ${self.costs[index]} · Eggs ${EGG_COST} (F / R)"
             return f"${self.costs[index]} / {trade.supply.lower()}"
         if site.role == "PUBLIC SHOP":
-            return f"${self.prices[index]} each  ·  {self.demand[index]} buyers"
+            return f"${self.prices[index]} each  ·  {self.buyer_status(site)}"
         order = self.orders[index]
         if order is None:
             return f"{trade.supply} → {trade.product}"
@@ -841,10 +924,20 @@ def unpack_save(data):
     for name in ("eggs", "egg_expenses_today", "industry_orders", "industry_goods", "industry_demand",
                  "industry_prices", "industry_sales_today", "industry_revenue_today", "industry_total_sold", "shipyard_quote",
                  "other_income_today", "other_expenses_today", "tolls_today", "toll_count_today", "tolls_paid_total",
-                 "taxes_paid_total", "last_tax_day", "last_day_summary", "bridge_journey"):
+                 "taxes_paid_total", "last_tax_day", "last_day_summary", "bridge_journey", "tourist_buyers"):
         state.setdefault(name, deepcopy(getattr(town, name)))
     if data["version"] != 1 or state.keys() != vars(town).keys():
         raise ValueError("Unsupported Foundry Town save")
+    pools = state["tourist_buyers"]
+    if not isinstance(pools, dict):
+        raise ValueError("Invalid tourist buyers in save")
+    normalized_pools = {}
+    for name, maximum in town.tourist_buyers.items():
+        remaining = pools.get(name, maximum)
+        if type(remaining) is not int or not 0 <= remaining <= maximum:
+            raise ValueError("Invalid tourist buyer count in save")
+        normalized_pools[name] = remaining
+    state["tourist_buyers"] = normalized_pools
     for name in ("supplies", "goods", "orders", "demand", "costs", "prices"):
         if len(state[name]) != len(TRADES):
             raise ValueError("Invalid trade data in save")
@@ -911,7 +1004,7 @@ class Game:
             (0.76, 480, 124, "#86caff"), (0.28, 491, -95, "#e6e9df"),
             (0.67, 673, 138, "#80dab9"), (0.15, 684, -105, "#bea0ec"),
         )]
-        self.last_tick = time.monotonic()
+        self.last_tick = time.perf_counter()
         self.next_frame_time = self.last_tick
         root.title("Foundry Town | Lisboa")
         root.configure(bg=INK)
@@ -936,6 +1029,11 @@ class Game:
             self.canvas, text="⚙ Settings", command=self.open_settings,
             bg=GOLD, fg=INK, activebackground="#ffe0a0", activeforeground=INK,
             font=(FONT, 11, "bold"), relief="flat", borderwidth=0, cursor="hand2", takefocus=True,
+        )
+        self.places_button = tk.Button(
+            self.canvas, text="Places · P", command=self.open_places,
+            bg="#365563", fg=WHITE, activebackground="#496b7a", activeforeground=WHITE,
+            font=(FONT, 10, "bold"), relief="flat", borderwidth=0, cursor="hand2", takefocus=True,
         )
         self.minimize_button = tk.Button(root, text="—", font=(FONT, 12, "bold"),
                                          command=root.iconify, takefocus=False)
@@ -1042,6 +1140,9 @@ class Game:
             self.world_view.toggle_map()
             self.keys.add(key)
             return
+        if key == "p":
+            self.open_places()
+            return
         if key not in self.keys and key in ("f", "r"):
             self.town.buy_eggs(bulk=(key == "r"))
             self.keys.add(key)
@@ -1059,6 +1160,12 @@ class Game:
                 self.open_warehouse_shop()
                 self.keys.add(key)
                 return
+            if key == "e" and nearby is None:
+                from tram import nearby_stop
+                if nearby_stop(self.town.x, self.town.y) is not None:
+                    from tram_menu import open_tram
+                    open_tram(self)
+                    return
             if key == "e" or (nearby and nearby.role == "SUPPLIER"):
                 self.town.interact(bulk=(key == "q"))
         self.keys.add(key)
@@ -1066,8 +1173,12 @@ class Game:
     def key_up(self, event):
         self.keys.discard(event.keysym.lower())
 
+    def open_places(self):
+        from places_menu import open_places
+        open_places(self, SITES)
+
     def tick(self):
-        now = time.monotonic()
+        now = time.perf_counter()
         dt = now - self.last_tick
         self.last_tick = now
         self.town.sync_market(time.time() - self.market_started_at)
@@ -1091,7 +1202,7 @@ class Game:
         self.next_frame_time += FRAME_SECONDS
         if now-self.next_frame_time > FRAME_SECONDS*4:
             self.next_frame_time = now+FRAME_SECONDS
-        remaining = self.next_frame_time-time.monotonic()
+        remaining = self.next_frame_time-time.perf_counter()
         self.tick_timer = self.root.after(max(1, int(remaining*1000)), self.tick)
 
     # ----- Casino -----
@@ -1130,40 +1241,62 @@ class Game:
         self.town.message = "Thanks for visiting the Foundry Casino."
 
     def open_vehicle_shop(self):
+        if self.profile_window is not None:
+            return
+        self.keys.clear()
         panel = self.profile_window = tk.Toplevel(self.root)
         panel.title("Motorworks Garage")
         panel.transient(self.root)
         panel.resizable(False, False)
-        panel.grab_set()
         frame = tk.Frame(panel, padx=22, pady=18)
         frame.pack()
-        status = tk.StringVar(value=f"Cash available  ${self.town.cash:,} · Current ride  {self.town.vehicle or 'On foot'}")
-        tk.Label(frame, text="CHOOSE YOUR RIDE", font=(FONT, 16, "bold")).pack(pady=(0, 10))
+        def summary():
+            ride = VEHICLES.get(self.town.vehicle)
+            label = ride.label if ride else "On foot"
+            trunk = ride.trunk if ride else 0
+            return (f"Cash ${self.town.cash:,} · {label}\n"
+                    f"Personal storage {self.town.bag_size} + trunk {trunk} = {self.town.carry_capacity} cargo slots")
+
+        status = tk.StringVar(value=summary())
+        tk.Label(frame, text="CHOOSE YOUR RIDE & TRUNK", font=(FONT, 16, "bold")).pack(pady=(0, 10))
+        tk.Label(frame, text="Vehicles add reusable cargo space and drive faster on paved roads.\n"
+                            "Warehouse and bag upgrades still add to your total capacity.",
+                 justify="center", font=(FONT, 10)).pack(pady=(0, 10))
         tk.Label(frame, textvariable=status).pack(pady=(0, 10))
 
-        def buy(vehicle, price):
-            if self.town.vehicle == vehicle:
-                status.set(f"You already own this {vehicle}.")
-            elif self.town.cash < price:
-                status.set(f"You need ${price:,} for the {vehicle}.")
-            else:
-                self.town.cash -= price
-                self.town.other_expenses_today += price
-                self.town.vehicle = vehicle
-                self.town.message = f"Bought a {vehicle} for ${price:,}. Enjoy the faster ride!"
-                status.set(f"Purchased {vehicle} · Cash remaining  ${self.town.cash:,}")
+        def buy(vehicle):
+            self.town.purchase_vehicle(vehicle)
+            status.set(self.town.message+"\n"+summary())
 
-        tk.Button(frame, text="Motorcycle · $250 · 420 speed", command=lambda: buy("motorcycle", 250)).pack(fill="x", pady=4)
-        tk.Button(frame, text="Car · $600 · 510 speed", command=lambda: buy("car", 600)).pack(fill="x", pady=4)
+        for key, ride in VEHICLES.items():
+            capacity = self.town.bag_size+ride.trunk
+            text = (f"{ride.label} · ${ride.price:,} · {capacity} total cargo slots\n"
+                    f"Road speed {ride.road_speed} · Off-road speed {ride.offroad_speed} · +{ride.trunk} trunk slots")
+            tk.Button(frame, text=text, command=lambda value=key: buy(value),
+                       font=(FONT, 10), padx=12, pady=6).pack(fill="x", pady=4)
 
-        def close():
-            panel.destroy()
-            self.profile_window = None
+        def clear_pause(event=None):
+            if event is None or event.widget is panel:
+                if self.profile_window is panel:
+                    self.profile_window = None
+                self.keys.clear()
+
+        def close(event=None):
+            clear_pause()
+            try:
+                panel.grab_release()
+                panel.destroy()
+                self.root.focus_set()
+            except tk.TclError:
+                pass
             self.keys.clear()
-            self.root.focus_set()
+            return "break"
 
         tk.Button(frame, text="Close garage", command=close).pack(pady=(10, 0))
+        panel.bind("<Escape>", close)
+        panel.bind("<Destroy>", clear_pause)
         panel.protocol("WM_DELETE_WINDOW", close)
+        panel.grab_set()
 
     def open_warehouse_shop(self):
         panel = self.profile_window = tk.Toplevel(self.root)
@@ -1182,7 +1315,7 @@ class Game:
         def refresh():
             level = self.town.warehouse_level
             price = 300 + level * 250
-            status.set(f"Bag capacity  {self.town.bag_size} slots · Cash  ${self.town.cash:,}")
+            status.set(f"Personal storage {self.town.bag_size} · Total cargo {self.town.carry_capacity} · Cash ${self.town.cash:,}")
             button.configure(text=f"Buy 12 more slots · ${price:,}", command=lambda: buy(price))
 
         def buy(price):
@@ -1193,7 +1326,7 @@ class Game:
             self.town.other_expenses_today += price
             self.town.bag_size += 12
             self.town.warehouse_level += 1
-            self.town.message = f"Warehouse expanded. Your bag now holds {self.town.bag_size} items."
+            self.town.message = f"Warehouse expanded · Personal storage {self.town.bag_size} · Total cargo {self.town.carry_capacity}."
             refresh()
 
         def close():
@@ -1229,7 +1362,7 @@ class Game:
             self.casino_result = (f"You need ${stake} in cash for that chip.", GOLD)
             return
         self.spin = {
-            "start": time.monotonic(), "choice": choice, "stake": stake,
+            "start": time.perf_counter(), "choice": choice, "stake": stake,
             "pocket": pocket, "number": number, "payout": payout,
             "wheel_from": self.wheel_angle,
             "wheel_to": self.wheel_angle + math.tau * (2.5 + random.random()),
@@ -1263,7 +1396,7 @@ class Game:
             if self.ball_pocket is not None:
                 ball = (self.wheel_angle + self.ball_pocket * seg, CASINO_POCKET_RADIUS)
             return self.wheel_angle, ball
-        progress = min(1, (time.monotonic() - spin["start"]) / SPIN_SECONDS)
+        progress = min(1, (time.perf_counter() - spin["start"]) / SPIN_SECONDS)
         # The wheel slows down evenly and stops when the spin ends.
         wheel = spin["wheel_from"] + (spin["wheel_to"] - spin["wheel_from"]) * (1 - (1 - progress) ** 2)
         # The ball runs the other way and slows down to finish in its pocket.
@@ -1376,7 +1509,7 @@ class Game:
         self.resize_canvas(width, height)
         if self.profile_window is not None and self.profile_window.winfo_exists():
             self.root.after(100, self.center_settings_window)
-        self.next_frame_time = time.monotonic()
+        self.next_frame_time = time.perf_counter()
 
     def on_canvas_resize(self, event):
         if self.resize_timer is not None:
@@ -1587,7 +1720,7 @@ class Game:
         self.label(24, 30, "FOUNDRY TOWN", 19, WHITE, True)
         self.label(25, 62, "L I S B O A   /   LIVING WORLD", 8, GOLD, True)
         self.box(0, 101, WIDTH, MAP_TOP, "#bfae86")
-        self.label(24, MAP_BOTTOM+73, "WASD / Arrows  Move     E  Interact     Q  Buy four     M  Map     F1  Settings", 9, MUTED)
+        self.label(24, MAP_BOTTOM+73, "WASD / Arrows  Move     E  Interact     Q  Buy four     P  Places     M  Map     F1  Settings", 9, MUTED)
         self.canvas.create_rectangle(308, 52, 412, 59, fill="#304851", width=0, tags="city")
         self.day_progress = self.canvas.create_rectangle(308, 52, 308, 59, fill=MINT, width=0, tags="city")
         self.canvas.create_rectangle(451, 52, 631, 59, fill="#304851", width=0, tags="city")
@@ -1597,9 +1730,10 @@ class Game:
         self.canvas.create_oval(PROFILE_X+12, 46, PROFILE_X+44, 65, fill=GOLD, width=0, tags="city")
         self.last_progress = None
         self.traffic_items = []
-        self.settings_button.configure(font=(FONT, max(9, round(11*self.display_scale)), "bold"))
-        self.canvas.create_window(1055, 48, window=self.settings_button,
-                                  width=max(90, 112*self.display_scale), height=max(32, 46*self.display_scale), tags="controls")
+        for button, y in ((self.settings_button, 29), (self.places_button, 76)):
+            button.configure(font=(FONT, max(9, round(10*self.display_scale)), "bold"))
+            self.canvas.create_window(1055, y, window=button, width=max(90, 112*self.display_scale),
+                                      height=max(28, 32*self.display_scale), tags="controls")
 
     def draw_legacy_city(self):
         self.box(0, MAP_TOP, WIDTH, MAP_BOTTOM, "#2a4b43")
@@ -1970,7 +2104,7 @@ class Game:
                                (((0, 1, 3), "#a79a67"), ((1, 2, 3), "#c3b17e")), "live")
 
     def draw_casino_lights(self):
-        frame = int(time.monotonic() * 5)
+        frame = int(time.perf_counter() * 5)
         if frame == self.casino_light_frame:
             return
         self.casino_light_frame = frame
@@ -2111,14 +2245,20 @@ class Game:
         self.hud_label("cash", 451, 30, f"CASH  ${town.cash:,}", 14, GOLD, True)
         self.hud_label("goal", 451, 77, "GOAL REACHED" if town.won else f"${CASH_GOAL} GOAL", 9, MUTED)
         reserved = f"   +{town.reserved} at factory" if town.reserved else ""
-        self.hud_label("bag", 673, 25, f"BAG  {town.cargo}/{town.bag_size}{reserved}", 12, WHITE, True)
+        cargo_label = "BAG + TRUNK" if town.vehicle else "BAG"
+        self.hud_label("bag", 673, 25, f"{cargo_label}  {town.cargo}/{town.carry_capacity}{reserved}", 12, WHITE, True)
         supplies = "  ".join(f"{name} {quantity}" for name, quantity in zip(("Ore", "Wood", "Clay", "Wheat"), town.supplies))
         goods = "  ".join(f"{name} {quantity}" for name, quantity in zip(("Tools", "Furn.", "Pots", "Bread"), town.goods))
         self.hud_label("supplies", 673, 51, supplies+f"  Eggs {town.eggs}", 9, MUTED)
         self.hud_label("goods", 673, 74, goods+f"  Mach. {town.tier2_goods}  Pastéis {town.industry_goods['PASTELARIA']}", 9, MUTED)
         near = town.nearby()
         self.hud_label("message", 24, MAP_BOTTOM+23, town.message, 11, WHITE, True)
-        hint = f"{near.name}   ·   {town.action_hint(near)}" if near else "Explore the city · M toggles the map · F1 opens camera and display settings."
+        hint = f"{near.name}   ·   {town.action_hint(near)}" if near else "P · Find suppliers, factories, markets and landmarks     M · Map     F1 · Settings"
+        if near is None:
+            from tram import TRAM_FARE, nearby_stop
+            stop = nearby_stop(town.x, town.y)
+            if stop is not None:
+                hint = f"{stop.name} · E  Board the yellow tram · ${TRAM_FARE} per trip"
         self.hud_label("hint", 24, MAP_BOTTOM+46, hint, 10, GOLD if near else MUTED)
         if town.elapsed < town.speed_until:
             power_status = f"Speed boost · {math.ceil(town.speed_until-town.elapsed)}s"
@@ -2126,6 +2266,9 @@ class Game:
             power_status = "Power-up on the map"
         else:
             power_status = f"Next power-up in {math.ceil(POWER_INTERVAL-town.elapsed % POWER_INTERVAL)}s"
+        if town.vehicle in VEHICLES:
+            surface = "ROAD" if town.road_bonus_active else "OFF-ROAD"
+            power_status = f"{VEHICLES[town.vehicle].label} · {surface} {town.movement_speed:g} · {power_status}"
         self.hud_label("power-status", WIDTH-24, MAP_BOTTOM+73, power_status, 9, MINT, anchor="e")
         if self.casino_open:
             self.draw_casino_screen()
