@@ -3,7 +3,7 @@ import math
 from pathlib import Path
 from types import SimpleNamespace
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageColor, ImageDraw, ImageFilter, ImageFont
 
 from lisbon_scene import LisbonScene, MAP_BOTTOM
 from tycoon import SITES, HEIGHT
@@ -15,7 +15,7 @@ class Painter:
         self.scale_y = scale if viewport is None else viewport[1]/HEIGHT*scale
         self.scale = min(self.scale_x, self.scale_y)
         self.image = Image.new("RGB", (round(1200*self.scale_x), round(MAP_BOTTOM*self.scale_y)), "#dfd5bd")
-        self.draw = ImageDraw.Draw(self.image)
+        self.draw = ImageDraw.Draw(self.image, "RGBA")
         self.fonts = {}
 
     def points(self, coords):
@@ -26,18 +26,38 @@ class Painter:
     def skip(self, options):
         return options.get("tags") == "tram"
 
+    def fill(self, options):
+        color = options.get("fill")
+        if color and options.get("stipple"):
+            alpha = {"gray25": 64, "gray50": 128, "gray75": 192}.get(options["stipple"], 64)
+            return (*ImageColor.getrgb(color), alpha)
+        return color
+
+    def make_night(self, scene):
+        self.image = Image.blend(self.image, Image.new("RGB", self.image.size, "#10273d"), .62)
+        self.draw = ImageDraw.Draw(self.image, "RGBA")
+        scene.night_lighting()
+
     def create_rectangle(self, *coords, **options):
         if not self.skip(options):
-            self.draw.rectangle(self.points(coords), fill=options.get("fill"), outline=options.get("outline") or None,
+            self.draw.rectangle(self.points(coords), fill=self.fill(options), outline=options.get("outline") or None,
                                 width=max(1, round(options.get("width", 1)*self.scale)))
 
     def create_polygon(self, *coords, **options):
         if not self.skip(options):
-            self.draw.polygon(self.points(coords), fill=options.get("fill"), outline=options.get("outline") or None)
+            self.draw.polygon(self.points(coords), fill=self.fill(options), outline=options.get("outline") or None)
 
     def create_oval(self, *coords, **options):
         if not self.skip(options):
-            self.draw.ellipse(self.points(coords), fill=options.get("fill"), outline=options.get("outline") or None)
+            if options.get("tags") == "night_lights" and options.get("stipple"):
+                (left, top), (right, bottom) = self.points(coords)
+                padding = max(2, round(8*self.scale))
+                layer = Image.new("RGBA", (round(right-left)+padding*2+1, round(bottom-top)+padding*2+1))
+                ImageDraw.Draw(layer).ellipse((padding, padding, padding+right-left, padding+bottom-top), fill=self.fill(options))
+                layer = layer.filter(ImageFilter.GaussianBlur(max(1, 5*self.scale)))
+                self.image.paste(layer, (round(left)-padding, round(top)-padding), layer)
+                return
+            self.draw.ellipse(self.points(coords), fill=self.fill(options), outline=options.get("outline") or None)
 
     def create_line(self, *coords, **options):
         if self.skip(options):
@@ -58,10 +78,10 @@ class Painter:
                     end = min(length, cursor+on)
                     self.draw.line((x1+(x2-x1)*cursor/length, y1+(y2-y1)*cursor/length,
                                     x1+(x2-x1)*end/length, y1+(y2-y1)*end/length),
-                                   fill=options["fill"], width=width)
+                                   fill=self.fill(options), width=width)
                     cursor += on+off
         else:
-            self.draw.line(points, fill=options["fill"], width=width, joint="curve")
+            self.draw.line(points, fill=self.fill(options), width=width, joint="curve")
 
     def label(self, x, y, text, size=10, color="#304b54", bold=False, anchor="w", tag="city"):
         if tag == "tram":
@@ -79,13 +99,17 @@ class Painter:
 
 def build():
     painter = Painter()
-    LisbonScene(SimpleNamespace(canvas=painter, label=painter.label), SITES)
+    scene = LisbonScene(SimpleNamespace(canvas=painter, label=painter.label), SITES)
+    day_image = painter.image.copy()
+    painter.make_night(scene)
+    night_image = painter.image.copy()
     directory = Path(__file__).parent / "assets"
     directory.mkdir(exist_ok=True)
     for factor in range(4, 21):
         scale = factor/10
-        image = painter.image.resize((round(1200*scale), round(MAP_BOTTOM*scale)), Image.Resampling.LANCZOS)
+        image = day_image.resize((round(1200*scale), round(MAP_BOTTOM*scale)), Image.Resampling.LANCZOS)
         image.save(directory/f"lisbon_{factor*10:03}.png", optimize=True)
+        night_image.resize(image.size, Image.Resampling.LANCZOS).save(directory/f"lisbon_{factor*10:03}_night.png", optimize=True)
     print("Built 17 Lisbon background sizes")
     screens = {(1280, 720), (1280, 800), (1366, 768), (1440, 900), (1536, 864),
                (1600, 900), (1920, 1080), (1920, 1200), (2560, 1080), (2560, 1440),
@@ -93,9 +117,11 @@ def build():
     viewports = screens | {(round(w*.85), round(h*.85)) for w, h in screens}
     for width, height in sorted(viewports):
         painter = Painter(viewport=(width, height))
-        LisbonScene(SimpleNamespace(canvas=painter, label=painter.label), SITES)
+        scene = LisbonScene(SimpleNamespace(canvas=painter, label=painter.label), SITES)
         image = painter.image.resize((width, round(MAP_BOTTOM*height/HEIGHT)), Image.Resampling.LANCZOS)
         image.save(directory/f"lisbon_view_{width}x{height}.png", optimize=True)
+        painter.make_night(scene)
+        painter.image.resize(image.size, Image.Resampling.LANCZOS).save(directory/f"lisbon_view_{width}x{height}_night.png", optimize=True)
     print(f"Built {len(viewports)} widescreen backgrounds")
 
 
