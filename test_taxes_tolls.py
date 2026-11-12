@@ -8,13 +8,12 @@ from tycoon import DAY_SECONDS, SITES, Town, pack_save, unpack_save
 
 def travel(town, target_y, eastern=False):
     direction = 1 if target_y > town.y else -1
-    speed = {"motorcycle": 420, "car": 510}.get(town.vehicle, 228)
     while abs(target_y-town.y) > .001:
         y = town.y+direction*min(4, abs(target_y-town.y))
         x = bridge_center(y, eastern)
         dx, dy = x-town.x, y-town.y
         old_y = town.y
-        town.move(dx, dy, math.hypot(dx, dy)/speed)
+        town.move(dx, dy, math.hypot(dx, dy)/town.movement_speed)
         if abs(town.y-old_y) < .001:
             raise AssertionError(f"Blocked bridge at {town.x}, {town.y}")
 
@@ -29,7 +28,7 @@ class BridgeTollTest(unittest.TestCase):
 
     def test_both_bridges_charge_once_only_when_returning_to_lisbon(self):
         for eastern in (False, True):
-            for vehicle in (None, "motorcycle", "car"):
+            for vehicle in (None, "motorcycle", "car", "van"):
                 with self.subTest(eastern=eastern, vehicle=vehicle):
                     town = self.town_on_bank(eastern, south=False)
                     town.vehicle = vehicle

@@ -2,7 +2,7 @@ import math
 import unittest
 
 from living_world import AmbientActor, Camera, LivingWorld, WORLD_TOP
-from lisbon_scene import WORLD_WIDTH, WORLD_BOTTOM, SCENERY_BLOCKS
+from lisbon_scene import WORLD_WIDTH, WORLD_BOTTOM, SCENERY_BLOCKS, bridge_center
 from tycoon import SITES, Town, pack_save, unpack_save
 
 
@@ -79,6 +79,9 @@ class ExpandedWorldTest(unittest.TestCase):
                 self.assertTrue(0 <= x <= WORLD_WIDTH and WORLD_TOP <= y <= WORLD_BOTTOM, actor.tag)
                 if actor.kind in ('pedestrian', 'car'):
                     self.assertTrue(town.can_walk(x, y), (actor.kind, x, y))
+                elif actor.kind == 'boat':
+                    for eastern in (False, True):
+                        self.assertGreater(abs(x-bridge_center(y, eastern)), 62, (actor.tag, eastern, x, y))
 
     def test_scenery_and_outer_world_edges_block_walking(self):
         town = Town()
