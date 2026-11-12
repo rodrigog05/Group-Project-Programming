@@ -10,11 +10,12 @@ from tycoon import SITES, HEIGHT
 
 
 class Painter:
-    def __init__(self, scale=2, viewport=None):
+    def __init__(self, scale=2, viewport=None, world_size=None):
         self.scale_x = scale if viewport is None else viewport[0]/1200*scale
         self.scale_y = scale if viewport is None else viewport[1]/HEIGHT*scale
         self.scale = min(self.scale_x, self.scale_y)
-        self.image = Image.new("RGB", (round(1200*self.scale_x), round(MAP_BOTTOM*self.scale_y)), "#dfd5bd")
+        world_width, world_height = world_size or (1200, MAP_BOTTOM)
+        self.image = Image.new("RGB", (round(world_width*self.scale_x), round(world_height*self.scale_y)), "#dfd5bd")
         self.draw = ImageDraw.Draw(self.image, "RGBA")
         self.fonts = {}
 

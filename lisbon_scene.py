@@ -4,7 +4,14 @@ import random
 
 RIVER_TOP, RIVER_BOTTOM = 718, 900
 MAP_BOTTOM = 1080
+WORLD_WIDTH, WORLD_BOTTOM = 2400, 1600
 BRIDGE_TOLL = 3
+SCENERY_BLOCKS = tuple(
+    (x, y, x+176, y+104)
+    for x, y in ((1280, 160), (1540, 160), (2080, 160), (1540, 345), (2080, 345),
+                 (1280, 530), (1540, 530), (700, 1180), (940, 1180),
+                 (1280, 1180), (1800, 1180), (1280, 1430), (1540, 1430), (1800, 1430))
+)
 
 
 def bridge_center(y, eastern=False):
@@ -58,7 +65,8 @@ class LisbonScene:
         self.line(points, "#e4d8b9", 1, dash=(9, 14))
 
     def draw(self):
-        self.rect(0, 104, 1200, MAP_BOTTOM, "#dfd5bd")
+        self.rect(0, 104, WORLD_WIDTH, WORLD_BOTTOM, "#dfd5bd")
+        self.expanded_north()
         # Subtle sunlit paving and green hills, rather than a square grass grid.
         for y in range(105, 716, 16):
             self.line((0, y, 1200, y), "#d9cfb7")
@@ -67,8 +75,8 @@ class LisbonScene:
         for x in (238, 478, 718, 958):
             self.road((x, 140, x, 653), 30)
         for y in (301, 486):
-            self.road((0, y, 1200, y), 39)
-        self.road((0, 660, 1200, 660), 35)
+            self.road((0, y, WORLD_WIDTH, y), 39)
+        self.road((0, 660, WORLD_WIDTH, 660), 35)
         # Baixa's broad calçada waterfront, with wave patterns.
         self.rect(0, 672, 1200, RIVER_TOP, "#eee5cf")
         for x in range(-15, 1220, 52):
@@ -93,6 +101,51 @@ class LisbonScene:
         self.text(687, 901, "LISBOA  /  ALMADA", 8, "#587c81", anchor="center")
         self.text(350, 709, f"↑ LISBOA · PORTAGEM ${BRIDGE_TOLL}", 7, "#5d6d65", True)
         self.text(1090, 707, f"↑ LISBOA · ${BRIDGE_TOLL}", 7, "#5d6d65", True)
+
+    def expanded_north(self):
+        self.rect(1200, 104, WORLD_WIDTH, RIVER_TOP, "#d9d7bf")
+        for x in (1225, 1495, 1775, 2035, 2350):
+            self.road((x, 140, x, 660), 29)
+        self.text(1300, 126, "MARVILA", 19, "#6b7d6c", True)
+        self.text(1810, 126, "PARQUE DAS NAÇÕES", 19, "#6b7d6c", True)
+        self.rect(1810, 520, 2010, 640, "#b7c5a0")
+        self.line((1830, 610, 1910, 545, 1990, 610), "#ece3c7", 13, smooth=True)
+        for x, y in ((1830, 550), (1985, 550), (1910, 615), (2300, 215),
+                     (1260, 575), (1740, 555), (2300, 565), (2310, 390)):
+            self.tree(x, y, 20)
+        # Oriente-inspired station canopy, set back from the business streets.
+        self.rect(1780, 190, 2030, 260, "#bdc6c0")
+        for x in range(1788, 2020, 26):
+            self.line((x, 250, x+10, 181, x+24, 250), "#eef0db", 4)
+        self.text(1900, 277, "GARE DO ORIENTE", 9, "#617875", True, "center")
+        self.residential_blocks(north=True)
+
+    def residential_blocks(self, north):
+        from types import SimpleNamespace
+        for index, bounds in enumerate(SCENERY_BLOCKS):
+            x, y, right, bottom = bounds
+            if (y < RIVER_TOP) != north:
+                continue
+            self.building(SimpleNamespace(bounds=bounds, door=(x+88, bottom), x=x, y=y,
+                                          trade=index % 4, role="RESIDENTIAL", name=""))
+
+    def expanded_south(self):
+        self.rect(0, 1085, WORLD_WIDTH, WORLD_BOTTOM, "#c5c9a6")
+        for y in (1110, 1370, 1570):
+            self.road((0, y, WORLD_WIDTH, y), 34)
+        for x in (620, 1190, 1495, 1775, 2035, 2350):
+            self.road((x, 1060, x, 1580), 30)
+        self.text(1290, 1010, "CACILHAS", 20, "#65795e", True)
+        self.text(2070, 1010, "SEIXAL", 20, "#65795e", True)
+        self.text(2020, 1405, "QUINTAS DA MARGEM SUL", 12, "#708461", True)
+        self.rect(60, 1210, 550, 1530, "#abbc8b")
+        self.line((100, 1480, 300, 1250, 495, 1480), "#e1d7b6", 22, smooth=True)
+        for x in range(700, 1100, 35):
+            self.line((x, 1430, x+12, 1520), "#aaab71", 7)
+        for x, y in ((120, 1250), (250, 1400), (470, 1290), (90, 1510), (1470, 1420),
+                     (1940, 1550), (2280, 1300), (2300, 1230), (1220, 1510), (570, 1450)):
+            self.tree(x, y, 26)
+        self.residential_blocks(north=False)
 
     def night_lighting(self):
         c = self.c
@@ -147,11 +200,11 @@ class LisbonScene:
         colors = ("#83b9bc", "#78afb6", "#6da7b0", "#629da8", "#5e98a4", "#619daa")
         for index, color in enumerate(colors):
             top = RIVER_TOP + index * (RIVER_BOTTOM-RIVER_TOP)/len(colors)
-            self.rect(0, top, 1200, top+(RIVER_BOTTOM-RIVER_TOP)/len(colors)+1, color)
-        self.line((0, RIVER_TOP, 1200, RIVER_TOP), "#faf0d8", 6)
+            self.rect(0, top, WORLD_WIDTH, top+(RIVER_BOTTOM-RIVER_TOP)/len(colors)+1, color)
+        self.line((0, RIVER_TOP, WORLD_WIDTH, RIVER_TOP), "#faf0d8", 6)
         rng = random.Random(1528)
-        for _ in range(80):
-            x, y = rng.randrange(0, 1200), rng.randrange(RIVER_TOP+12, RIVER_BOTTOM-8)
+        for _ in range(160):
+            x, y = rng.randrange(0, WORLD_WIDTH), rng.randrange(RIVER_TOP+12, RIVER_BOTTOM-8)
             self.line((x, y, x+rng.randrange(8, 30), y), "#91c1c4", 1)
         # A small traditional sailing boat and a commuter ferry.
         self.poly((519, 807, 566, 807, 556, 818, 529, 818), "#f2e6c9")
@@ -164,9 +217,10 @@ class LisbonScene:
         self.line((1110, 838, 1089, 841), "#b2d2d0", 2)
 
     def south_bank(self):
-        self.rect(0, RIVER_BOTTOM+2, 1200, MAP_BOTTOM, "#cfceb0")
-        self.rect(0, RIVER_BOTTOM+2, 1200, RIVER_BOTTOM+9, "#f1e8ce")
-        self.road((0, 1058, 1200, 1058), 24)
+        self.rect(0, RIVER_BOTTOM+2, WORLD_WIDTH, WORLD_BOTTOM, "#cfceb0")
+        self.expanded_south()
+        self.rect(0, RIVER_BOTTOM+2, WORLD_WIDTH, RIVER_BOTTOM+9, "#f1e8ce")
+        self.road((0, 1058, WORLD_WIDTH, 1058), 24)
         self.road((300, 902, 300, 1058), 32)
         self.road((996, 902, 980, 1058), 32)
         self.text(350, 916, "ALMADA", 12, "#6c7f65", True)
@@ -272,8 +326,8 @@ class LisbonScene:
         roles = {"SUPPLIER": "SUPPLIES", "FACTORY": "WORKSHOP", "PUBLIC SHOP": "MARKET",
                  "TIER2": "TIER 2 · CRAFT & SELL", "CASINO": "CASINO", "GARAGE": "GARAGE", "WAREHOUSE": "STORAGE",
                  "PASTELARIA": "GASTRONOMIA · PASTÉIS", "SHIPYARD": "ESTALEIRO · REPARAÇÕES"}
-        role_label = "WHEAT · EGGS (F / R)" if site.role == "SUPPLIER" and site.trade == 3 else roles[site.role]
-        self.text(x+15, y+96, role_label, 6, "#d1c9a8")
+        role_label = "WHEAT · EGGS (F / R)" if site.role == "SUPPLIER" and site.trade == 3 else roles.get(site.role, "LISBOA · RESIDÊNCIAS")
+        self.text(x+15, y+96, roles.get(site.role, "LISBOA · RESIDÊNCIAS") if site.role == "RESIDENTIAL" else role_label, 6, "#d1c9a8")
         door_x, _ = site.door
         self.rect(door_x-12, bottom-13, door_x+12, bottom+1, "#98754e")
         self.rect(door_x-14, bottom+2, door_x+14, bottom+6, "#d4a45c")

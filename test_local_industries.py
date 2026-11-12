@@ -4,7 +4,7 @@ import math
 import unittest
 from unittest.mock import patch
 
-from tycoon import DAY_SECONDS, EGG_COST, INDUSTRIES, MAP_BOTTOM, MAP_TOP, REACH, SITES, WIDTH, Town, pack_save, unpack_save
+from tycoon import DAY_SECONDS, EGG_COST, INDUSTRIES, WORLD_BOTTOM, WORLD_WIDTH, MAP_TOP, REACH, SITES, Town, pack_save, unpack_save
 
 
 class LocalIndustryTest(unittest.TestCase):
@@ -146,7 +146,7 @@ class LocalIndustryTest(unittest.TestCase):
             x, y = queue.popleft()
             for dx, dy in ((8, 0), (-8, 0), (0, 8), (0, -8)):
                 point = nx, ny = x+dx, y+dy
-                if point in visited or not (17 <= nx <= WIDTH-17 and MAP_TOP+15 <= ny <= MAP_BOTTOM-15):
+                if point in visited or not (17 <= nx <= WORLD_WIDTH-17 and MAP_TOP+15 <= ny <= WORLD_BOTTOM-15):
                     continue
                 if town.can_walk(nx, ny):
                     visited.add(point)
