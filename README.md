@@ -13,13 +13,19 @@ Move with **WASD** or the arrow keys. Walk to a colored doorstep and press **E**
 
 At the fullscreen start menu, choose your character's name, skin tone, hair, and outfit before starting or continuing.
 
-The city fills the monitor in fullscreen and follows the window size in windowed mode. The entire map stays visible; character and text proportions are preserved while the city layout adapts to the display.
+The game fills the monitor in fullscreen and follows the window size in windowed mode. A smooth following camera shows a portion of the world at a readable scale, with the HUD and Settings fixed on screen. Press **M** to toggle the minimap and use **Settings → Camera zoom** to choose 1.0×, 1.25× or 1.5×.
+
+The playable world is **2400 × 1600**, with closer districts and about one third less area than the first expanded map. Destinations include Marvila Timber Depot, Oriente Tool Market, Mercado das Nações, Quinta de Palmela, Cacilhas Garage and Armazém do Seixal. Their prices, daily demand and upgrades belong to the same town economy. Old saves keep their inventory and finances; a saved position that is no longer walkable returns to the starting street. New district positions also save normally.
+
+The city now has 30 walking pedestrians, 12 road vehicles, four moving boats, water movement, the traveling elétrico and repair activity at the shipyard. Actors outside the camera are hidden, and the detailed day/night world is cached as images. The renderer targets **75 FPS** to give headroom above 60, with an actual FPS readout on the minimap. Settings can toggle traffic and ambient activity independently.
+
+Run `python benchmark_world.py --seconds 6` to measure a moving-camera day/night session at your current resolution. Add `--zoom 1.0` or `--zoom 1.5` to check another view. This benchmark uses temporary progress in memory.
 
 Windows startup uses the monitor's physical resolution, including 1920 × 1080 displays with Windows scaling enabled. Settings shows the current display size. **Save and Close Game** writes progress to the configured save storage before exiting; a failed save keeps the game open so you can retry.
 
 The Lisboa edition has a compact west-to-east layout inspired by Belém, Alcântara, Baixa/Chiado, Alfama/Graça and Oriente. The Tejo separates Lisbon from Almada. Both Ponte 25 de Abril and Ponte Vasco da Gama are usable crossings. Precision Works is on the Almada bank. A yellow elétrico follows a fictional waterfront line between the neighborhoods. The architecture uses tiled roofs, azulejos, balconies and calçada, with antialiased scenery cached as PNGs for smooth movement. Geographic references come from [Turismo de Portugal](https://www.visitportugal.com/en/destinos/lisboa/73775) and [Visit Lisboa's Tagus route](https://www.visitlisboa.com/en/lisbon-stories/15-tagus-route/pois?page=2).
 
-**Saudade do Tejo** is a bundled original 60-second fado-inspired guitar instrumental, composed for this game. It loops locally without an internet connection. Use the gold **Settings** button or **F1** to toggle music, change fullscreen mode, and read the rules. Windows uses its built-in WAV player; macOS uses `afplay`; Linux uses `paplay` or `aplay` when available. To rebuild assets, run `python compose_fado.py` for audio, or `python render_lisbon.py` for scenery (the scenery build requires Pillow; playing does not).
+**Saudade do Tejo** is a bundled original 60-second fado-inspired guitar instrumental, composed for this game. It loops locally without an internet connection. Use the gold **Settings** button or **F1** to toggle music, change fullscreen mode, and read the rules. Windows uses its built-in WAV player; macOS uses `afplay`; Linux uses `paplay` or `aplay` when available. To rebuild assets, run `python compose_fado.py` for audio or `python render_world.py` for the expanded world (the scenery build requires Pillow; playing does not). `render_lisbon.py` can still rebuild the compact map previews.
 
 | Route | Buy | Produce and collect | Sell |
 | --- | --- | --- | --- |

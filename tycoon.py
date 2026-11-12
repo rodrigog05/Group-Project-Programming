@@ -11,8 +11,9 @@ import tkinter as tk
 from tkinter import messagebox
 
 from saves import RemoteSaves, SaveConflict, desktop_storage
-from lisbon_scene import LisbonScene, MAP_BOTTOM, RIVER_TOP, RIVER_BOTTOM, BRIDGE_TOLL, bridge_at, draw_character, walkable_terrain
+from lisbon_scene import LisbonScene, MAP_BOTTOM, WORLD_WIDTH, WORLD_BOTTOM, SCENERY_BLOCKS, RIVER_TOP, RIVER_BOTTOM, BRIDGE_TOLL, bridge_at, draw_character, walkable_terrain
 from soundtrack import music_for
+from living_world import LivingWorld
 
 
 WIDTH = 1200
@@ -25,7 +26,8 @@ LEGACY_DAY_SECONDS = 24 * 60 * 60
 START_CASH, CASH_GOAL, BAG_SIZE = 60, 500, 12
 PLAYER_RADIUS, REACH = 10, 35
 POWER_INTERVAL = 30
-FRAME_SECONDS = 1 / 60
+TARGET_FPS = 75
+FRAME_SECONDS = 1 / TARGET_FPS
 DAILY_TAX_PERCENT = 20
 POWER_UPS = (
     ("Bag upgrade", "+", "#80e2b9", 315, 321),
@@ -67,6 +69,10 @@ RULES_TEXT = (
     "LISBOA\n"
     "Cross the Tejo using Ponte 25 de Abril or Ponte Vasco da Gama. The yellow elétrico travels along the north bank. "
     "Click the gold Settings button or press F1 for fullscreen, music, and help.\n\n"
+    "LIVING WORLD\n"
+    "Explore Marvila, Parque das Nações, Cacilhas and Seixal in a 2400 × 1600 world. The camera follows you. "
+    "M toggles the minimap; Settings offers three camera zoom levels and ambient animation controls. "
+    "New markets, depots, a farm, a garage and a warehouse share the town's existing prices, demand and upgrades.\n\n"
     "NIGHT, TAX & TOLLS\n"
     "Buildings and both bridges light up at night. At the end of each full day, 20% tax is charged only on positive net profit "
     "(all income received minus purchases, upgrades, casino stakes and tolls). Loss-making days pay no tax. "
@@ -240,8 +246,15 @@ SITES = (
     Site("Foundry Warehouse", "WAREHOUSE", -1, 988, 160, "#d2a7e5"),
     Site("Pastéis de Belém", "PASTELARIA", -1, 28, 160, "#f1d69b"),
     Site("Estaleiro do Tejo", "SHIPYARD", -1, 380, 935, "#94bdc9"),
+    Site("Marvila Timber Depot", "SUPPLIER", 1, 1280, 345, "#d6a46e"),
+    Site("Oriente Tool Market", "PUBLIC SHOP", 0, 1820, 345, "#72d8bc"),
+    Site("Mercado das Nações", "PUBLIC SHOP", 2, 2080, 530, "#d2a7e5"),
+    Site("Quinta de Palmela", "SUPPLIER", 3, 2060, 1430, "#e3c77e"),
+    Site("Cacilhas Garage", "GARAGE", -1, 1540, 1180, "#86caff"),
+    Site("Armazém do Seixal", "WAREHOUSE", -1, 2060, 1180, "#d2a7e5"),
     Site("Foundry Precision Works", "TIER2", -1, 650, 935, "#ffc66c"),
 )
+COLLISION_BOUNDS = tuple(site.bounds for site in SITES)+SCENERY_BLOCKS+((1780, 190, 2030, 260),)
 
 
 @dataclass
@@ -465,8 +478,8 @@ class Town:
         if self.elapsed < self.speed_until:
             speed *= 1.5
         distance = speed * seconds / length
-        next_x = min(WIDTH - 17, max(17, self.x + dx * distance))
-        next_y = min(MAP_BOTTOM - 15, max(MAP_TOP + 15, self.y + dy * distance))
+        next_x = min(WORLD_WIDTH - 17, max(17, self.x + dx * distance))
+        next_y = min(WORLD_BOTTOM - 15, max(MAP_TOP + 15, self.y + dy * distance))
         if self.can_walk(next_x, self.y):
             self.x = next_x
         if self.can_walk(self.x, next_y):
@@ -500,10 +513,11 @@ class Town:
             self.bridge_journey = None
 
     def can_walk(self, x, y):
-        return walkable_terrain(x, y, PLAYER_RADIUS) and not any(
+        return (PLAYER_RADIUS <= x <= WORLD_WIDTH-PLAYER_RADIUS and MAP_TOP+PLAYER_RADIUS <= y <= WORLD_BOTTOM-PLAYER_RADIUS
+                and walkable_terrain(x, y, PLAYER_RADIUS)) and not any(
             left - PLAYER_RADIUS < x < right + PLAYER_RADIUS
             and top - PLAYER_RADIUS < y < bottom + PLAYER_RADIUS
-            for left, top, right, bottom in (site.bounds for site in SITES)
+            for left, top, right, bottom in COLLISION_BOUNDS
         )
 
     def nearby(self):
@@ -633,7 +647,7 @@ class Town:
     def buy_eggs(self, bulk=False):
         site = self.nearby()
         if site is None or site.role != "SUPPLIER" or site.trade != 3:
-            self.message = "Buy eggs at Goldenfield Farm in Belém."
+            self.message = "Buy eggs at Goldenfield Farm in Belém or Quinta de Palmela."
             return
         space = max(0, self.bag_size-self.cargo-self.reserved)
         quantity = max(0, min(4 if bulk else 1, space, self.cash//EGG_COST))
@@ -843,7 +857,7 @@ def unpack_save(data):
             raise ValueError("Invalid local industry data in save")
     state["industry_orders"] = {role: Order(**order) if order is not None else None for role, order in state["industry_orders"].items()}
     vars(town).update(state)
-    if not town.can_walk(town.x, town.y) or not (MAP_TOP+15 <= town.y <= MAP_BOTTOM-15):
+    if not town.can_walk(town.x, town.y):
         town.x, town.y = 480.0, 321.0
         town.bridge_journey = None
     return town, float(data["marketStart"])
@@ -851,6 +865,7 @@ def unpack_save(data):
 
 class Game:
     display_scale = 1
+    power_up_definitions = POWER_UPS
 
     def __init__(self, root, session=None, initial_profile=None):
         self.root = root
@@ -889,6 +904,7 @@ class Game:
         self.casino_light_frame = -1
         self.traffic_enabled = True
         self.hud_label_items = {}
+        self.world_view = None
         self.resize_timer = None
         self.traffic = [(offset, lane, speed, color) for offset, lane, speed, color in (
             (0.05, 287, 150, "#e8455a"), (0.48, 298, -112, "#ffc66c"),
@@ -1020,6 +1036,10 @@ class Game:
             # Ignore key repeats, so holding E does not close the casino straight away.
             if key not in self.keys:
                 self.casino_key(key)
+            self.keys.add(key)
+            return
+        if key == "m" and key not in self.keys:
+            self.world_view.toggle_map()
             self.keys.add(key)
             return
         if key not in self.keys and key in ("f", "r"):
@@ -1285,6 +1305,7 @@ class Game:
 
         traffic = tk.BooleanVar(value=self.traffic_enabled)
         music_enabled = tk.BooleanVar(value=self.music.enabled)
+        ambient_enabled = tk.BooleanVar(value=self.world_view.actors_enabled)
 
         def toggle_fullscreen():
             enabled = not self.fullscreen_active()
@@ -1301,6 +1322,8 @@ class Game:
         tk.Label(frame, text="SETTINGS", font=(FONT, 17, "bold")).pack(anchor="w", pady=(0, 10))
         self.resolution_text = tk.StringVar(value=f"Display: {self.viewport_width} × {self.viewport_height}")
         tk.Label(frame, textvariable=self.resolution_text, fg="#52636b").pack(anchor="w", pady=(0, 8))
+        fps_text = f"{self.world_view.fps:.0f} FPS" if self.world_view.fps else "Measuring FPS..."
+        tk.Label(frame, text=f"Renderer: {fps_text} · target {TARGET_FPS}", fg="#52636b").pack(anchor="w", pady=(0, 8))
         fullscreen_button = tk.Button(
             frame,
             text="Exit Fullscreen" if self.fullscreen_active() else "Enter Fullscreen",
@@ -1308,6 +1331,12 @@ class Game:
         )
         fullscreen_button.pack(anchor="w", pady=3)
         tk.Checkbutton(frame, text="Show moving town traffic", variable=traffic, command=set_traffic).pack(anchor="w", pady=3)
+        tk.Checkbutton(frame, text="Pedestrians, boats and water movement", variable=ambient_enabled,
+                       command=lambda: setattr(self.world_view, "actors_enabled", ambient_enabled.get())).pack(anchor="w", pady=3)
+        zoom_choices = {"Wide · 1.0×": 1.0, "Standard · 1.25×": 1.25, "Close · 1.5×": 1.5}
+        zoom_value = tk.StringVar(value=next(name for name, value in zoom_choices.items() if value == self.world_view.zoom))
+        tk.Label(frame, text="Following camera · Zoom (M toggles minimap)").pack(anchor="w", pady=(8, 0))
+        tk.OptionMenu(frame, zoom_value, *zoom_choices, command=lambda name: self.world_view.set_zoom(zoom_choices[name])).pack(fill="x", pady=3)
         tk.Checkbutton(frame, text="Fado guitar background music", variable=music_enabled,
                        command=lambda: self.music.set_enabled(music_enabled.get())).pack(anchor="w", pady=3)
         tk.Label(frame, text="Saudade do Tejo · original instrumental", fg="#52636b").pack(anchor="w", pady=(2, 8))
@@ -1548,38 +1577,26 @@ class Game:
             self.draw_mesh(x, y, vertices, faces)
 
     def draw_city(self):
-        background = Path(__file__).parent / "assets" / f"lisbon_view_{self.viewport_width}x{self.viewport_height}.png"
-        self.background_item = None
-        self.night_image = None
-        if background.exists():
-            self.background_image = tk.PhotoImage(file=str(background))
-            self.background_item = self.canvas.create_image(0, 0, image=self.background_image, anchor="nw", tags="city")
-            night_path = background.with_name(background.stem+"_night.png")
-            if night_path.exists():
-                self.night_image = tk.PhotoImage(file=str(night_path))
-            self.scene = LisbonScene(self, SITES, draw=False)
-            self.scene.create_tram()
-        else:
-            self.scene = LisbonScene(self, SITES)
-        self.box(0, 0, WIDTH, MAP_TOP, INK)
+        if self.world_view is None:
+            self.world_view = LivingWorld(self, SITES)
+        self.world_view.resize(self.viewport_width, round((MAP_BOTTOM-MAP_TOP)*self.scale_y), round(MAP_TOP*self.scale_y))
+        self.scene = self.world_view.scene
+        self.background_image = self.world_view.day_image
+        self.night_image = self.world_view.night_image
+        self.box(0, 0, WIDTH, HEIGHT, INK)
         self.label(24, 30, "FOUNDRY TOWN", 19, WHITE, True)
-        self.label(25, 62, "L I S B O A   /   TEJO EDITION", 8, GOLD, True)
+        self.label(25, 62, "L I S B O A   /   LIVING WORLD", 8, GOLD, True)
         self.box(0, 101, WIDTH, MAP_TOP, "#bfae86")
-        self.box(0, MAP_BOTTOM, WIDTH, HEIGHT, INK)
-        self.label(24, MAP_BOTTOM+73, "WASD / Arrows  Move     E  Interact     Q  Buy four     F1  Settings", 9, MUTED)
-        self.night_overlay = self.canvas.create_rectangle(
-            0, MAP_TOP, WIDTH, MAP_BOTTOM, fill="#172e45", stipple="gray25", outline="", state="hidden", tags="city"
-        )
-        if self.night_image is None:
-            self.scene.night_lighting()
-            self.canvas.itemconfigure("night_lights", state="hidden")
-        self._night_visible = False
+        self.label(24, MAP_BOTTOM+73, "WASD / Arrows  Move     E  Interact     Q  Buy four     M  Map     F1  Settings", 9, MUTED)
+        self.canvas.create_rectangle(308, 52, 412, 59, fill="#304851", width=0, tags="city")
+        self.day_progress = self.canvas.create_rectangle(308, 52, 308, 59, fill=MINT, width=0, tags="city")
+        self.canvas.create_rectangle(451, 52, 631, 59, fill="#304851", width=0, tags="city")
+        self.cash_progress = self.canvas.create_rectangle(451, 52, 451, 59, fill=GOLD, width=0, tags="city")
+        self.canvas.create_rectangle(PROFILE_X, 19, PROFILE_X+56, 77, fill="#304851", width=0, tags="city")
+        self.canvas.create_oval(PROFILE_X+19, 28, PROFILE_X+37, 46, fill=GOLD, width=0, tags="city")
+        self.canvas.create_oval(PROFILE_X+12, 46, PROFILE_X+44, 65, fill=GOLD, width=0, tags="city")
+        self.last_progress = None
         self.traffic_items = []
-        for offset, lane, speed, color in self.traffic:
-            state = "normal" if self.traffic_enabled else "hidden"
-            body = self.canvas.create_rectangle(0, lane, 23, lane+10, fill=color, outline="#465b5c", state=state, tags="traffic")
-            window = self.canvas.create_rectangle(4, lane+2, 10, lane+5, fill="#adc8cc", width=0, state=state, tags="traffic")
-            self.traffic_items.append((body, window, offset, lane, speed))
         self.settings_button.configure(font=(FONT, max(9, round(11*self.display_scale)), "bold"))
         self.canvas.create_window(1055, 48, window=self.settings_button,
                                   width=max(90, 112*self.display_scale), height=max(32, 46*self.display_scale), tags="controls")
@@ -2072,112 +2089,46 @@ class Game:
         canvas.delete("live")
         phase = town.market_elapsed % DAY_SECONDS
         is_daytime = phase < DAYLIGHT_SECONDS
-        phase_length = DAYLIGHT_SECONDS if is_daytime else NIGHT_SECONDS
-        phase_elapsed = phase if is_daytime else phase - DAYLIGHT_SECONDS
-        phase_fraction = phase_elapsed / phase_length
-        night = not is_daytime
-        if self._night_visible != night:
-            self._night_visible = night
-            if self.night_image is not None:
-                canvas.itemconfigure(self.background_item, image=self.night_image if night else self.background_image)
-            else:
-                canvas.itemconfigure(self.night_overlay, state="normal" if night else "hidden")
-                canvas.itemconfigure("night_lights", state="normal" if night else "hidden")
-            self.scene.set_night(night)
-            for _, window, *_ in self.traffic_items:
-                canvas.itemconfigure(window, fill="#f4dda1" if night else "#adc8cc")
-        nearby = town.nearby()
+        duration = DAYLIGHT_SECONDS if is_daytime else NIGHT_SECONDS
+        phase_elapsed = phase if is_daytime else phase-DAYLIGHT_SECONDS
+        fraction = phase_elapsed/duration
+        self.world_view.set_night(not is_daytime)
+        self.world_view.set_visible(not self.casino_open)
+        if not self.casino_open:
+            self.world_view.render(BODY_COLORS, HAIR_COLORS, COSTUMES)
         self.hud_label("day", 308, 30, f"DAY {town.day:02}", 14, WHITE, True)
-        self.box(308, 52, 412, 59, "#304851", "live")
-        self.box(308, 52, 308 + 104 * phase_fraction, 59, GOLD if not is_daytime else MINT, "live")
-        seconds_left = max(0, math.ceil(phase_length - phase_elapsed))
-        minutes, seconds = divmod(seconds_left, 60)
+        progress = round(104*self.scale_x*fraction), town.cash, is_daytime
+        if progress != self.last_progress:
+            self.canvas.coords(self.day_progress, 308*self.scale_x, 52*self.scale_y,
+                               308*self.scale_x+progress[0], 59*self.scale_y)
+            self.canvas.itemconfigure(self.day_progress, fill=MINT if is_daytime else GOLD)
+            self.canvas.coords(self.cash_progress, 451*self.scale_x, 52*self.scale_y,
+                               (451+180*max(0, min(town.cash/CASH_GOAL, 1)))*self.scale_x, 59*self.scale_y)
+            self.last_progress = progress
+        minutes, seconds = divmod(max(0, math.ceil(duration-phase_elapsed)), 60)
         phase_name = "DAY" if is_daytime else "NIGHT"
         self.hud_label("phase", 308, 77, f"{phase_name} · {minutes}:{seconds:02} left", 9, MUTED)
         self.hud_label("cash", 451, 30, f"CASH  ${town.cash:,}", 14, GOLD, True)
-        self.box(451, 52, 631, 59, "#304851", "live")
-        self.box(451, 52, 451 + 180 * min(town.cash / CASH_GOAL, 1), 59, GOLD, "live")
-        goal_text = "GOAL REACHED" if town.won else f"${CASH_GOAL} GOAL"
-        self.hud_label("goal", 451, 77, goal_text, 9, MUTED)
+        self.hud_label("goal", 451, 77, "GOAL REACHED" if town.won else f"${CASH_GOAL} GOAL", 9, MUTED)
         reserved = f"   +{town.reserved} at factory" if town.reserved else ""
         self.hud_label("bag", 673, 25, f"BAG  {town.cargo}/{town.bag_size}{reserved}", 12, WHITE, True)
         supplies = "  ".join(f"{name} {quantity}" for name, quantity in zip(("Ore", "Wood", "Clay", "Wheat"), town.supplies))
         goods = "  ".join(f"{name} {quantity}" for name, quantity in zip(("Tools", "Furn.", "Pots", "Bread"), town.goods))
-        supplies += f"  Eggs {town.eggs}"
-        goods += f"  Mach. {town.tier2_goods}  Pastéis {town.industry_goods['PASTELARIA']}"
-        self.hud_label("supplies", 673, 51, supplies, 9, MUTED)
-        self.hud_label("goods", 673, 74, goods, 9, MUTED)
-        self.box(PROFILE_X, 19, PROFILE_X + 56, 77, "#304851", "live")
-        canvas.create_oval(PROFILE_X + 19, 28, PROFILE_X + 37, 46, fill=GOLD, width=0, tags="live")
-        canvas.create_oval(PROFILE_X + 12, 46, PROFILE_X + 44, 65, fill=GOLD, width=0, tags="live")
-        for site in SITES:
-            self.hud_label(f"site-{site.name}", site.x + 8, site.y + 123,
-                           town.site_status(site), 7, "#385360" if is_daytime else "#e5dab7")
-            if site == nearby:
-                x, y, right, bottom = site.bounds
-                canvas.create_rectangle(x-2, y-2, right+2, bottom+2, outline=GOLD, width=2, tags="live")
-        self.scene.animate(town.elapsed)
-        for body, window, offset, lane, speed in self.traffic_items:
-            x = (offset * WIDTH + town.elapsed * speed) % (WIDTH + 50) - 25
-            canvas.coords(body, x*self.scale_x, lane*self.scale_y,
-                          (x+23)*self.scale_x, (lane+10)*self.scale_y)
-            canvas.coords(window, (x+4)*self.scale_x, (lane+2)*self.scale_y,
-                          (x+10)*self.scale_x, (lane+5)*self.scale_y)
-        if town.power_up is not None:
-            name, symbol, color, power_x, power_y = POWER_UPS[town.power_up]
-            canvas.create_oval(power_x-16, power_y-16, power_x+16, power_y+16,
-                               fill=INK, outline=color, width=3, tags="live")
-            self.hud_label("power-symbol", power_x, power_y, symbol, 15, color, True, "center")
-            self.hud_label("power-name", power_x, power_y-24, name, 10, WHITE, True, "center")
-        else:
-            self.hud_label("power-symbol", 0, 0, "", visible=False)
-            self.hud_label("power-name", 0, 0, "", visible=False)
-        x, y = town.x, town.y
-        if town.vehicle:
-            wheel_radius = 5 if town.vehicle == "motorcycle" else 7
-            canvas.create_oval(x - 20, y + 1, x - 20 + wheel_radius * 2, y + 1 + wheel_radius * 2,
-                               fill="#101820", tags="live")
-            canvas.create_oval(x + 8, y + 1, x + 8 + wheel_radius * 2, y + 1 + wheel_radius * 2,
-                               fill="#101820", tags="live")
-            canvas.create_rectangle(x - 16, y - 6, x + 15, y + 5,
-                                    fill="#e8455a" if town.vehicle == "motorcycle" else "#86caff",
-                                    outline=INK, tags="live")
+        self.hud_label("supplies", 673, 51, supplies+f"  Eggs {town.eggs}", 9, MUTED)
+        self.hud_label("goods", 673, 74, goods+f"  Mach. {town.tier2_goods}  Pastéis {town.industry_goods['PASTELARIA']}", 9, MUTED)
+        near = town.nearby()
+        self.hud_label("message", 24, MAP_BOTTOM+23, town.message, 11, WHITE, True)
+        hint = f"{near.name}   ·   {town.action_hint(near)}" if near else "Explore the city · M toggles the map · F1 opens camera and display settings."
+        self.hud_label("hint", 24, MAP_BOTTOM+46, hint, 10, GOLD if near else MUTED)
         if town.elapsed < town.speed_until:
-            canvas.create_oval(x-14, y-14, x+14, y+14, outline="#86caff", width=2, tags="live")
-        moving = bool(self.keys.intersection({"w", "a", "s", "d", "up", "down", "left", "right"}))
-        draw_character(canvas, town.profile, BODY_COLORS, HAIR_COLORS, COSTUMES,
-                       x, y, town.elapsed, moving, town.facing, tag=("live", "avatar"))
-        canvas.scale("avatar", x, y, self.display_scale/self.scale_x, self.display_scale/self.scale_y)
-        self.hud_label("message", 24, MAP_BOTTOM + 23, town.message, 11, WHITE, True)
-        hint = f"{nearby.name}   ·   {town.action_hint(nearby)}" if nearby else "Follow the colored doorsteps to interact with businesses."
-        self.hud_label("hint", 24, MAP_BOTTOM + 46, hint, 10, GOLD if nearby else MUTED)
-        if town.elapsed < town.speed_until:
-            power_status = f"Speed boost  ·  {math.ceil(town.speed_until-town.elapsed)}s"
+            power_status = f"Speed boost · {math.ceil(town.speed_until-town.elapsed)}s"
         elif town.power_up is not None:
             power_status = "Power-up on the map"
         else:
             power_status = f"Next power-up in {math.ceil(POWER_INTERVAL-town.elapsed % POWER_INTERVAL)}s"
-        self.hud_label("power-status", WIDTH - 24, MAP_BOTTOM + 73, power_status, 10, MINT, anchor="e")
-        if town.market_event:
-            title, effects = town.market_event
-            self.box(WIDTH // 2 - 243, 107, WIDTH // 2 + 243, 146, INK, "live")
-            self.box(WIDTH // 2 - 243, 107, WIDTH // 2 + 243, 109, GOLD, "live")
-            self.hud_label("market-title", WIDTH // 2, 119, f"MARKET EVENT  ·  {title}", 10, GOLD, True, "center")
-            self.hud_label("market-effects", WIDTH // 2, 135, effects, 9, WHITE, anchor="center")
-        else:
-            self.hud_label("market-title", 0, 0, "", visible=False)
-            self.hud_label("market-effects", 0, 0, "", visible=False)
-        if town.elapsed < town.notice_until:
-            offset = 42 if town.market_event else 0
-            self.box(WIDTH // 2 - 286, 106+offset, WIDTH // 2 + 286, 144+offset, INK, "live")
-            self.box(WIDTH // 2 - 286, 106+offset, WIDTH // 2 + 286, 109+offset, GOLD, "live")
-            self.hud_label("notice", WIDTH // 2, 126+offset, town.notice, 11, GOLD, True, "center")
-        else:
-            self.hud_label("notice", 0, 0, "", visible=False)
-        canvas.tag_raise("hud_cache")
+        self.hud_label("power-status", WIDTH-24, MAP_BOTTOM+73, power_status, 9, MINT, anchor="e")
         if self.casino_open:
             self.draw_casino_screen()
-
 
 class StartMenu:
     """Load player progress without blocking Tk while the API responds."""
