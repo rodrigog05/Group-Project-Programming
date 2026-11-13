@@ -1,6 +1,7 @@
 """Affordable north-bank tram trips, independent of the UI and saved schema."""
 from dataclasses import dataclass
 import math
+from exchange import record_tram
 
 
 TRAM_FARE = 3
@@ -23,7 +24,7 @@ TRAM_STOPS = (
     TramStop("Alcântara", 420),
     TramStop("Baixa · Praça do Comércio", 660),
     TramStop("Alfama", 900),
-    TramStop("Oriente", 1140),
+    TramStop("Beato", 1140),
     TramStop("Marvila", 1460),
     TramStop("Parque das Nações", 2180),
 )
@@ -55,6 +56,7 @@ def ride_tram(town, destination_name):
         return False
     town.cash -= TRAM_FARE
     town.other_expenses_today += TRAM_FARE
+    record_tram(town)
     town.facing = 1 if destination.x > town.x else -1
     town.x, town.y = destination.position
     town.bridge_journey = None

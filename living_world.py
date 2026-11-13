@@ -14,8 +14,18 @@ from lisbon_landmarks import LANDMARKS
 from wayfinding import STAGES, site_guide
 from guidance import compass, next_step
 from tram import TRAM_STOPS
+from logistics_view import FleetView
 
 WORLD_TOP = 104
+STATUS_LABEL_RADIUS = 360
+
+
+def status_label_visible(camera, player_x, player_y, site, guided_name=None):
+    """Detailed trade figures follow nearby places; baked purpose signs stay visible."""
+    x, y = site.x+88, site.y+100
+    return camera.sees(x, y, 140) and (
+        site.name == guided_name or (x-player_x)**2+(y-player_y)**2 <= STATUS_LABEL_RADIUS**2
+    )
 
 
 @dataclass
@@ -132,6 +142,7 @@ class LivingWorld:
         self.actors = []
         self.light_items = []
         self.create_actors()
+        self.fleet = FleetView(c, self.sites, self.zoom)
         self.labels = {}
         self.selection_site = None
         self.player_style = None
@@ -214,6 +225,7 @@ class LivingWorld:
         self.scene.set_night(enabled)
         for item in self.light_items:
             self.canvas.itemconfigure(item, fill="#f5dca0" if enabled else "#aac5c8")
+        self.fleet.set_night(enabled)
         self.last_labels = 0
 
     def resize(self, width, height, top):
@@ -327,10 +339,18 @@ class LivingWorld:
 
     def update_labels(self, elapsed):
         color = "#f3e3bb" if self.night else "#385360"
+        town = self.game.town
+        guided_name = self.destination[0] if self.destination else None
         for site in self.sites:
-            visible = self.camera.sees(site.x+88, site.y+100, 140)
-            text = self.game.town.site_status(site)
+            visible = status_label_visible(self.camera, town.x, town.y, site, guided_name)
             item = self.labels.get(site.name)
+            if not visible:
+                if item is not None and item[3]:
+                    item_id, old_text, old_color, old_visible = item
+                    self.canvas.itemconfigure(item_id, state="hidden")
+                    self.labels[site.name] = (item_id, old_text, old_color, False)
+                continue
+            text = town.site_status(site)
             if item is None and visible:
                 item_id = self.canvas.create_text((site.x+8)*self.zoom, (site.y+123)*self.zoom,
                                                   text=text, fill=color, anchor="w",
@@ -381,6 +401,7 @@ class LivingWorld:
                 if (px, py) != (actor.drawn_x, actor.drawn_y):
                     c.move(actor.tag, (px-actor.drawn_x)*zoom, (py-actor.drawn_y)*zoom)
                     actor.drawn_x, actor.drawn_y = px, py
+        self.fleet.paint(getattr(town, "logistics", None), self.camera)
         self.scene.animate(town.elapsed)
         near = town.nearby()
         selection_site = near.name if near else None

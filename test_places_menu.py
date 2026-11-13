@@ -33,7 +33,8 @@ class PlacesDirectoryTest(unittest.TestCase):
             categories = {"SUPPLIER": ("buy",), "FACTORY": ("make",), "PUBLIC SHOP": ("sell",),
                           "TIER2": ("make", "sell"), "PASTELARIA": ("make", "sell"),
                           "SHIPYARD": ("make", "sell"), "CASINO": ("services",),
-                          "GARAGE": ("services",), "WAREHOUSE": ("services",)}[site.role]
+                          "GARAGE": ("services",), "WAREHOUSE": ("services",), "EXCHANGE": ("services",),
+                          "RESEARCH": ("services",)}[site.role]
             with self.subTest(site=site.name):
                 for category in categories:
                     entry = next(entry for entry in rows[category] if entry.name == site.name)
@@ -66,10 +67,19 @@ class PlacesDirectoryTest(unittest.TestCase):
 
     def test_basic_neighborhood_labels_match_the_playable_map(self):
         for point, expected in (((28, 160), "Belém"), ((748, 160), "Alfama · Graça"),
+                                ((988, 160), "Beato"), ((1140, 704), "Beato"),
                                 ((1280, 160), "Marvila"), ((2080, 530), "Parque das Nações"),
                                 ((650, 935), "Almada · Tejo"), ((1540, 1180), "Cacilhas"),
                                 ((2060, 1430), "Palmela")):
             self.assertEqual(neighborhood_for(*point), expected)
+
+    def test_oriente_station_district_is_kept_in_parque_das_nacoes(self):
+        self.assertEqual(neighborhood_for(1900, 240), "Parque das Nações")
+        rows = directory_entries(SITES)
+        casino = next(entry for entry in rows["services"] if entry.name == "Foundry Casino")
+        self.assertEqual(casino.neighborhood, "Beato")
+        tools = next(entry for entry in rows["sell"] if entry.name == "Oriente Tool Market")
+        self.assertEqual(tools.neighborhood, "Parque das Nações")
 
 
 if __name__ == "__main__":

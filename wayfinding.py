@@ -80,6 +80,17 @@ def _guide(role, trade):
                             "and vehicles move faster on roads.", title="BUY VEHICLES")
     if role == "WAREHOUSE":
         return _description("services", "Increase your bag capacity", "Press E to buy more storage when your bag is full.", title="BUY STORAGE")
+    if role == "EXCHANGE":
+        return SiteGuide("services", "$", "STOCK EXCHANGE", "#947123",
+                         "District + infrastructure shares",
+                         "Press E to buy or sell shares in districts, bridge tolls and the tram network. "
+                         "Owned shares earn dividends from city activity.")
+    if role == "RESEARCH":
+        return SiteGuide("services", "R", "INOVAÇÃO", "#246b80",
+                         "Research + tier-3 workshop",
+                         "Press E at Nova SBE in Carcavelos to fund research with cash and active play time. "
+                         "Green Energy lowers operating taxes; Advanced Metallurgy unlocks tier-3 recipes. "
+                         "Craft, collect and sell advanced products in the campus workshop.")
     if role == "CASINO":
         return _description("services", "Roulette", "Press E to enter the casino and play roulette.", title="CASINO")
     return _description("residential", "Lisboa · Residências", "Residential building; no trading or production.")

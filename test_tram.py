@@ -26,6 +26,12 @@ class TramTravelTest(unittest.TestCase):
             self.assertEqual(nearby_stop(stop.x, stop.y-TRAM_REACH), stop)
         self.assertIsNone(nearby_stop(480, 321))
 
+    def test_western_district_stop_is_beato_and_oriente_remains_in_the_east(self):
+        beato = next(stop for stop in TRAM_STOPS if stop.x == 1140)
+        self.assertEqual(beato.name, "Beato")
+        self.assertNotIn("Oriente", [stop.name for stop in TRAM_STOPS])
+        self.assertGreater(next(stop.x for stop in TRAM_STOPS if stop.name == "Parque das Nações"), 1775)
+
     def test_fare_is_charged_once_and_cargo_orders_vehicle_are_preserved(self):
         town = self.at_stop()
         town.supplies[0], town.goods[1], town.eggs = 3, 2, 1

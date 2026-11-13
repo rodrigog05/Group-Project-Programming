@@ -13,7 +13,15 @@ Move with **WASD** or the arrow keys. Walk to a colored doorstep and press **E**
 
 Follow the numbered building signs: **1 BUY RAW MATERIALS → 2 MAKE PRODUCTS → 3 SELL PRODUCTS**. Matching colors and numbers also appear on the minimap. Press **P** or click **Places** to browse suppliers, factories, markets, services and landmarks, with ingredients and instructions. Choose **Guide me here** to mark a doorstep and show a direction; river crossings point you toward a suitable bridge. Purple **2+3 MAKE + SELL** signs identify businesses where you craft, collect and sell at the same place.
 
+Press **J** or click **Journal** to open four tabs: **Recipes, Landmarks, Tejo and Markets**. Interacting with a production building records its recipe, including Pastéis de Belém, precision machinery and boat repairs. Discoveries persist through autosaves, and older saves recover recipes supported by existing orders, goods or sales. The history tabs work offline and include links to their primary sources. The market tab refreshes current prices, your stock and orders, sales and remaining regular/tourist buyers; it distinguishes your inventory from total market supply and counts shared market buyers once.
+
 Visit **Mosteiro dos Jerónimos** in Belém, **Castelo de São Jorge** in Alfama, **Torre de Belém** beside the western waterfront and **Praça do Comércio** with its open courtyard. They are drawn into the day/night scenery and marked on the minimap. Pine Mill, Redbank Clay Pit and Sunrise Bakery now occupy nearby eastern business plots; the directory always uses their current locations.
+
+**Bolsa de Lisboa**, the stock exchange in **Baixa-Chiado**, is marked **$** on the map. Press **E** at its entrance to trade shares in Belém, Baixa, Alfama, Oriente and Almada businesses, the **25 de Abril tolls**, or the **tram network**. Home Market now occupies an eastern business plot; its current location remains in Places.
+
+The exchange panel shows buy/sell quotes, holdings, cost basis, cash-out value, activity and dividend credits. Simulated city commerce and traffic register every **10 active seconds**; completed player sales, paid bridge returns and tram tickets add activity to the relevant investment. Only shares held when an event occurs earn its dividend credits. The city continues while a focused menu is open; offline time creates no new activity. Quotes adjust at day close within 75–125% of their base price, and selling uses a 10% bid spread.
+
+Dividends pay automatically at day close in whole dollars **per investment**, with fractional cents carried forward. Cash dividends and realized share gains/losses enter the normal profit/tax accounts; buying or receiving back share principal does not create a business expense or revenue. Holdings, basis, quotes, pending credits, statements and payment guards save with your progress. Older saves receive an empty portfolio, and reloading cannot pay the same day's dividends twice.
 
 Monuments attract extra **local buyers each day**. Jerónimos adds 6 and Torre de Belém adds 3 for Pastéis de Belém; Praça do Comércio adds 4 each for Daily Bread Market, The Pottery Shop and Tool Market; Castelo adds another 3 for The Pottery Shop. The shop's `buyers` display includes its remaining tourists. Regular customers are served first, then the local tourist pool. These extra buyers refresh once per day, keep their remaining counts through saves, and cannot be spent at unrelated markets. Select a shop or landmark in Places to see its tourism effect.
 
@@ -27,7 +35,7 @@ At **Motorworks Garage**, press **E** to buy a ride. The active vehicle's trunk 
 
 The HUD shows **BAG + TRUNK**, total capacity and the active road-speed bonus. All purchases, factory collections and eggs use that combined capacity. Switching to a smaller trunk is blocked while your cargo and reserved orders exceed its limit. Older car saves gain the new trunk automatically without repeatedly adding slots.
 
-For early travel, walk to a yellow **TRAM · E · $3** platform and press **E**. Choose any other stop for a **$3 express trip** between Belém, Alcântara, Baixa/Praça do Comércio, Alfama, Oriente, Marvila and Parque das Nações. Stops are marked **T** on the minimap and listed in Places → Services. Trips keep your cargo, vehicle and orders; fares count as expenses. The tram serves Lisbon's north bank, while the two bridges connect to Almada.
+For early travel, walk to a yellow **TRAM · E · $3** platform and press **E**. Choose any other stop for a **$3 express trip** between Belém, Alcântara, Baixa/Praça do Comércio, Alfama, Beato, Marvila and Parque das Nações. Stops are marked **T** on the minimap and listed in Places → Services. Trips keep your cargo, vehicle and orders; fares count as expenses. The tram serves Lisbon's north bank, while the two bridges connect to Almada.
 
 At the fullscreen start menu, choose your character's name, skin tone, hair, and outfit before starting or continuing.
 
@@ -43,7 +51,7 @@ Run `python benchmark_world.py --seconds 12` to measure a moving-camera day/nigh
 
 Windows startup uses the monitor's physical resolution, including 1920 × 1080 displays with Windows scaling enabled. Settings shows the current display size. **Save and Close Game** writes progress to the configured save storage before exiting; a failed save keeps the game open so you can retry.
 
-The Lisboa edition has a compact west-to-east layout inspired by Belém, Alcântara, Baixa/Chiado, Alfama/Graça and Oriente. The Tejo separates Lisbon from Almada. Both Ponte 25 de Abril and Ponte Vasco da Gama are usable crossings; Vasco da Gama connects the eastern waterfront beside Parque das Nações to the Seixal side of the map. Both crossings appear on the minimap. Precision Works is on the Almada bank. A yellow elétrico follows a fictional waterfront line between the neighborhoods. The architecture uses tiled roofs, azulejos, balconies and calçada, with antialiased scenery cached as PNGs for smooth movement. Geographic references come from [Turismo de Portugal](https://www.visitportugal.com/en/destinos/lisboa/73775) and [Visit Lisboa's Tagus route](https://www.visitlisboa.com/en/lisbon-stories/15-tagus-route/pois?page=2).
+The Lisboa edition has a compact west-to-east layout inspired by Belém, Alcântara, Baixa/Chiado, Alfama/Graça, Beato, Marvila and Parque das Nações. The Tejo separates Lisbon from Almada. Both Ponte 25 de Abril and Ponte Vasco da Gama are usable crossings; Vasco da Gama connects the eastern waterfront beside Parque das Nações to the Seixal side of the map. Both crossings appear on the minimap. Precision Works is on the Almada bank. A yellow elétrico follows a fictional waterfront line between the neighborhoods. The architecture uses tiled roofs, azulejos, balconies and calçada, with antialiased scenery cached as PNGs for smooth movement. Geographic references come from [Turismo de Portugal](https://www.visitportugal.com/en/destinos/lisboa/73775) and [Visit Lisboa's Tagus route](https://www.visitlisboa.com/en/lisbon-stories/15-tagus-route/pois?page=2).
 
 **Saudade do Tejo** is a bundled original 60-second fado-inspired guitar instrumental, composed for this game. It loops locally without an internet connection. Use the gold **Settings** button or **F1** to toggle music, change fullscreen mode, and read the rules. Windows uses its built-in WAV player; macOS uses `afplay`; Linux uses `paplay` or `aplay` when available. To rebuild assets, run `python compose_fado.py` for audio or `python render_world.py` for the expanded world (the scenery build requires Pillow; playing does not). `render_lisbon.py` can still rebuild the compact map previews.
 
@@ -74,7 +82,49 @@ Both bridges charge a **$3 game toll for a completed Almada → Lisboa crossing*
 
 Choose **Rules & How to Play** on the start menu for game instructions. During play, click **Settings** in the top bar to switch between fullscreen and windowed mode, toggle moving traffic, or reopen the rules.
 
-You start with $60 and 12 bag slots. Factory orders reserve space for pickup. Reach $500 to hit the cash goal. You can keep trading afterward.
+You start with $60 and 12 bag slots. Factory orders reserve space for pickup. Reach $500 for the first cash milestone, then choose **Continue building & researching** to keep growing. The celebration also offers Save and exit.
+
+## Nova SBE · Carcavelos: Inovação
+
+The university is on the western waterfront of the compact game map. Open **Places (P) → Services → Nova SBE · Carcavelos → Guide me here**, walk to the entrance and press **E**. Goldenfield Farm has moved to Marvila; Quinta de Palmela also supplies Wheat and Eggs.
+
+Research has two branches, with three levels each. Pay for one project at a time; the countdown runs during focused play, including open menus. Current projects, completed levels and workshop orders save automatically. Closing the game or switching away grants no research time.
+
+| Branch | Level 1 | Level 2 | Level 3 |
+| --- | --- | --- | --- |
+| Green Energy | $200 · 45s · tax 18% | $450 · 75s · tax 15% | $900 · 120s · tax 10% |
+| Advanced Metallurgy | $350 · 60s · Alloy Components | $800 · 90s · Precision Turbines | $1,600 · 120s · Smart Tram Assemblies |
+
+Green Energy reduces the existing daily profit tax from its base 20%; it does not create a separate pollution meter. Research spending counts as a business expense. Completed metallurgy research records its recipe in the Journal.
+
+Use the campus **Advanced Workshop** to fabricate, collect and sell tier-3 goods. Inputs are consumed at the start, output reserves cargo slots, and finished orders can wait safely at the campus. Prices respond to supply and daily demand, with limited buyers resetting each day.
+
+| Product | Inputs per unit | Production time | Base sale price | Base buyers/day |
+| --- | --- | --- | --- | --- |
+| Alloy Components | 2 Iron ore + 1 Tools | 14s | $75 | 8 |
+| Precision Turbines | 1 Precision Machinery + 2 Alloy Components | 25s | $360 | 4 |
+| Smart Tram Assemblies | 2 Precision Turbines + 2 Tools | 40s | $1,200 | 2 |
+
+These are fictional game upgrades and crafting recipes, not real Nova SBE courses or commercial activities.
+
+## Automated delivery network
+
+Permanent building names, material/product signs and map markers remain visible throughout the city. Detailed floating prices, inventory and production timers appear within 360 world units of the player or at an onscreen guided destination. The Journal keeps complete market figures available from anywhere. This reduces distant text clutter and graphics overhead with a full fleet running.
+
+Click **Deliveries · L**, press **L**, or open **Automated delivery fleet** in a garage to buy and assign routes. Choose a supplier, a matching factory and a vehicle. Wheat from Goldenfield Farm goes to Sunrise Bakery; Timber from Pine Mill or Marvila Timber Depot goes to Oak Workshop. Incompatible material/factory combinations are rejected.
+
+| Fleet vehicle | Purchase per route | Load capacity | Operating fee per departure | Travel |
+| --- | --- | --- | --- | --- |
+| Delivery van | $320 | 6 | $1 | Roads and bridges; $3 northbound bridge toll |
+| Delivery drone | $600 | 3 | $2 | Direct flight; no bridge toll |
+
+Each departure automatically buys its load at the current raw-material price. Deliveries feed a separate factory input buffer, and an automatic production line turns those materials into finished goods. Each factory holds up to 48 inputs and 48 finished or currently processing products. Fleet cargo and factory stock do not occupy the player's bag. Visit the factory and press **E** to collect finished output, then sell it at a matching market. Personal raw-material drop-offs and ready manual orders keep their normal interaction priority. The Journal's market notes also show automatic factory stock.
+
+Use the network panel to inspect routes and factory stocks, pause or resume departures, remove eligible empty routes, and guide yourself to a factory. Pausing lets already paid loads finish safely. Routes wait and retry when cash or storage is unavailable. Fleet purchases, materials, operating fees and tolls appear in business expenses; holding factory stock generates no sale income. Up to eight routes can run together.
+
+Route progress, paid cargo, buffers and production save with the rest of the game. Automation runs during focused play, including open menus, and pauses while the game is closed or unfocused.
+
+The district above the casino is **Beato**. **Oriente** remains beside the station in Parque das Nações; the tram stop at Beato and the Places directory use the corrected Beato name.
 
 ## Foundry Casino
 

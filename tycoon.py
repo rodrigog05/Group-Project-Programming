@@ -14,9 +14,14 @@ from saves import RemoteSaves, SaveConflict, desktop_storage
 from lisbon_scene import LisbonScene, MAP_BOTTOM, WORLD_WIDTH, WORLD_BOTTOM, SCENERY_BLOCKS, RIVER_TOP, RIVER_BOTTOM, BRIDGE_TOLL, bridge_at, draw_character, walkable_terrain
 from soundtrack import music_for
 from living_world import LivingWorld
+from journal_recipes import RECIPE_BY_KEY, infer_discoveries, normalize_discoveries, recipe_key_for_site
 from lisbon_landmarks import LANDMARK_SOLIDS
 from vehicles import VEHICLES, WALK_SPEED, on_road
 from tourism import new_tourist_pools, tourism_bonus
+from exchange import (initial_state as new_exchange_state, normalize_state as normalize_exchange_state,
+                      advance_city, record_trade, record_bridge, settle_exchange)
+import innovation
+import logistics
 
 
 WIDTH = 1200
@@ -74,6 +79,8 @@ RULES_TEXT = (
     "Visit Mosteiro dos Jerónimos, Castelo de São Jorge, Torre de Belém and Praça do Comércio. "
     "Building signs follow 1 BUY RAW MATERIALS → 2 MAKE PRODUCTS → 3 SELL PRODUCTS. "
     "Open Places (P) to see recipes and locations, then choose Guide me here for a destination marker. "
+    "Press J or click Journal to track recipes you have discovered, read landmark and Tejo history, "
+    "and check current market stock, orders, prices and buyers. Talk to a production building with E to record its recipe. "
     "Click the gold Settings button or press F1 for fullscreen, music, and help.\n\n"
     "LIVING WORLD\n"
     "Explore Marvila, Parque das Nações, Cacilhas and Seixal in a 2400 × 1600 world. The camera follows you. "
@@ -87,13 +94,38 @@ RULES_TEXT = (
     "Trunks combine with personal and warehouse storage, and vehicles get a speed bonus on paved roads. "
     "Walk to a yellow TRAM stop, press E and pay $3 for express travel to another Lisbon district. "
     "Your cargo and vehicle remain available after the trip.\n\n"
+    "STOCK EXCHANGE\n"
+    "Visit Bolsa de Lisboa in Baixa-Chiado and press E to buy or sell district and infrastructure shares. "
+    "City trade, paid 25 de Abril returns and tram journeys earn dividend credits for shares you already hold. "
+    "The wider city also records simulated activity every 10 active seconds, including while the exchange is open. "
+    "Whole-dollar dividends are paid per investment at day close and included in taxable profit; fractional credits carry over. "
+    "Share capital is separate from operating expenses; only realized gains or losses affect profit. "
+    "Sale quotes include a 10% spread. Offline time creates no new city activity.\n\n"
+    "NOVA SBE · CARCAVELOS · INOVAÇÃO\n"
+    "Find the waterfront university in Places → Services and press E at its entrance. "
+    "Spend cash and active play time on one research project at a time. Green Energy has three levels, "
+    "reducing profit tax from 20% to 18%, 15% and 10%. Advanced Metallurgy unlocks Alloy Components, "
+    "Precision Turbines and Smart Tram Assemblies in order. The campus workshop shows each recipe's "
+    "inputs, production time and current buyers; fabricate, collect and sell there. Research and workshop "
+    "timers continue while focused menus are open, save between sessions, and do not advance offline.\n\n"
+    "AUTOMATED DELIVERIES\n"
+    "Click Deliveries or press L to buy and assign a delivery van ($320, 6 items) or drone ($600, 3 items). "
+    "Choose a raw-material supplier and a factory that uses that material: Goldenfield Farm → Sunrise Bakery "
+    "for Wheat, Pine Mill or Marvila Timber Depot → Oak Workshop for Timber. Each departure buys materials "
+    "at current prices and charges a $1 van / $2 drone operating fee. Vans follow roads and pay normal "
+    "northbound bridge tolls; drones fly directly. Factories automatically process deliveries into their own "
+    "storage, separate from your bag. Visit the factory and press E to collect output, then sell at a market. "
+    "Personal supplies and finished manual orders take priority when interacting. Routes wait when funds "
+    "or storage run out. Pausing stops new departures; paid loads finish their trip. "
+    "Fleet, cargo and factory timers save and run only during focused play.\n\n"
     "NIGHT, TAX & TOLLS\n"
-    "Buildings and both bridges light up at night. At the end of each full day, 20% tax is charged only on positive net profit "
+    "Buildings and both bridges light up at night. At the end of each full day, tax starts at 20% of positive net profit "
     "(all income received minus purchases, upgrades, casino stakes and tolls). Loss-making days pay no tax. "
     "Each completed Almada-to-Lisbon bridge crossing costs $3, on foot or in a vehicle. Outbound crossings and halfway turnarounds are free.\n\n"
     "TOWN & GOAL\n"
     "Each day lasts 5 minutes: 3 minutes of daylight and 2 minutes of night. Prices and customer demand "
-    "change daily. Reach $500 to win. Your progress saves automatically."
+    "change daily. Reach $500 for the first milestone, then choose Continue building & researching to keep playing. "
+    "Your progress saves automatically."
 )
 
 
@@ -247,11 +279,11 @@ SITES = (
     Site("Tool Market", "PUBLIC SHOP", 0, 508, 345, "#72d8bc"),
     Site("Pine Mill", "SUPPLIER", 1, 1280, 160, "#d6a46e"),
     Site("Oak Workshop", "FACTORY", 1, 268, 160, "#ef8f76"),
-    Site("Home Market", "PUBLIC SHOP", 1, 508, 160, "#72d8bc"),
+    Site("Home Market", "PUBLIC SHOP", 1, 1540, 345, "#72d8bc"),
     Site("Redbank Clay Pit", "SUPPLIER", 2, 2080, 160, "#e6a17f"),
     Site("Ember Kiln", "FACTORY", 2, 748, 345, "#f3a376"),
     Site("The Pottery Shop", "PUBLIC SHOP", 2, 748, 530, "#d2a7e5"),
-    Site("Goldenfield Farm", "SUPPLIER", 3, 28, 530, "#e3c77e"),
+    Site("Goldenfield Farm", "SUPPLIER", 3, 1280, 530, "#e3c77e"),
     Site("Sunrise Bakery", "FACTORY", 3, 1540, 530, "#ebbe83"),
     Site("Daily Bread Market", "PUBLIC SHOP", 3, 268, 530, "#f3ca85"),
     # The casino has no trade route, so its trade index is unused.
@@ -266,6 +298,8 @@ SITES = (
     Site("Quinta de Palmela", "SUPPLIER", 3, 2060, 1430, "#e3c77e"),
     Site("Cacilhas Garage", "GARAGE", -1, 1540, 1180, "#86caff"),
     Site("Armazém do Seixal", "WAREHOUSE", -1, 2060, 1180, "#d2a7e5"),
+    Site("Bolsa de Lisboa", "EXCHANGE", -1, 508, 160, "#d7bb6e"),
+    Site("Nova SBE · Carcavelos", "RESEARCH", -1, 28, 530, "#83bac9"),
     Site("Foundry Precision Works", "TIER2", -1, 650, 935, "#ffc66c"),
 )
 COLLISION_BOUNDS = tuple(site.bounds for site in SITES)+SCENERY_BLOCKS+LANDMARK_SOLIDS+((1780, 190, 2030, 260),)
@@ -283,6 +317,10 @@ class Town:
         self.supplies = [0] * len(TRADES)
         self.goods = [0] * len(TRADES)
         self.orders = [None] * len(TRADES)
+        self.discovered_recipes = []
+        self.exchange = new_exchange_state()
+        self.innovation = innovation.initial_state()
+        self.logistics = logistics.initial_state(SITES)
         self.demand = [trade.demand for trade in TRADES]
         self.tourist_buyers = new_tourist_pools(SITES)
         self.market_elapsed = 0
@@ -324,6 +362,7 @@ class Town:
         self.x, self.y = 480.0, 321.0
         self.facing = 1
         self.won = False
+        self.milestone_acknowledged = False
         self.bag_size = BAG_SIZE
         self.warehouse_level = 0
         self.speed_until = 0
@@ -342,9 +381,69 @@ class Town:
             if isinstance(value, str) and value in choices:
                 self.profile[key] = value
 
+    def discover_recipe(self, key):
+        if key not in RECIPE_BY_KEY or key in self.discovered_recipes:
+            return False
+        self.discovered_recipes.append(key)
+        self.notice = f"Recipe recorded: {RECIPE_BY_KEY[key].title} · J opens your journal"
+        self.notice_until = self.elapsed+4
+        return True
+
     def congratulate(self, quantity, item):
         self.notice = f"Congratulations {self.profile['name']}, you just collect {quantity} {item}"
         self.notice_until = self.elapsed + 4
+
+    def start_research(self, branch):
+        return innovation.start_research(self, branch)
+
+    def advance_research(self, seconds):
+        completions = innovation.advance_innovation(self, seconds)
+        for completion in completions:
+            for key in completion.unlocked_recipes:
+                self.discover_recipe(key)
+            branch = innovation.BRANCH_BY_KEY[completion.branch]
+            self.notice = f"Research complete: {branch.name} {completion.level} · Nova SBE"
+            self.notice_until = self.elapsed+6
+        return completions
+
+    def start_fabrication(self, recipe, quantity):
+        return innovation.start_fabrication(self, recipe, quantity)
+
+    def collect_research_products(self, recipe, quantity=None):
+        return innovation.collect_products(self, recipe, quantity)
+
+    def sell_research_products(self, recipe, quantity=None):
+        sold = innovation.sell_products(self, recipe, quantity)
+        if sold:
+            record_trade(self, next(site for site in SITES if site.role == "RESEARCH"), sold)
+        return sold
+
+    def continue_after_milestone(self):
+        if not self.won:
+            return False
+        self.milestone_acknowledged = True
+        self.message = "Cash milestone complete! Visit Nova SBE in Carcavelos for research and tier-3 crafting."
+        return True
+
+    def create_delivery_route(self, kind, source, destination):
+        return logistics.create_route(self, kind, source, destination, SITES, TRADES)
+
+    def set_delivery_enabled(self, route_id, enabled):
+        return logistics.set_route_enabled(self, route_id, enabled)
+
+    def remove_delivery_route(self, route_id):
+        return logistics.remove_route(self, route_id)
+
+    def advance_deliveries(self, seconds):
+        for key in logistics.advance_logistics(self, seconds, SITES, TRADES):
+            self.discover_recipe(key)
+
+    def collect_delivery_products(self, factory, quantity=None):
+        site = self.nearby()
+        if site is None or site.role != "FACTORY" or site.name != factory:
+            self.message = f"Visit {factory} to collect its automated production. Use L for delivery routes."
+            return 0
+        return logistics.collect_output(self, factory, quantity)
 
     @property
     def day(self):
@@ -352,7 +451,8 @@ class Town:
 
     @property
     def daily_revenue(self):
-        return sum(self.revenue_today)+self.tier2_revenue_today+sum(self.industry_revenue_today.values())+self.other_income_today
+        return (sum(self.revenue_today)+self.tier2_revenue_today+sum(self.industry_revenue_today.values())
+                +sum(self.innovation["revenue_today"].values())+self.other_income_today)
 
     @property
     def daily_expenses(self):
@@ -365,17 +465,23 @@ class Town:
     def settle_day(self, day):
         if day <= self.last_tax_day:
             return
+        dividends = settle_exchange(self, day)
         profit = self.daily_net_profit
-        tax = (max(0, profit)*DAILY_TAX_PERCENT+50)//100
+        rate = innovation.tax_rate(self, DAILY_TAX_PERCENT)
+        tax = (max(0, profit)*rate+50)//100
         self.last_day_summary = {
             "day": day, "revenue": self.daily_revenue, "expenses": self.daily_expenses,
             "profit": profit, "tax": tax, "net_profit": profit-tax,
             "tolls": self.tolls_today, "crossings": self.toll_count_today,
+            "dividends": dividends,
+            "tax_rate": rate,
         }
         self.cash -= tax
         self.taxes_paid_total += tax
         self.last_tax_day = day
-        self.notice = f"Dia {day} fechado · Lucro ${profit} · Imposto ({DAILY_TAX_PERCENT}%) ${tax}"
+        self.notice = f"Dia {day} fechado · Lucro ${profit} · Imposto ({rate}%) ${tax}"
+        if dividends:
+            self.notice += f" · Dividendos ${dividends}"
         self.notice_until = self.elapsed+6
 
     def sync_market(self, elapsed):
@@ -384,6 +490,7 @@ class Town:
         if self.day == previous_day:
             return
         self.settle_day(previous_day)
+        innovation.reset_day(self)
         self.tourist_buyers = new_tourist_pools(SITES)
         self.costs = [trade.cost for trade in TRADES]
         self.prices = [trade.price for trade in TRADES]
@@ -393,7 +500,9 @@ class Town:
         for index, trade in enumerate(TRADES):
             demand_factor = 2.5 if random.random() < 0.12 else random.uniform(0.85, 1.15)
             today_demand = max(1, round(trade.demand * demand_factor))
-            available_supply = self.sales_today[index] + self.goods[index]
+            factory_stock = sum(factory["output"] for factory in self.logistics["factories"].values()
+                                if factory["trade"] == index)
+            available_supply = self.sales_today[index]+self.goods[index]+factory_stock
             price_factor = 1 + 0.6 * (today_demand / trade.demand - 1) - 0.5 * (available_supply / trade.demand)
             self.prices[index] = max(1, round(trade.price * max(0.4, min(2.5, price_factor))))
             self.demand[index] = today_demand
@@ -471,14 +580,15 @@ class Town:
 
     @property
     def cargo(self):
-        return sum(self.supplies)+sum(self.goods)+self.tier2_goods+self.eggs+sum(self.industry_goods.values())
+        return (sum(self.supplies)+sum(self.goods)+self.tier2_goods+self.eggs
+                +sum(self.industry_goods.values())+innovation.cargo(self))
 
     @property
     def reserved(self):
         return sum(order.quantity for order in self.orders if order is not None) + (
             self.tier2_order.quantity if self.tier2_order is not None else 0
         ) + sum(order.quantity for role, order in self.industry_orders.items()
-                if order is not None and not INDUSTRIES[role].service)
+                if order is not None and not INDUSTRIES[role].service) + innovation.reserved(self)
 
     @property
     def carry_capacity(self):
@@ -585,6 +695,7 @@ class Town:
                 self.tolls_today += BRIDGE_TOLL
                 self.tolls_paid_total += BRIDGE_TOLL
                 self.toll_count_today += 1
+                record_bridge(self, name)
                 self.message = f"Portagem · Ponte {name} → Lisboa: -${BRIDGE_TOLL}."
                 self.notice = self.message
                 self.notice_until = self.elapsed+4
@@ -612,6 +723,7 @@ class Town:
         if site is None:
             self.message = "Walk up to a marked entrance to trade."
             return
+        self.discover_recipe(recipe_key_for_site(site))
         if site.role == "CASINO":
             self.message = "Welcome to the Foundry Casino. Place your bets!"
             return
@@ -620,6 +732,12 @@ class Town:
             return
         if site.role == "WAREHOUSE":
             self.message = "Foundry Warehouse · E to expand your carrying capacity."
+            return
+        if site.role == "EXCHANGE":
+            self.message = "Bolsa de Lisboa · E to buy or sell district and infrastructure shares."
+            return
+        if site.role == "RESEARCH":
+            self.message = "Nova SBE · Carcavelos · E for research and the advanced workshop."
             return
         if site.role in INDUSTRIES:
             self.interact_industry(site.role)
@@ -655,6 +773,7 @@ class Town:
                 self.tier2_revenue_today += revenue
                 self.message = f"Sold {quantity} × Precision Machinery for ${revenue}."
                 self.congratulate(quantity, "precision machinery")
+                record_trade(self, site, quantity)
                 self.add_cash(revenue, business=True)
                 return
             quantity = min(self.goods[0], self.goods[1])
@@ -686,6 +805,12 @@ class Town:
             self.congratulate(quantity, trade.supply.lower())
         elif site.role == "FACTORY":
             order = self.orders[index]
+            automated = self.logistics["factories"].get(site.name, {})
+            if automated.get("output", 0) and (
+                    (order is None and not self.supplies[index])
+                    or (order is not None and self.elapsed < order.ready_at)):
+                self.collect_delivery_products(site.name)
+                return
             if order is None:
                 quantity = self.supplies[index]
                 if not quantity:
@@ -722,12 +847,13 @@ class Town:
             self.revenue_today[index] += revenue
             self.message = f"Sold {quantity} × {trade.product} to customers for ${revenue}."
             self.congratulate(quantity, trade.product.lower())
+            record_trade(self, site, quantity)
             self.add_cash(revenue, business=True)
 
     def buy_eggs(self, bulk=False):
         site = self.nearby()
         if site is None or site.role != "SUPPLIER" or site.trade != 3:
-            self.message = "Buy eggs at Goldenfield Farm in Belém or Quinta de Palmela."
+            self.message = "Buy eggs at Goldenfield Farm in Marvila or Quinta de Palmela."
             return
         space = max(0, self.carry_capacity-self.cargo-self.reserved)
         quantity = max(0, min(4 if bulk else 1, space, self.cash//EGG_COST))
@@ -744,6 +870,7 @@ class Town:
         return self.eggs if name == "Eggs" else self.supplies[MATERIAL_ROUTES[name]]
 
     def interact_industry(self, role):
+        self.discover_recipe(next((recipe.key for recipe in RECIPE_BY_KEY.values() if recipe.role == role), None))
         recipe = INDUSTRIES[role]
         order = self.industry_orders[role]
         if order is not None:
@@ -758,6 +885,7 @@ class Town:
                 self.industry_orders[role] = None
                 self.shipyard_quote = 0
                 self.message = f"Boat repaired and returned to its owner. You received ${revenue}."
+                record_trade(self, next(site for site in SITES if site.role == role), order.quantity)
                 self.add_cash(revenue, business=True)
                 return
             space = max(0, self.carry_capacity-self.cargo)
@@ -786,6 +914,7 @@ class Town:
             self.industry_total_sold[role] += quantity
             self.industry_revenue_today[role] += revenue
             self.message = f"Sold {quantity} × Pastéis for ${revenue}."
+            record_trade(self, shop, quantity)
             self.add_cash(revenue, business=True)
             return
         if recipe.service and not self.industry_demand[role]:
@@ -826,6 +955,25 @@ class Town:
         return stake * ROULETTE_PAYOUTS[choice] if roulette_color(number) == choice else 0
 
     def site_status(self, site):
+        if site.role == "FACTORY" and self.orders[site.trade] is None and not self.supplies[site.trade]:
+            factory = self.logistics["factories"].get(site.name, {})
+            if factory.get("output", 0):
+                return f"Auto: {factory['output']} ready · E Collect · L Deliveries"
+            if factory.get("order"):
+                order = factory["order"]
+                return f"Auto: {order['quantity']} crafting · {math.ceil(order['remaining'])}s · L Deliveries"
+            if factory.get("input", 0):
+                return f"Auto: {factory['input']} raw materials stored · L Deliveries"
+        if site.role == "RESEARCH":
+            project = self.innovation["project"]
+            if project:
+                branch = innovation.BRANCH_BY_KEY[project["branch"]]
+                return f"{branch.name} {project['level']} · {math.ceil(project['remaining'])}s"
+            return f"Inovação · Green {innovation.research_level(self, 'green_energy')}/3 · Metal {innovation.research_level(self, 'metallurgy')}/3"
+        if site.role == "EXCHANGE":
+            shares = sum(self.exchange["holdings"].values())
+            paid = sum(self.exchange["total_dividends"].values())
+            return f"{shares} shares · Dividends ${paid}"
         if site.role in INDUSTRIES:
             role, recipe = site.role, INDUSTRIES[site.role]
             order = self.industry_orders[role]
@@ -866,6 +1014,12 @@ class Town:
         return f"In production  ·  {math.ceil(order.ready_at - self.elapsed)}s"
 
     def action_hint(self, site):
+        if site.role == "FACTORY" and self.logistics["factories"].get(site.name, {}).get("output", 0):
+            return "E  Collect automatic output / process personal supplies    L  Manage deliveries"
+        if site.role == "RESEARCH":
+            return "E  Nova SBE · Research upgrades / craft and sell tier-3 products"
+        if site.role == "EXCHANGE":
+            return "E  Trade district / infrastructure shares and view dividends"
         if site.role == "PASTELARIA":
             return "E  Bake, collect or sell · 1 Wheat + 1 Egg = 1 Pastel"
         if site.role == "SHIPYARD":
@@ -926,6 +1080,15 @@ def unpack_save(data):
                  "other_income_today", "other_expenses_today", "tolls_today", "toll_count_today", "tolls_paid_total",
                  "taxes_paid_total", "last_tax_day", "last_day_summary", "bridge_journey", "tourist_buyers"):
         state.setdefault(name, deepcopy(getattr(town, name)))
+    if "discovered_recipes" not in state:
+        state["discovered_recipes"] = infer_discoveries(state)
+    state["discovered_recipes"] = normalize_discoveries(state["discovered_recipes"])
+    state["exchange"] = normalize_exchange_state(state.get("exchange"))
+    state["innovation"] = innovation.normalize_state(state.get("innovation"))
+    state["logistics"] = logistics.normalize_state(state.get("logistics"), SITES)
+    state.setdefault("milestone_acknowledged", False)
+    if type(state["milestone_acknowledged"]) is not bool:
+        raise ValueError("Invalid cash milestone state in save")
     if data["version"] != 1 or state.keys() != vars(town).keys():
         raise ValueError("Unsupported Foundry Town save")
     pools = state["tourist_buyers"]
@@ -1035,6 +1198,16 @@ class Game:
             bg="#365563", fg=WHITE, activebackground="#496b7a", activeforeground=WHITE,
             font=(FONT, 10, "bold"), relief="flat", borderwidth=0, cursor="hand2", takefocus=True,
         )
+        self.journal_button = tk.Button(
+            self.canvas, text="Journal · J", command=self.open_journal,
+            bg="#365563", fg=WHITE, activebackground="#496b7a", activeforeground=WHITE,
+            font=(FONT, 10, "bold"), relief="flat", borderwidth=0, cursor="hand2", takefocus=True,
+        )
+        self.deliveries_button = tk.Button(
+            self.canvas, text="Deliveries · L", command=self.open_deliveries,
+            bg="#365563", fg=WHITE, activebackground="#496b7a", activeforeground=WHITE,
+            font=(FONT, 10, "bold"), relief="flat", borderwidth=0, cursor="hand2", takefocus=True,
+        )
         self.minimize_button = tk.Button(root, text="—", font=(FONT, 12, "bold"),
                                          command=root.iconify, takefocus=False)
         self.minimize_button.place(relx=1, x=-12, y=12, anchor="ne")
@@ -1130,6 +1303,12 @@ class Game:
         if key == "f1":
             self.open_settings()
             return
+        if key == "j":
+            self.open_journal()
+            return
+        if key == "l":
+            self.open_deliveries()
+            return
         if self.casino_open:
             # Ignore key repeats, so holding E does not close the casino straight away.
             if key not in self.keys:
@@ -1160,6 +1339,14 @@ class Game:
                 self.open_warehouse_shop()
                 self.keys.add(key)
                 return
+            if key == "e" and nearby is not None and nearby.role == "EXCHANGE":
+                self.open_exchange()
+                self.keys.add(key)
+                return
+            if key == "e" and nearby is not None and nearby.role == "RESEARCH":
+                self.open_research()
+                self.keys.add(key)
+                return
             if key == "e" and nearby is None:
                 from tram import nearby_stop
                 if nearby_stop(self.town.x, self.town.y) is not None:
@@ -1177,6 +1364,22 @@ class Game:
         from places_menu import open_places
         open_places(self, SITES)
 
+    def open_journal(self):
+        from journal_panel import open_journal
+        open_journal(self, TRADES, INDUSTRIES, SITES)
+
+    def open_exchange(self):
+        from exchange_panel import open_exchange
+        open_exchange(self)
+
+    def open_research(self):
+        from research_panel import open_research
+        open_research(self)
+
+    def open_deliveries(self):
+        from logistics_panel import open_logistics
+        open_logistics(self, SITES, TRADES)
+
     def tick(self):
         now = time.perf_counter()
         dt = now - self.last_tick
@@ -1185,9 +1388,15 @@ class Game:
         if self.spin is not None and now - self.spin["start"] >= SPIN_SECONDS:
             self.settle_spin()
         paused = self.profile_window is not None or self.casino_open
-        if not paused and self.root.focus_displayof() is not None:
+        focused = self.root.focus_displayof() is not None
+        if focused and (not self.town.won or self.town.milestone_acknowledged):
+            active_seconds = min(.25, max(0, dt))
+            advance_city(self.town, active_seconds)
+            self.town.advance_research(active_seconds)
+            self.town.advance_deliveries(active_seconds)
+        if not paused and focused:
             self.town.advance(dt)
-        if self.town.won and self.winner_window is None:
+        if self.town.won and not self.town.milestone_acknowledged and self.winner_window is None:
             self.show_winner()
         if not self.casino_open:
             dx = int("d" in self.keys or "right" in self.keys) - int("a" in self.keys or "left" in self.keys)
@@ -1214,6 +1423,10 @@ class Game:
         self.town.interact()
 
     def show_winner(self):
+        self.keys.clear()
+        if self.profile_window is not None:
+            previous, self.profile_window = self.profile_window, None
+            previous.destroy()
         panel = self.winner_window = tk.Toplevel(self.root)
         self.profile_window = panel
         panel.title("Foundry Town Champion")
@@ -1226,6 +1439,21 @@ class Game:
                  bg=INK, fg=GOLD).pack(pady=(0, 12))
         tk.Label(frame, text=f"Your business reached ${CASH_GOAL:,} on Day {self.town.day}.",
                  font=(FONT, 13), bg=INK, fg=WHITE).pack(pady=(0, 18))
+        tk.Label(frame, text="Continue growing: research at Nova SBE in Carcavelos\nand unlock advanced products.",
+                 font=(FONT, 11), bg=INK, fg=MUTED).pack(pady=(0, 18))
+
+        def continue_playing():
+            self.town.continue_after_milestone()
+            self.winner_window = None
+            if self.profile_window is panel:
+                self.profile_window = None
+            panel.grab_release()
+            panel.destroy()
+            self.keys.clear()
+            self.root.focus_set()
+
+        tk.Button(frame, text="Continue building & researching", command=continue_playing,
+                  bg=GOLD, fg=INK).pack(fill="x", pady=(0, 10))
         tk.Button(frame, text="Save and exit game", command=self.close).pack(fill="x")
 
         def finish():
@@ -1292,6 +1520,8 @@ class Game:
             self.keys.clear()
             return "break"
 
+        tk.Button(frame, text="Automated delivery fleet · Manage routes",
+                  command=lambda: (close(), self.open_deliveries())).pack(fill="x", pady=(10, 0))
         tk.Button(frame, text="Close garage", command=close).pack(pady=(10, 0))
         panel.bind("<Escape>", close)
         panel.bind("<Destroy>", clear_pause)
@@ -1478,6 +1708,8 @@ class Game:
         buttons.pack(fill="x")
         tk.Button(buttons, text="Rules & How to Play", command=lambda: (close(), show_rules(self.root))).pack(side="left")
         tk.Button(buttons, text="Close", command=close).pack(side="right")
+        tk.Button(frame, text="Automated deliveries · L",
+                  command=lambda: (close(), self.open_deliveries())).pack(fill="x", pady=(8, 0))
         tk.Button(frame, text="Save and return to main menu", command=lambda: (close(), self.return_to_menu())).pack(fill="x", pady=(14, 0))
         tk.Button(frame, text="Save and Close Game", command=lambda: (close(), self.save_and_close()),
                   bg=INK, fg=WHITE, activebackground="#2c5360", activeforeground=WHITE,
@@ -1577,26 +1809,34 @@ class Game:
             tk.Label(frame, text=f"{districts[index]} · {trade.product} · {town.sales_today[index]} sold").grid(row=4 + index, column=0, sticky="w")
             costs = town.expenses_today[index]+(town.egg_expenses_today if index == 3 else 0)
             tk.Label(frame, text=f"Revenue ${town.revenue_today[index]:,} · Purchases ${costs:,}").grid(row=4 + index, column=1, sticky="e")
-        totals = town.total_sold+[town.tier2_total_sold]+list(town.industry_total_sold.values())
-        products = [trade.product for trade in TRADES]+["Precision Machinery"]+[recipe.product for recipe in INDUSTRIES.values()]
+        totals = (town.total_sold+[town.tier2_total_sold]+list(town.industry_total_sold.values())
+                  +[town.innovation["total_sold"][recipe.key] for recipe in innovation.TIER3_RECIPES])
+        products = ([trade.product for trade in TRADES]+["Precision Machinery"]+[recipe.product for recipe in INDUSTRIES.values()]
+                    +[recipe.product for recipe in innovation.TIER3_RECIPES])
         best = max(range(len(totals)), key=lambda index: totals[index])
         tk.Label(frame, text=f"Precision Works · {town.tier2_sales_today} sold · Revenue ${town.tier2_revenue_today:,}").grid(row=8, column=0, columnspan=2, sticky="w")
         for row, (role, district) in enumerate((("PASTELARIA", "Belém · Pastéis"), ("SHIPYARD", "Tejo · Boat repairs")), start=9):
             tk.Label(frame, text=f"{district} · {town.industry_sales_today[role]} completed").grid(row=row, column=0, sticky="w")
             tk.Label(frame, text=f"Revenue ${town.industry_revenue_today[role]:,}").grid(row=row, column=1, sticky="e")
-        estimated_tax = (max(0, town.daily_net_profit)*DAILY_TAX_PERCENT+50)//100
+        for row, recipe in enumerate(innovation.TIER3_RECIPES, start=11):
+            tk.Label(frame, text=f"Carcavelos · {recipe.product} · {town.innovation['sales_today'][recipe.key]} sold").grid(row=row, column=0, sticky="w")
+            tk.Label(frame, text=f"Revenue ${town.innovation['revenue_today'][recipe.key]:,}").grid(row=row, column=1, sticky="e")
+        rate = innovation.tax_rate(town, DAILY_TAX_PERCENT)
+        estimated_tax = (max(0, town.daily_net_profit)*rate+50)//100
         summary = [
-            f"Lucro antes de imposto: ${town.daily_net_profit:,} · Imposto estimado ({DAILY_TAX_PERCENT}%): ${estimated_tax:,}",
+            f"Lucro antes de imposto: ${town.daily_net_profit:,} · Imposto estimado ({rate}%): ${estimated_tax:,}",
             f"Portagens hoje: ${town.tolls_today} · {town.toll_count_today} regressos a Lisboa",
             f"Outras receitas: ${town.other_income_today:,} · Outras despesas: ${town.other_expenses_today:,}",
             f"Total pago · Impostos: ${town.taxes_paid_total:,} · Portagens: ${town.tolls_paid_total:,}",
+            f"Bolsa · {sum(town.exchange['holdings'].values())} ações · Dividendos recebidos ${sum(town.exchange['total_dividends'].values())}",
+            f"Logística · {len(town.logistics['routes'])} rotas · {sum(factory['output'] for factory in town.logistics['factories'].values())} produtos nas fábricas",
         ]
         if town.last_day_summary:
             last = town.last_day_summary
             summary.append(f"Fecho do dia {last['day']}: lucro ${last['profit']} · imposto ${last['tax']} · líquido ${last['net_profit']}")
-        for row, line in enumerate(summary, start=11):
+        for row, line in enumerate(summary, start=14):
             tk.Label(frame, text=line).grid(row=row, column=0, columnspan=2, sticky="w", pady=2)
-        row = 11+len(summary)
+        row = 14+len(summary)
         tk.Label(frame, text=f"Top seller overall  {products[best]} · {totals[best]} sold").grid(row=row, column=0, columnspan=2, sticky="w", pady=(8, 4))
         tk.Button(frame, text="Edit player profile", command=lambda: self.open_profile_editor(close)).grid(row=row+1, column=0, sticky="w", pady=(8, 0))
         tk.Button(frame, text="Close", command=close).grid(row=row+1, column=1, sticky="e", pady=(8, 0))
@@ -1734,6 +1974,11 @@ class Game:
             button.configure(font=(FONT, max(9, round(10*self.display_scale)), "bold"))
             self.canvas.create_window(1055, y, window=button, width=max(90, 112*self.display_scale),
                                       height=max(28, 32*self.display_scale), tags="controls")
+        footer_width = max(112, 140*self.display_scale)
+        for button, margin in ((self.journal_button, footer_width+24), (self.deliveries_button, 12)):
+            button.configure(font=(FONT, max(9, round(10*self.display_scale)), "bold"))
+            self.canvas.create_window(WIDTH-margin/self.scale_x, MAP_BOTTOM+73, window=button, anchor="e",
+                                      width=footer_width, height=max(24, 28*self.display_scale), tags="controls")
 
     def draw_legacy_city(self):
         self.box(0, MAP_TOP, WIDTH, MAP_BOTTOM, "#2a4b43")
@@ -2237,13 +2482,13 @@ class Game:
                                308*self.scale_x+progress[0], 59*self.scale_y)
             self.canvas.itemconfigure(self.day_progress, fill=MINT if is_daytime else GOLD)
             self.canvas.coords(self.cash_progress, 451*self.scale_x, 52*self.scale_y,
-                               (451+180*max(0, min(town.cash/CASH_GOAL, 1)))*self.scale_x, 59*self.scale_y)
+                               (451+180*(1 if town.won else max(0, min(town.cash/CASH_GOAL, 1))))*self.scale_x, 59*self.scale_y)
             self.last_progress = progress
         minutes, seconds = divmod(max(0, math.ceil(duration-phase_elapsed)), 60)
         phase_name = "DAY" if is_daytime else "NIGHT"
         self.hud_label("phase", 308, 77, f"{phase_name} · {minutes}:{seconds:02} left", 9, MUTED)
         self.hud_label("cash", 451, 30, f"CASH  ${town.cash:,}", 14, GOLD, True)
-        self.hud_label("goal", 451, 77, "GOAL REACHED" if town.won else f"${CASH_GOAL} GOAL", 9, MUTED)
+        self.hud_label("goal", 451, 77, "MILESTONE COMPLETE" if town.won else f"${CASH_GOAL} GOAL", 9, MUTED)
         reserved = f"   +{town.reserved} at factory" if town.reserved else ""
         cargo_label = "BAG + TRUNK" if town.vehicle else "BAG"
         self.hud_label("bag", 673, 25, f"{cargo_label}  {town.cargo}/{town.carry_capacity}{reserved}", 12, WHITE, True)
