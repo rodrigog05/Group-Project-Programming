@@ -3,6 +3,7 @@ import copy
 from types import SimpleNamespace
 import unittest
 
+from contracts import initial_state as initial_contracts
 from innovation import BRANCH_BY_KEY, RECIPE_BY_KEY, initial_state, reset_day
 from research_panel import (branch_text, branch_values, duration_text,
                             fabrication_preview, project_text, quantity_value,
@@ -14,7 +15,33 @@ def student():
                            goods=[3, 0, 0, 0], tier2_goods=2)
 
 
+def grant(town):
+    town.contracts = initial_contracts()
+    town.contracts["upgrades"].append("research_grant")
+
+
 class ResearchFormattingTest(unittest.TestCase):
+    def test_hotel_grant_displays_effective_future_cost_and_base_cost(self):
+        town = student()
+        grant(town)
+        branch = BRANCH_BY_KEY["green_energy"]
+        self.assertEqual(branch_values(town, branch)[2], "$180")
+        text = branch_text(town, branch)
+        self.assertIn("Hotel research grant", text)
+        self.assertIn("Cost $180 (base $200; 10% grant)", text)
+        self.assertIn("Cost $405 (base $450; 10% grant)", text)
+        self.assertIn("Existing paid projects keep their original payment", text)
+
+    def test_active_research_keeps_original_paid_quote_after_grant_is_awarded(self):
+        town = student()
+        grant(town)
+        town.innovation["project"] = dict(branch="green_energy", level=1, remaining=30, paid_cost=200)
+        branch = BRANCH_BY_KEY["green_energy"]
+        self.assertEqual(branch_values(town, branch)[2], "Paid $200")
+        self.assertIn("$200 already paid", project_text(town))
+        self.assertIn("Paid $200 · Base cost $200", branch_text(town, branch))
+        self.assertIn("Cost $405", branch_text(town, branch))
+
     def test_quantities_are_whole_positive_ascii_units(self):
         self.assertEqual(quantity_value(" 25 "), 25)
         for value in ("0", "-2", "+1", "1.5", "1e3", "１２", "9999999", "", None, True):

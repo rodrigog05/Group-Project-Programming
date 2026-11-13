@@ -126,6 +126,46 @@ Route progress, paid cargo, buffers and production save with the rest of the gam
 
 The district above the casino is **Beato**. **Oriente** remains beside the station in Parque das Nações; the tram stop at Beato and the Places directory use the corrected Beato name.
 
+## Contracts & city projects
+
+Click **Contracts · C**, press **C**, or use Settings to open the board. Accept up to three orders, including city projects. Accepting is free. Use **Guide to client**, bring the finished products to the named collection desk, then open Contracts and deliver a quantity. Orders accept partial deliveries, so large projects can be completed with a small bag. Automatic factory output must be collected before handing it over.
+
+| City project | Required products | Active deadline | Cash | Reputation | Permanent reward |
+| --- | --- | --- | --- | --- | --- |
+| Lisbon Festival | 40 Pastéis | 10 minutes | $1,400 | +30 | +4 personal cargo slots |
+| Ponte 25 de Abril maintenance | 18 Tools | 6 minutes | $450 | +20 | +10% movement speed on paved roads |
+| Riverside Hotel fit-out | 16 Furniture | 8 minutes | $650 | +25 | 10% off future research payments |
+
+Festival deliveries go to the Praça do Comércio collection desk, bridge supplies to its north-bank works desk, and hotel furniture to the Home Market supply desk. The navigation marker shows each exact location and **C to deliver** on arrival. Project rewards are permanent and can be earned once. The research grant rounds discounted costs up to whole dollars and leaves already-paid projects unchanged.
+
+Recurring offers rotate every five active minutes. Fixed contract payments do not consume ordinary market buyers. Payment and reputation arrive only when the entire order is complete; payments appear in P&L and are taxed with normal daily profit. Reputation raises your supplier rank; at 50 reputation, knowing the Precision Machinery recipe also makes campus equipment contracts eligible.
+
+Deadlines run during focused play, including open menus, and pause when the game is closed or unfocused. Expired or abandoned orders pay nothing and do not return deposited goods. Eligible failed projects can be retried after a later board refresh. Active orders, deposited quantities, remaining deadlines, history, reputation and completed-project rewards save automatically.
+
+## Business ownership
+
+Click **Businesses · B**, press **B**, or open Business ownership in Settings. Buy one of the standard factories for **$600** or a public market for **$450**. Unowned businesses continue to support normal production and sales. Fixed-recipe businesses such as Pastéis de Belém and Precision Works keep their existing rules.
+
+Owned factories and shops can specialize in **Tools, Furniture, Pottery or Bread**. A factory uses the corresponding raw material, and a shop stocks and sells the chosen finished product. World product signs, Places, the Journal and delivery destinations show the current specialization. Buying a factory preserves any manual order already in progress and its cargo reservation.
+
+| Upgrade | Level 1 | Level 2 | Level 3 |
+| --- | --- | --- | --- |
+| Storage cost | $200 | $400 | $800 |
+| Storage capacity | 72 | 96 | 120 |
+| Equipment cost | $250 | $500 | $1,000 |
+| Factory production time | 85% of base | 70% of base | 55% of base |
+| Automated factory batch size | 8 | 10 | 12 |
+| Shop customers served per 10 active seconds | 3 | 4 | 5 |
+| Shop selling-price premium | 5% | 10% | 15% |
+
+The starting building capacity is 48. Factory storage upgrades expand both delivered-input and finished-output buffers; shop storage expands the retail stockroom. Building stock stays outside the player's bag. Equipment improvements apply to new factory orders; paid work already in progress keeps its original completion time. A base shop serves up to two customers every ten active seconds. Actual sales remain limited by shared product demand and that shop's remaining tourist buyers, and shop quotes follow the changing market price with equipment premiums rounded to whole dollars.
+
+At your shop, **E stocks carried goods** for customers rather than paying immediately. The **Shop counter** tab in Businesses lets you deposit, withdraw or sell carried goods immediately when you are physically at that shop. Stored goods generate income only when real buyers are served. Shop stock also contributes to next-day market oversupply. Purchases and upgrades count in the game's cash-based expenses; retail receipts enter normal product revenue and P&L.
+
+Empty factory buffers, output and manual orders before changing its product. Assigned delivery routes must first be moved to another factory using **L → Reassign empty vehicle**; after retooling, assign the vehicle back with a compatible supplier. Reassignment is free, requires an idle empty vehicle, and preserves the vehicle and its lifetime statistics. Editing a running route pauses new departures until Apply or Cancel; paid cargo already travelling cannot be reassigned. Shops must be emptied before switching products.
+
+Ownership, investments, stock, specializations, equipment, production and the retail countdown save automatically. Retail sales run during focused play, including open management menus. Closing or unfocusing the game creates no retail income.
+
 ## Foundry Casino
 
 The Foundry Casino is in the Casino District on the right of the map. Walk to its door and press **E** to play roulette. It uses a real European wheel with 37 pockets: 18 red, 18 black, and a green 0.

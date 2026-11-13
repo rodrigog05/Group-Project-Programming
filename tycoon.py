@@ -22,6 +22,8 @@ from exchange import (initial_state as new_exchange_state, normalize_state as no
                       advance_city, record_trade, record_bridge, settle_exchange)
 import innovation
 import logistics
+import contracts
+import businesses
 
 
 WIDTH = 1200
@@ -118,6 +120,24 @@ RULES_TEXT = (
     "Personal supplies and finished manual orders take priority when interacting. Routes wait when funds "
     "or storage run out. Pausing stops new departures; paid loads finish their trip. "
     "Fleet, cargo and factory timers save and run only during focused play.\n\n"
+    "CONTRACTS & CITY PROJECTS\n"
+    "Click Contracts or press C to accept timed orders. Up to three orders can be active, including city projects. "
+    "Choose Guide to client, carry the required finished products to the marked desk, then open C and deliver "
+    "a quantity. Partial deliveries count toward the order; payment and reputation arrive when it is complete. "
+    "Deadlines use focused play time, including open menus, and pause while closed or unfocused. "
+    "Failed or abandoned orders keep deposited goods and pay no reward. Recurring offers rotate every five active minutes. "
+    "Complete the festival, bridge and hotel projects for permanent extra cargo, faster road movement and cheaper research. "
+    "Project upgrades can be earned once. Contracts, reputation, deliveries and deadlines save automatically.\n\n"
+    "BUSINESS OWNERSHIP\n"
+    "Click Businesses or press B to buy a standard factory ($600) or public shop ($450). Existing unowned "
+    "businesses remain available for normal trading. Owned businesses can specialize in Tools, Furniture, Pottery "
+    "or Bread. Three storage expansions raise building storage from 48 to 72, 96 and 120 items, separate from your bag. "
+    "Factory equipment shortens new production times and increases automated batch size. Shop equipment improves "
+    "checkout speed and selling prices. At your shop, E deposits goods; customers buy stocked goods every ten active "
+    "seconds while buyers remain. B also offers withdrawals and immediate sales of carried goods when you visit. "
+    "Collect or empty stock and orders before changing product. Use L to reassign idle, empty delivery vehicles for free "
+    "before retooling a supplied factory. Paid loads cannot be reassigned. Ownership, equipment, specializations, "
+    "shop stock and production save automatically; closed or unfocused games generate no retail sales.\n\n"
     "NIGHT, TAX & TOLLS\n"
     "Buildings and both bridges light up at night. At the end of each full day, tax starts at 20% of positive net profit "
     "(all income received minus purchases, upgrades, casino stakes and tolls). Loss-making days pay no tax. "
@@ -321,6 +341,8 @@ class Town:
         self.exchange = new_exchange_state()
         self.innovation = innovation.initial_state()
         self.logistics = logistics.initial_state(SITES)
+        self.businesses = businesses.initial_state()
+        self.contracts = contracts.initial_state()
         self.demand = [trade.demand for trade in TRADES]
         self.tourist_buyers = new_tourist_pools(SITES)
         self.market_elapsed = 0
@@ -428,6 +450,9 @@ class Town:
     def create_delivery_route(self, kind, source, destination):
         return logistics.create_route(self, kind, source, destination, SITES, TRADES)
 
+    def reassign_delivery_route(self, identifier, source, destination):
+        return logistics.reassign_route(self, identifier, source, destination, SITES, TRADES)
+
     def set_delivery_enabled(self, route_id, enabled):
         return logistics.set_route_enabled(self, route_id, enabled)
 
@@ -445,6 +470,76 @@ class Town:
             return 0
         return logistics.collect_output(self, factory, quantity)
 
+    def accept_contract(self, key):
+        return contracts.accept_contract(self, key)
+
+    def deliver_contract(self, identifier, quantity=None):
+        record = next((item for item in self.contracts["active"] if item["id"] == identifier), None)
+        delivered = contracts.deliver_contract(self, identifier, quantity)
+        if delivered and record is not None:
+            offer = contracts.active_offer(record)
+            record_trade(self, offer.location, delivered)
+            if record["delivered"] == record["required"]:
+                self.notice = f"Contract complete: {offer.title} · +{record['reputation']} reputation"
+                self.notice_until = self.elapsed+6
+        return delivered
+
+    def abandon_contract(self, identifier):
+        return contracts.abandon_contract(self, identifier)
+
+    def advance_contracts(self, seconds):
+        expired = contracts.advance_contracts(self, seconds)
+        if expired:
+            titles = ", ".join(contracts.active_offer(record).title for record in expired)
+            self.notice = f"Deadline missed: {titles} · C opens contracts"
+            self.notice_until = self.elapsed+6
+        return expired
+
+    def business_site(self, site):
+        return businesses.effective_site(self, site)
+
+    def purchase_business(self, name):
+        return businesses.purchase_business(self, name, SITES)
+
+    def upgrade_business(self, name, kind):
+        return businesses.upgrade_business(self, name, kind, SITES)
+
+    def specialize_business(self, name, trade):
+        changed = businesses.specialize_business(self, name, trade, SITES)
+        if changed and name in self.logistics["factories"]:
+            self.logistics["factories"][name]["trade"] = trade
+        return changed
+
+    def _owned_shop(self, name):
+        site = self.nearby()
+        if site is None or site.name != name or site.role != "PUBLIC SHOP" or not businesses.is_owned(self, site):
+            self.message = f"Visit your shop at {name} to manage its stock. Use B for businesses."
+            return None
+        return site
+
+    def stock_business(self, name, quantity=None):
+        site = self._owned_shop(name)
+        return businesses.deposit_shop(self, site, quantity) if site else 0
+
+    def withdraw_business(self, name, quantity=None):
+        site = self._owned_shop(name)
+        return businesses.withdraw_shop(self, site, quantity) if site else 0
+
+    def sell_business_carried(self, name, quantity=None):
+        site = self._owned_shop(name)
+        if site is None:
+            return 0
+        sold = businesses.sell_shop(self, site, source="carried", quantity=quantity)
+        if sold:
+            record_trade(self, self.business_site(site), sold)
+        return sold
+
+    def advance_businesses(self, seconds):
+        events = businesses.advance_businesses(self, seconds, SITES, TRADES)
+        for event in events:
+            record_trade(self, event.site, event.quantity)
+        return events
+
     @property
     def day(self):
         return int(self.market_elapsed // DAY_SECONDS) + 1
@@ -452,7 +547,7 @@ class Town:
     @property
     def daily_revenue(self):
         return (sum(self.revenue_today)+self.tier2_revenue_today+sum(self.industry_revenue_today.values())
-                +sum(self.innovation["revenue_today"].values())+self.other_income_today)
+                +sum(self.innovation["revenue_today"].values())+self.other_income_today+self.contracts["revenue_today"])
 
     @property
     def daily_expenses(self):
@@ -490,6 +585,8 @@ class Town:
         if self.day == previous_day:
             return
         self.settle_day(previous_day)
+        businesses.reset_day(self)
+        contracts.reset_day(self)
         innovation.reset_day(self)
         self.tourist_buyers = new_tourist_pools(SITES)
         self.costs = [trade.cost for trade in TRADES]
@@ -502,7 +599,9 @@ class Town:
             today_demand = max(1, round(trade.demand * demand_factor))
             factory_stock = sum(factory["output"] for factory in self.logistics["factories"].values()
                                 if factory["trade"] == index)
-            available_supply = self.sales_today[index]+self.goods[index]+factory_stock
+            shop_stock = sum(record["stock"] for record in self.businesses["owned"].values()
+                             if record["role"] == "PUBLIC SHOP" and record["trade"] == index)
+            available_supply = self.sales_today[index]+self.goods[index]+factory_stock+shop_stock
             price_factor = 1 + 0.6 * (today_demand / trade.demand - 1) - 0.5 * (available_supply / trade.demand)
             self.prices[index] = max(1, round(trade.price * max(0.4, min(2.5, price_factor))))
             self.demand[index] = today_demand
@@ -552,6 +651,7 @@ class Town:
         return min(tourism_bonus(site), max(0, self.tourist_buyers.get(site.name, 0)))
 
     def buyers_for(self, site):
+        site = self.business_site(site)
         if site.role == "PUBLIC SHOP":
             base = self.demand[site.trade]
         elif site.role == "PASTELARIA":
@@ -567,6 +667,7 @@ class Town:
         return status
 
     def _consume_buyers(self, site, quantity):
+        site = self.business_site(site)
         if not 0 <= quantity <= self.buyers_for(site):
             raise ValueError("Sale exceeds remaining buyers")
         base = self.demand[site.trade] if site.role == "PUBLIC SHOP" else self.industry_demand[site.role]
@@ -588,7 +689,7 @@ class Town:
         return sum(order.quantity for order in self.orders if order is not None) + (
             self.tier2_order.quantity if self.tier2_order is not None else 0
         ) + sum(order.quantity for role, order in self.industry_orders.items()
-                if order is not None and not INDUSTRIES[role].service) + innovation.reserved(self)
+                if order is not None and not INDUSTRIES[role].service) + innovation.reserved(self) + businesses.reserved(self)
 
     @property
     def carry_capacity(self):
@@ -602,7 +703,11 @@ class Town:
     @property
     def movement_speed(self):
         vehicle = VEHICLES.get(self.vehicle)
-        speed = WALK_SPEED if vehicle is None else (vehicle.road_speed if self.road_bonus_active else vehicle.offroad_speed)
+        paved = self.road_bonus_active if vehicle else False
+        speed = WALK_SPEED if vehicle is None else (vehicle.road_speed if paved else vehicle.offroad_speed)
+        road_bonus = contracts.road_multiplier(self)
+        if road_bonus > 1 and (paved or vehicle is None and on_road(self.x, self.y, COLLISION_BOUNDS)):
+            speed *= road_bonus
         return speed*(1.5 if self.elapsed < self.speed_until else 1)
 
     def purchase_vehicle(self, vehicle):
@@ -723,7 +828,22 @@ class Town:
         if site is None:
             self.message = "Walk up to a marked entrance to trade."
             return
+        site = self.business_site(site)
         self.discover_recipe(recipe_key_for_site(site))
+        if site.role == "PUBLIC SHOP" and businesses.is_owned(self, site):
+            self.stock_business(site.name)
+            return
+        if site.role == "FACTORY" and businesses.is_owned(self, site):
+            record = businesses.record_for(self, site)
+            order = record["manual_order"]
+            automated = self.logistics["factories"][site.name]
+            if automated["output"] and (
+                    order is None and not self.supplies[site.trade]
+                    or order is not None and self.elapsed < order["ready_at"]):
+                self.collect_delivery_products(site.name)
+            else:
+                businesses.operate_factory(self, site, TRADES[site.trade].seconds)
+            return
         if site.role == "CASINO":
             self.message = "Welcome to the Foundry Casino. Place your bets!"
             return
@@ -955,6 +1075,18 @@ class Town:
         return stake * ROULETTE_PAYOUTS[choice] if roulette_color(number) == choice else 0
 
     def site_status(self, site):
+        if businesses.is_owned(self, site):
+            site = self.business_site(site)
+            record = businesses.record_for(self, site)
+            product = TRADES[site.trade].product
+            if site.role == "PUBLIC SHOP":
+                return f"Owned · {product} ${businesses.sale_price(self, site)} · Stock {record['stock']}/{businesses.storage_capacity(self, site)} · B Manage"
+            order = record["manual_order"]
+            if order:
+                progress = "E Collect" if order["ready_at"] <= self.elapsed else f"{math.ceil(order['ready_at']-self.elapsed)}s"
+                return f"Owned · {product} × {order['quantity']} · {progress} · B Manage"
+            factory = self.logistics["factories"][site.name]
+            return f"Owned · {TRADES[site.trade].supply} → {product} · {factory['output']} stored · B Manage"
         if site.role == "FACTORY" and self.orders[site.trade] is None and not self.supplies[site.trade]:
             factory = self.logistics["factories"].get(site.name, {})
             if factory.get("output", 0):
@@ -1014,6 +1146,10 @@ class Town:
         return f"In production  ·  {math.ceil(order.ready_at - self.elapsed)}s"
 
     def action_hint(self, site):
+        if businesses.is_owned(self, site):
+            if site.role == "PUBLIC SHOP":
+                return "E  Stock your shop for customer sales    B  Manage / withdraw / sell carried goods"
+            return "E  Drop off materials / collect factory products    B  Upgrade / specialize business"
         if site.role == "FACTORY" and self.logistics["factories"].get(site.name, {}).get("output", 0):
             return "E  Collect automatic output / process personal supplies    L  Manage deliveries"
         if site.role == "RESEARCH":
@@ -1085,7 +1221,9 @@ def unpack_save(data):
     state["discovered_recipes"] = normalize_discoveries(state["discovered_recipes"])
     state["exchange"] = normalize_exchange_state(state.get("exchange"))
     state["innovation"] = innovation.normalize_state(state.get("innovation"))
-    state["logistics"] = logistics.normalize_state(state.get("logistics"), SITES)
+    state["businesses"] = businesses.normalize_state(state.get("businesses"), SITES)
+    state["logistics"] = logistics.normalize_state(state.get("logistics"), SITES, businesses_state=state["businesses"])
+    state["contracts"] = contracts.normalize_state(state.get("contracts"))
     state.setdefault("milestone_acknowledged", False)
     if type(state["milestone_acknowledged"]) is not bool:
         raise ValueError("Invalid cash milestone state in save")
@@ -1208,6 +1346,16 @@ class Game:
             bg="#365563", fg=WHITE, activebackground="#496b7a", activeforeground=WHITE,
             font=(FONT, 10, "bold"), relief="flat", borderwidth=0, cursor="hand2", takefocus=True,
         )
+        self.contracts_button = tk.Button(
+            self.canvas, text="Contracts · C", command=self.open_contracts,
+            bg="#365563", fg=WHITE, activebackground="#496b7a", activeforeground=WHITE,
+            font=(FONT, 10, "bold"), relief="flat", borderwidth=0, cursor="hand2", takefocus=True,
+        )
+        self.businesses_button = tk.Button(
+            self.canvas, text="Businesses · B", command=self.open_businesses,
+            bg="#365563", fg=WHITE, activebackground="#496b7a", activeforeground=WHITE,
+            font=(FONT, 10, "bold"), relief="flat", borderwidth=0, cursor="hand2", takefocus=True,
+        )
         self.minimize_button = tk.Button(root, text="—", font=(FONT, 12, "bold"),
                                          command=root.iconify, takefocus=False)
         self.minimize_button.place(relx=1, x=-12, y=12, anchor="ne")
@@ -1309,6 +1457,12 @@ class Game:
         if key == "l":
             self.open_deliveries()
             return
+        if key == "c":
+            self.open_contracts()
+            return
+        if key == "b" and not self.casino_open:
+            self.open_businesses()
+            return
         if self.casino_open:
             # Ignore key repeats, so holding E does not close the casino straight away.
             if key not in self.keys:
@@ -1366,7 +1520,7 @@ class Game:
 
     def open_journal(self):
         from journal_panel import open_journal
-        open_journal(self, TRADES, INDUSTRIES, SITES)
+        open_journal(self, TRADES, INDUSTRIES, tuple(self.town.business_site(site) for site in SITES))
 
     def open_exchange(self):
         from exchange_panel import open_exchange
@@ -1379,6 +1533,14 @@ class Game:
     def open_deliveries(self):
         from logistics_panel import open_logistics
         open_logistics(self, SITES, TRADES)
+
+    def open_contracts(self):
+        from contracts_panel import open_contracts
+        open_contracts(self)
+
+    def open_businesses(self):
+        from businesses_panel import open_businesses
+        open_businesses(self, SITES, TRADES)
 
     def tick(self):
         now = time.perf_counter()
@@ -1394,6 +1556,8 @@ class Game:
             advance_city(self.town, active_seconds)
             self.town.advance_research(active_seconds)
             self.town.advance_deliveries(active_seconds)
+            self.town.advance_contracts(active_seconds)
+            self.town.advance_businesses(active_seconds)
         if not paused and focused:
             self.town.advance(dt)
         if self.town.won and not self.town.milestone_acknowledged and self.winner_window is None:
@@ -1710,6 +1874,10 @@ class Game:
         tk.Button(buttons, text="Close", command=close).pack(side="right")
         tk.Button(frame, text="Automated deliveries · L",
                   command=lambda: (close(), self.open_deliveries())).pack(fill="x", pady=(8, 0))
+        tk.Button(frame, text="Contracts & city projects · C",
+                  command=lambda: (close(), self.open_contracts())).pack(fill="x", pady=(6, 0))
+        tk.Button(frame, text="Business ownership · B",
+                  command=lambda: (close(), self.open_businesses())).pack(fill="x", pady=(6, 0))
         tk.Button(frame, text="Save and return to main menu", command=lambda: (close(), self.return_to_menu())).pack(fill="x", pady=(14, 0))
         tk.Button(frame, text="Save and Close Game", command=lambda: (close(), self.save_and_close()),
                   bg=INK, fg=WHITE, activebackground="#2c5360", activeforeground=WHITE,
@@ -1830,6 +1998,8 @@ class Game:
             f"Total pago · Impostos: ${town.taxes_paid_total:,} · Portagens: ${town.tolls_paid_total:,}",
             f"Bolsa · {sum(town.exchange['holdings'].values())} ações · Dividendos recebidos ${sum(town.exchange['total_dividends'].values())}",
             f"Logística · {len(town.logistics['routes'])} rotas · {sum(factory['output'] for factory in town.logistics['factories'].values())} produtos nas fábricas",
+            f"Contracts · Revenue ${town.contracts['revenue_today']:,} · {town.contracts['completed']} completed · Reputation {town.contracts['reputation']}",
+            f"Owned businesses · {len(town.businesses['owned'])} properties · Sales today ${sum(record['revenue_today'] for record in town.businesses['owned'].values()):,}",
         ]
         if town.last_day_summary:
             last = town.last_day_summary
@@ -1960,7 +2130,9 @@ class Game:
         self.label(24, 30, "FOUNDRY TOWN", 19, WHITE, True)
         self.label(25, 62, "L I S B O A   /   LIVING WORLD", 8, GOLD, True)
         self.box(0, 101, WIDTH, MAP_TOP, "#bfae86")
-        self.label(24, MAP_BOTTOM+73, "WASD / Arrows  Move     E  Interact     Q  Buy four     P  Places     M  Map     F1  Settings", 9, MUTED)
+        help_text = ("WASD / Arrows  Move     E  Interact     Q  Buy four     P  Places     M  Map     F1  Settings"
+                     if self.viewport_width >= 1250 else "WASD Move · E Interact")
+        self.label(24, MAP_BOTTOM+73, help_text, 9, MUTED)
         self.canvas.create_rectangle(308, 52, 412, 59, fill="#304851", width=0, tags="city")
         self.day_progress = self.canvas.create_rectangle(308, 52, 308, 59, fill=MINT, width=0, tags="city")
         self.canvas.create_rectangle(451, 52, 631, 59, fill="#304851", width=0, tags="city")
@@ -1974,8 +2146,10 @@ class Game:
             button.configure(font=(FONT, max(9, round(10*self.display_scale)), "bold"))
             self.canvas.create_window(1055, y, window=button, width=max(90, 112*self.display_scale),
                                       height=max(28, 32*self.display_scale), tags="controls")
-        footer_width = max(112, 140*self.display_scale)
-        for button, margin in ((self.journal_button, footer_width+24), (self.deliveries_button, 12)):
+        footer_width = max(102, 140*self.display_scale)
+        for button, margin in ((self.journal_button, 3*footer_width+48),
+                               (self.contracts_button, 2*footer_width+36),
+                               (self.businesses_button, footer_width+24), (self.deliveries_button, 12)):
             button.configure(font=(FONT, max(9, round(10*self.display_scale)), "bold"))
             self.canvas.create_window(WIDTH-margin/self.scale_x, MAP_BOTTOM+73, window=button, anchor="e",
                                       width=footer_width, height=max(24, 28*self.display_scale), tags="controls")

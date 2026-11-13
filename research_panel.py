@@ -3,8 +3,9 @@ import math
 import tkinter as tk
 from tkinter import ttk
 
+from contracts import research_cost
 from innovation import (BRANCH_BY_KEY, RECIPE_BY_KEY, RESEARCH_BRANCHES,
-                        TIER3_RECIPES, next_research, research_level, tax_rate)
+                        TIER3_RECIPES, next_research, research_level, research_quote, tax_rate)
 
 
 BG, PANEL, TEXT, MUTED, GOLD = "#142c36", "#203f4b", "#f5efd9", "#c8d6d5", "#e2bd68"
@@ -40,8 +41,10 @@ def project_text(town):
     if project is None:
         return "No active project · Choose a branch to begin your next upgrade."
     branch = BRANCH_BY_KEY[project["branch"]]
+    base = branch.levels[project["level"]-1].cost
     return (f'{branch.name} · Level {project["level"]} researching · '
-            f'{duration_text(project["remaining"])} remaining')
+            f'{duration_text(project["remaining"])} remaining · '
+            f'${project.get("paid_cost", base):,} already paid')
 
 
 def level_effect(branch_key, level):
@@ -63,6 +66,10 @@ def branch_text(town, branch):
         lines.extend(("Research unlocks tier-3 products in the Advanced Workshop at this campus. "
                       "Bring the listed materials here to fabricate and sell them.", ""))
     project = town.innovation["project"]
+    grant = research_cost(town, 100) < 100
+    if grant:
+        lines.extend(("Hotel research grant: 10% off new research projects. "
+                      "Existing paid projects keep their original payment.", ""))
     for level in branch.levels:
         if level.level <= completed:
             state = "COMPLETE"
@@ -72,8 +79,16 @@ def branch_text(town, branch):
             state = "NEXT LEVEL"
         else:
             state = f"Requires level {level.level-1}"
+        cost_text = f"Cost ${level.cost:,}"
+        if grant:
+            if project and project["branch"] == branch.key and project["level"] == level.level:
+                cost_text = f"Paid ${project.get('paid_cost', level.cost):,} · Base cost ${level.cost:,}"
+            elif level.level <= completed:
+                cost_text = f"Base cost ${level.cost:,}"
+            else:
+                cost_text = f"Cost ${research_cost(town, level.cost):,} (base ${level.cost:,}; 10% grant)"
         lines.extend((f"Level {level.level} · {state}",
-                      f"  Cost ${level.cost:,} · {duration_text(level.seconds)} of focused play",
+                      f"  {cost_text} · {duration_text(level.seconds)} of focused play",
                       f"  {level_effect(branch.key, level)}", ""))
     lines.append("One research project runs at a time. Pay once when starting. Research continues "
                  "while this menu is open and the game has focus. Levels and remaining time save "
@@ -93,8 +108,12 @@ def branch_values(town, branch):
         state = "Lab occupied"
     else:
         state = "Ready to research"
+    if project and project["branch"] == branch.key:
+        cost = f"Paid ${project.get('paid_cost', upgrade.cost):,}"
+    else:
+        cost = f"${research_quote(town, branch.key):,}" if upgrade else "—"
     return (branch.name, f"{completed}/{len(branch.levels)}",
-            f"${upgrade.cost:,}" if upgrade else "—",
+            cost,
             duration_text(upgrade.seconds) if upgrade else "—", state)
 
 
@@ -320,8 +339,14 @@ class ResearchPanel:
         _write(self.branch_reader, branch_text(town, branch))
         upgrade = next_research(town, branch.key)
         available = upgrade is not None and town.innovation["project"] is None
+        project = town.innovation["project"]
+        if project and project["branch"] == branch.key:
+            button_text = f"Researching · ${project.get('paid_cost', upgrade.cost):,} paid"
+        else:
+            button_text = (f"Research level {upgrade.level} · ${research_quote(town, branch.key):,}"
+                           if upgrade else "Branch complete")
         self.research_button.configure(state="normal" if available else "disabled",
-            text=f"Research level {upgrade.level} · ${upgrade.cost:,}" if upgrade else "Branch complete")
+                                       text=button_text)
 
     def _select_recipe(self):
         recipe = self._selected_recipe()

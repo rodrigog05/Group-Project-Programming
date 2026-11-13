@@ -6,7 +6,9 @@ ordinary JSON. No wall-clock or offline catch-up runs in this module.
 """
 from dataclasses import dataclass
 import math
+from types import SimpleNamespace
 
+import businesses
 from exchange import record_bridge
 from logistics_paths import bridge_used, path_length, point_on_path, road_path
 
@@ -64,15 +66,18 @@ def _site_map(sites):
     return {site.name: site for site in sites}
 
 
-def _pair(source, destination, sites, trades=None):
+def _pair(source, destination, sites, trades=None, town=None, businesses_state=None,
+          physical_only=False):
     if not isinstance(source, str) or not isinstance(destination, str):
         return None
     table = sites if isinstance(sites, dict) else _site_map(sites)
     first, last = table.get(source), table.get(destination)
     if (first is None or last is None or first.role != "SUPPLIER" or last.role != "FACTORY"
             or type(first.trade) is not int or not 0 <= first.trade < len(RECIPE_KEYS)
-            or first.trade != last.trade
             or trades is not None and first.trade >= len(trades)):
+        return None
+    selected = businesses.trade_for(town, last) if town is not None else businesses.trade_for_state(businesses_state, last)
+    if not physical_only and first.trade != selected:
         return None
     return first, last
 
@@ -84,7 +89,7 @@ def _entrance(site):
 
 def route_path(route, sites):
     table = sites if isinstance(sites, dict) else _site_map(sites)
-    pair = _pair(route.get("source"), route.get("destination"), table)
+    pair = _pair(route.get("source"), route.get("destination"), table, physical_only=True)
     if pair is None:
         return ((0, 0),)
     first, last = (_entrance(site) for site in pair)
@@ -97,28 +102,32 @@ def _duration(kind, pair):
     return max(.1, path_length(path)/FLEET_VEHICLES[kind].speed)
 
 
-def normalize_state(value, sites):
+def normalize_state(value, sites, businesses_state=None):
     """Restore valid paid cargo without buying again or granting elapsed time."""
     sites = tuple(sites)
     result, table = initial_state(sites), _site_map(sites)
+    owner = SimpleNamespace(businesses=businesses_state)
+    for name, factory in result["factories"].items():
+        factory["trade"] = businesses.trade_for_state(businesses_state, table[name])
     if (not isinstance(value, dict) or type(value.get("version", SCHEMA_VERSION)) is not int
             or value.get("version", SCHEMA_VERSION) != SCHEMA_VERSION):
         return result
     stored_factories = value.get("factories", {})
     if isinstance(stored_factories, dict):
         for name, factory in result["factories"].items():
+            capacity = businesses.capacity_for_state(businesses_state, table[name])
             saved = stored_factories.get(name)
             if not isinstance(saved, dict):
                 continue
-            for field, limit in (("input", BUFFER_LIMIT), ("output", OUTPUT_LIMIT)):
+            for field, limit in (("input", capacity), ("output", capacity)):
                 factory[field] = min(limit, _whole(saved.get(field)))
             for field in ("produced", "collected"):
                 factory[field] = _whole(saved.get(field))
             order = saved.get("order")
             if isinstance(order, dict):
                 quantity, remaining = order.get("quantity"), order.get("remaining")
-                if (type(quantity) is int and 0 < quantity <= FACTORY_BATCH
-                        and quantity+factory["output"] <= OUTPUT_LIMIT
+                if (type(quantity) is int and 0 < quantity <= businesses.batch_size(owner, table[name])
+                        and quantity+factory["output"] <= capacity
                         and _finite(remaining) and remaining >= 0):
                     factory["order"] = {"quantity": quantity, "remaining": float(remaining)}
     routes = value.get("routes", ())
@@ -132,7 +141,8 @@ def normalize_state(value, sites):
         if (type(identifier) is not int or identifier < 1 or identifier in used
                 or not isinstance(kind, str) or kind not in FLEET_VEHICLES):
             continue
-        pair = _pair(saved.get("source"), saved.get("destination"), table)
+        pair = _pair(saved.get("source"), saved.get("destination"), table,
+                     businesses_state=businesses_state)
         phase, elapsed = saved.get("phase"), saved.get("elapsed", 0)
         if pair is None or phase not in ("idle", "outbound", "returning") or not _finite(elapsed):
             continue
@@ -162,11 +172,15 @@ def _state(town, sites=()):
     state = getattr(town, "logistics", None)
     if (not isinstance(state, dict) or state.get("version") != SCHEMA_VERSION
             or not isinstance(state.get("routes"), list) or not isinstance(state.get("factories"), dict)):
-        state = town.logistics = normalize_state(state, sites)
+        state = town.logistics = normalize_state(state, sites, getattr(town, "businesses", None))
     if sites:
         for site in sites:
             if site.role == "FACTORY" and site.name not in state["factories"]:
                 state["factories"][site.name] = _factory(site)
+            if site.role == "FACTORY":
+                factory = state["factories"][site.name]
+                if not factory["input"] and not factory["order"] and not factory["output"]:
+                    factory["trade"] = businesses.trade_for(town, site)
     return state
 
 
@@ -174,7 +188,7 @@ def create_route(town, kind, source, destination, sites, trades):
     if not isinstance(kind, str) or kind not in FLEET_VEHICLES:
         town.message = "Choose a delivery van or cargo drone."
         return False
-    pair = _pair(source, destination, sites, trades)
+    pair = _pair(source, destination, sites, trades, town=town)
     if pair is None:
         town.message = "Choose a raw-material depot and a factory that uses the same material."
         return False
@@ -229,6 +243,27 @@ def remove_route(town, identifier):
     return True
 
 
+def reassign_route(town, identifier, source, destination, sites, trades):
+    """Redeploy an existing empty fleet vehicle without paying for it again."""
+    route = _route(town, identifier)
+    if route is None:
+        town.message = "Choose an existing delivery route to reassign."
+        return False
+    if route["phase"] != "idle" or route["load"]:
+        town.message = "Pause the route and wait for its empty vehicle to return before reassigning it."
+        return False
+    pair = _pair(source, destination, sites, trades, town=town)
+    if pair is None:
+        town.message = "Choose a raw-material depot and a factory currently specialized in that material."
+        return False
+    _state(town, sites)
+    route.update(source=source, destination=destination, trade=pair[0].trade,
+                 duration=_duration(route["kind"], pair), elapsed=0.0, retry=0.0,
+                 status="Ready at new depot" if route["enabled"] else "Paused at new depot")
+    town.message = "Empty fleet vehicle reassigned at no purchase cost. Its operating history is preserved."
+    return True
+
+
 def route_status(route):
     if route["phase"] == "outbound":
         return f"Delivering {route['load']} · {math.ceil(max(0, route['duration']-route['elapsed']))}s"
@@ -263,13 +298,18 @@ def _charge_northbound_toll(town, route, table, phase):
     record_bridge(town, bridge_used(route_path(route, table)))
 
 
-def _dispatch(town, state, route):
+def _dispatch(town, state, route, table):
     vehicle, factory = FLEET_VEHICLES[route["kind"]], state["factories"][route["destination"]]
+    site = table[route["destination"]]
+    if route["trade"] != businesses.trade_for(town, site) or route["trade"] != factory["trade"]:
+        route["retry"], route["status"] = RETRY_SECONDS, "Waiting: factory specialization changed; reassign this route"
+        return
+    capacity = businesses.storage_capacity(town, site)
     incoming = sum(item["load"] for item in state["routes"]
                    if item["phase"] == "outbound" and item["destination"] == route["destination"])
-    space = max(0, BUFFER_LIMIT-factory["input"]-incoming)
+    space = max(0, capacity-factory["input"]-incoming)
     in_production = factory["order"]["quantity"] if factory["order"] else 0
-    if not space or factory["output"]+in_production >= OUTPUT_LIMIT:
+    if not space or factory["output"]+in_production >= capacity:
         route["retry"], route["status"] = RETRY_SECONDS, "Waiting: factory storage full"
         return
     unit_cost = max(1, _whole(town.costs[route["trade"]], 1))
@@ -309,14 +349,16 @@ def _events(town, state, table, trades):
             route.update(phase="returning", load=0, status="Returning empty")
         else:
             route.update(phase="idle", retry=RETRY_SECONDS, status="Loading at depot" if route["enabled"] else "Paused at depot")
-    for factory in state["factories"].values():
-        if factory["order"] is None and factory["input"] and factory["output"] < OUTPUT_LIMIT:
-            quantity = min(FACTORY_BATCH, factory["input"], OUTPUT_LIMIT-factory["output"])
+    for name, factory in state["factories"].items():
+        site = table[name]
+        capacity = businesses.storage_capacity(town, site)
+        if factory["order"] is None and factory["input"] and factory["output"] < capacity:
+            quantity = min(businesses.batch_size(town, site), factory["input"], capacity-factory["output"])
             factory["input"] -= quantity
-            factory["order"] = {"quantity": quantity, "remaining": float(trades[factory["trade"]].seconds)}
+            factory["order"] = {"quantity": quantity, "remaining": businesses.production_seconds(town, site, trades[factory["trade"]].seconds)}
     for route in state["routes"]:
         if route["phase"] == "idle" and route["enabled"] and route["retry"] <= EPSILON:
-            _dispatch(town, state, route)
+            _dispatch(town, state, route, table)
     return discoveries
 
 

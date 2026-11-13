@@ -4,10 +4,11 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+from contracts import initial_state as initial_contracts
 from innovation import (BRANCH_BY_KEY, RECIPE_BY_KEY, TIER3_RECIPES,
                         advance_innovation, cargo, collect_products,
                         ingredient_owned, initial_state, max_fabrication,
-                        next_research, normalize_state, research_level,
+                        next_research, normalize_state, research_level, research_quote,
                         reserved, reset_day, sell_products, start_fabrication,
                         start_research, tax_rate, unlocked_recipes)
 
@@ -52,7 +53,71 @@ def assets(town):
                      town.innovation, town.other_income_today, town.other_expenses_today))
 
 
+def grant(town):
+    town.contracts = initial_contracts()
+    town.contracts["upgrades"].append("research_grant")
+
+
 class InnovationTest(unittest.TestCase):
+    def test_hotel_grant_changes_new_payment_and_accounting_without_mutating_base_prices(self):
+        town = FakeTown(315)
+        grant(town)
+        self.assertEqual(research_quote(town, "metallurgy"), 315)
+        self.assertTrue(start_research(town, "metallurgy"))
+        self.assertEqual((town.cash, town.other_expenses_today,
+                          town.innovation["research_spent"], town.innovation["project"]["paid_cost"]),
+                         (0, 315, 315, 315))
+        self.assertEqual(BRANCH_BY_KEY["metallurgy"].levels[0].cost, 350)
+        before = assets(town)
+        self.assertFalse(start_research(town, "metallurgy"))
+        self.assertEqual(assets(town), before)
+
+    def test_grant_quote_rejects_insufficient_cash_atomically_and_legacy_towns_keep_base_prices(self):
+        town = FakeTown(314)
+        self.assertEqual(research_quote(town, "metallurgy"), 350)
+        grant(town)
+        before = assets(town)
+        self.assertFalse(start_research(town, "metallurgy"))
+        self.assertIn("$315", town.message)
+        self.assertEqual(assets(town), before)
+        self.assertIsNone(research_quote(town, "missing"))
+        town.innovation["levels"]["metallurgy"] = 3
+        self.assertIsNone(research_quote(town, "metallurgy"))
+
+    def test_earning_grant_during_paid_research_does_not_refund_or_recharge_on_reload(self):
+        town = FakeTown(1000)
+        self.assertTrue(start_research(town, "green_energy"))
+        advance_innovation(town, 19.25)
+        grant(town)
+        town.innovation = normalize_state(json.loads(json.dumps(town.innovation)))
+        self.assertEqual((town.cash, town.other_expenses_today, town.innovation["research_spent"]),
+                         (800, 200, 200))
+        self.assertEqual(town.innovation["project"]["paid_cost"], 200)
+        self.assertEqual(town.innovation["project"]["remaining"], 25.75)
+        advance_innovation(town, 25.75)
+        self.assertEqual((town.cash, town.innovation["research_spent"]), (800, 200))
+        self.assertEqual(research_quote(town, "green_energy"), 405)
+        self.assertTrue(start_research(town, "green_energy"))
+        self.assertEqual((town.cash, town.other_expenses_today, town.innovation["research_spent"]),
+                         (395, 605, 605))
+
+    def test_discounted_and_legacy_paid_quotes_survive_save_normalization_without_payment(self):
+        town = FakeTown(500)
+        grant(town)
+        start_research(town, "green_energy")
+        saved = json.loads(json.dumps(town.innovation))
+        self.assertEqual(normalize_state(saved), town.innovation)
+        self.assertEqual(normalize_state(saved)["project"]["paid_cost"], 180)
+        legacy_town = FakeTown(500)
+        start_research(legacy_town, "green_energy")
+        legacy_saved = json.loads(json.dumps(legacy_town.innovation))
+        legacy_saved["project"].pop("paid_cost")
+        legacy = normalize_state(legacy_saved)
+        self.assertEqual(legacy["project"]["paid_cost"], 200)
+        self.assertEqual(legacy["research_spent"], 200)
+        self.assertEqual(legacy_town.cash, 300)
+        self.assertEqual(town.cash, 320)
+
     def test_initial_states_are_independent_empty_and_json_serializable(self):
         first, second = initial_state(), initial_state()
         self.assertEqual(json.loads(json.dumps(first)), first)

@@ -15,6 +15,8 @@ def recipe_text(recipe, discovered, sites):
     makers = [site.name for site in sites if site.role == recipe.role
               and (recipe.role != "FACTORY" or site.trade == recipe.trade)]
     locations = ", ".join(makers) or "the matching production building"
+    if recipe.role == "FACTORY" and not makers:
+        locations = f"an owned factory set to {recipe.product} through Businesses (B)"
     if not discovered:
         if recipe.role == "RESEARCH":
             return (f"{recipe.title}\n\nNot recorded yet.\n\n"
@@ -27,7 +29,7 @@ def recipe_text(recipe, discovered, sites):
     inputs = "\n".join(f"• {amount} × {name}" for name, amount in recipe.ingredients)
     text = (f"{recipe.title}\n\nRECORDED RECIPE\n\nIngredients\n{inputs}\n\n"
             f"{'Service' if recipe.service else 'Output'}: 1 × {recipe.product}\n"
-            f"Production time: {recipe.seconds} seconds\n\nMake at: {locations}\n\n")
+            f"{'Base production time' if recipe.role == 'FACTORY' else 'Production time'}: {recipe.seconds} seconds\n\nMake at: {locations}\n\n")
     if recipe.service:
         return text+"Return when the work finishes to collect the agreed payment. Boats are service jobs and do not occupy cargo space."
     if recipe.role == "RESEARCH":
@@ -37,7 +39,10 @@ def recipe_text(recipe, discovered, sites):
                      "Production uses active play time; stock and reserved output share your normal cargo capacity.")
     if recipe.role == "FACTORY":
         markets = [site.name for site in sites if site.role == "PUBLIC SHOP" and site.trade == recipe.trade]
-        return text+f"Collect the finished goods, then sell at: {', '.join(markets) or 'the matching market'}."
+        destination = ', '.join(markets) or f'an owned market set to {recipe.product} through Businesses (B)'
+        return text+(f"Collect the finished goods, then sell at: {destination}. "
+                     "Owned equipment can shorten the base production time; B shows current factory timings. "
+                     "Owned shops accept stock with E and sell to customers automatically; B also offers direct sales.")
     return text+"Press E to make the product, return to collect it, then press E again at the same building to sell it."
 
 

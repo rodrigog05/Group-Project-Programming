@@ -2,6 +2,7 @@
 import tkinter as tk
 from tkinter import ttk
 
+import businesses
 from logistics import BUFFER_LIMIT, FLEET_VEHICLES, MAX_ROUTES, OUTPUT_LIMIT
 from research_panel import (BG, GOLD, MUTED, TEXT, _reader, _write, duration_text,
                             quantity_value)
@@ -12,10 +13,11 @@ def supplier_options(sites):
                         key=lambda site: site.name.casefold()))
 
 
-def destination_options(sites, source):
+def destination_options(sites, source, town=None):
     """Only factories that consume this supplier's material may be assigned."""
     return tuple(sorted((site for site in sites if source is not None and
-                         site.role == "FACTORY" and site.trade == source.trade),
+                         site.role == "FACTORY" and
+                         (businesses.trade_for(town, site) if town is not None else site.trade) == source.trade),
                         key=lambda site: site.name.casefold()))
 
 
@@ -66,9 +68,10 @@ def route_text(route, trades):
             'at the normal matching shops.')
 
 
-def purchase_text(town, kind, source, destination, trades):
+def purchase_text(town, kind, source, destination, trades, reassigning=False):
     vehicle = FLEET_VEHICLES[kind]
-    lines = [f'{vehicle.label} · ${vehicle.price:,} to buy and assign',
+    lines = [f'{vehicle.label} · Reassign existing vehicle for $0' if reassigning else
+             f'{vehicle.label} · ${vehicle.price:,} to buy and assign',
              f'Cargo {vehicle.capacity} · Speed {vehicle.speed} · ${vehicle.running_cost} per departure', '']
     if source is None or destination is None:
         return '\n'.join(lines+["Choose a supplier and a compatible factory."])
@@ -79,7 +82,8 @@ def purchase_text(town, kind, source, destination, trades):
                   f'Buy {trade.supply} → deliver → automatically make {trade.product}',
                   f'Current {trade.supply} cost: ${material_cost} each.',
                   f'Full-load departure: ${full_cost} for materials and trip fee, before any bridge toll.', '',
-                  f'Cash after vehicle purchase: ${town.cash-vehicle.price:,}.',
+                  (f'Cash after reassignment: ${town.cash:,}. No vehicle purchase is charged.' if reassigning else
+                   f'Cash after vehicle purchase: ${town.cash-vehicle.price:,}.'),
                   'Keep cash available for future material purchases and trip fees. '
                   'Affordable partial loads can depart. A route waits when cash or factory storage is unavailable. '
                   'This fleet vehicle is separate from the vehicle you drive.'))
@@ -90,13 +94,15 @@ def factory_values(town, site, trades):
     stock = town.logistics["factories"][site.name]
     order = stock["order"]
     making = (f'{order["quantity"]} · {duration_text(order["remaining"])}' if order else "—")
-    return (site.name, trades[site.trade].product, f'{stock["input"]}/{BUFFER_LIMIT}',
-            making, f'{stock["output"]}/{OUTPUT_LIMIT}', stock["collected"])
+    capacity = businesses.storage_capacity(town, site)
+    return (site.name, trades[businesses.trade_for(town, site)].product, f'{stock["input"]}/{capacity}',
+            making, f'{stock["output"]}/{capacity}', stock["collected"])
 
 
 def factory_text(town, site, trades):
     stock = town.logistics["factories"][site.name]
-    trade = trades[site.trade]
+    trade = trades[businesses.trade_for(town, site)]
+    capacity = businesses.storage_capacity(town, site)
     order = stock["order"]
     making = (f'{order["quantity"]} {trade.product} · {duration_text(order["remaining"])} remaining'
               if order else "No batch in progress")
@@ -104,14 +110,16 @@ def factory_text(town, site, trades):
                 if collection_allowed(town, site.name)
                 else "Visit this factory entrance to collect output. Use Guide to factory.")
     return (f'{site.name} · {trade.supply} → {trade.product}\n\n'
-            f'Factory materials: {stock["input"]}/{BUFFER_LIMIT} {trade.supply}\n'
+            f'Factory materials: {stock["input"]}/{capacity} {trade.supply}\n'
             f'Automatic production: {making}\n'
-            f'Ready output: {stock["output"]}/{OUTPUT_LIMIT} {trade.product}\n'
+            f'Ready output: {stock["output"]}/{capacity} {trade.product}\n'
             f'Produced in total: {stock["produced"]} · Collected in total: {stock["collected"]}\n\n'
             f'{location}\n\n'
             'These materials, production orders and finished goods use factory storage, '
             'separate from your bag and personal production orders. Collection moves output '
             'into your available cargo space; it never sells products automatically. '
+            f'Owned equipment can produce up to {businesses.batch_size(town, site)} products per batch. '
+            'Storage and equipment upgrades are managed in Businesses (B). '
             'Paused delivery routes do not stop work on materials already at the factory.')
 
 
@@ -130,8 +138,10 @@ def logistics_rules():
             'There is no charge when the vehicle cannot buy even one unit. Keep money available '
             'for the next trip. Vans pay normal bridge tolls when returning north to Lisbon; '
             'drones avoid bridge tolls. Vehicles wait when cash or destination storage is unavailable.\n\n'
-            f'Each factory has {BUFFER_LIMIT} spaces for delivered raw materials and '
-            f'{OUTPUT_LIMIT} spaces for finished output. It starts batches of up to six products automatically '
+            f'Each factory starts with {BUFFER_LIMIT} spaces for delivered raw materials and '
+            f'{OUTPUT_LIMIT} spaces for finished output. Ownership storage upgrades expand both, '
+            'and equipment upgrades speed production and increase batch size. It starts batches of up to six products '
+            'before upgrades, producing automatically '
             'from its delivered materials when output storage has room. These stores and '
             'production orders are separate from your bag and personal factory orders.\n\n'
             'COLLECT, THEN SELL\n\nVisit the assigned factory entrance to collect completed products '
@@ -143,6 +153,10 @@ def logistics_rules():
             'finishes its delivery, then the vehicle returns. Factory production continues '
             'using materials already delivered. Remove only an empty vehicle waiting at its supplier. Removing a '
             'route gives no vehicle refund and preserves its factory’s materials and output.\n\n'
+            'REASSIGN WITHOUT REBUYING\n\nSelect an idle, empty vehicle and choose Reassign empty vehicle. '
+            'Choose another supplier and a matching current factory specialization, then Apply reassignment. '
+            'This costs no vehicle purchase and keeps its operating history. Assigned routes must be moved '
+            'away before a factory changes product. Paid loads cannot be reassigned.\n\n'
             'Routes and automated production run during focused play, including while this '
             'menu is open. Progress saves with your game. Closing or unfocusing the game '
             'pauses the fleet; there is no offline delivery catch-up.')
@@ -157,6 +171,8 @@ class LogisticsPanel:
         self.factories = tuple(sorted((site for site in self.sites if site.role == "FACTORY"),
                                       key=lambda site: site.name.casefold()))
         self.closed, self.timer = False, None
+        self.reassigning = None
+        self.reassign_was_enabled = None
         game.keys.clear()
         self.panel = panel = tk.Toplevel(self.root)
         game.profile_window = panel
@@ -251,6 +267,8 @@ class LogisticsPanel:
         self.pause_button.pack(side="left", padx=(0, 7))
         self.remove_button = ttk.Button(actions, text="Remove empty vehicle", command=self._remove)
         self.remove_button.pack(side="left", padx=(0, 7))
+        self.reassign_button = ttk.Button(actions, text="Reassign empty vehicle", command=self._start_reassign)
+        self.reassign_button.pack(side="left", padx=(0, 7))
         self.route_guide = ttk.Button(actions, text="Guide to factory", command=self._guide_route)
         self.route_guide.pack(side="left")
         self.route_status = ttk.Label(controls, text="Buy and assign a vehicle to create your first route.",
@@ -279,10 +297,15 @@ class LogisticsPanel:
             combo.grid(row=row, column=1, sticky="ew", pady=4)
             if row == 1:
                 self.destination_combo = combo
+            elif row == 2:
+                self.vehicle_combo = combo
         controls = ttk.Frame(page, padding=(0, 5))
         controls.grid(row=1, column=0, sticky="ew")
-        self.purchase_button = ttk.Button(controls, text="Buy & assign vehicle", command=self._create)
-        self.purchase_button.pack(anchor="w")
+        actions = ttk.Frame(controls)
+        actions.pack(anchor="w")
+        self.purchase_button = ttk.Button(actions, text="Buy & assign vehicle", command=self._create)
+        self.purchase_button.pack(side="left")
+        self.cancel_reassign = ttk.Button(actions, text="Cancel reassignment", command=self._cancel_reassign)
         self.purchase_status = ttk.Label(controls, text="One purchase assigns one vehicle to this route.",
                                         anchor="w", justify="left")
         self.purchase_status.pack(fill="x", pady=(4, 0))
@@ -308,7 +331,7 @@ class LogisticsPanel:
         actions.pack(anchor="w")
         ttk.Label(actions, text="Quantity").pack(side="left", padx=(0, 5))
         self.quantity = tk.StringVar(self.panel, "1")
-        self.quantity_entry = ttk.Spinbox(actions, from_=1, to=OUTPUT_LIMIT,
+        self.quantity_entry = ttk.Spinbox(actions, from_=1, to=120,
                                          textvariable=self.quantity, width=6)
         self.quantity_entry.pack(side="left", padx=(0, 10))
         self.collect_button = ttk.Button(actions, text="Collect nearby output", command=self._collect)
@@ -323,7 +346,7 @@ class LogisticsPanel:
 
     def _source_changed(self):
         source = self.source_labels.get(self.source.get())
-        options = destination_options(self.sites, source)
+        options = destination_options(self.sites, source, self.game.town)
         names = tuple(site.name for site in options)
         self.destination_combo.configure(values=names)
         if self.destination.get() not in names:
@@ -334,7 +357,8 @@ class LogisticsPanel:
         kind = self.vehicle_labels.get(self.vehicle.get())
         if kind:
             _write(self.purchase_reader, purchase_text(self.game.town, kind,
-                self.source_labels.get(self.source.get()), self.by_name.get(self.destination.get()), self.trades))
+                self.source_labels.get(self.source.get()), self.by_name.get(self.destination.get()), self.trades,
+                reassigning=self.reassigning is not None))
 
     def _route(self):
         selected = self.route_tree.selection()
@@ -352,6 +376,7 @@ class LogisticsPanel:
                                     text="Pause route" if available and route["enabled"] else "Resume route")
         removable = available and route["load"] == 0 and route["phase"] == "idle"
         self.remove_button.configure(state="normal" if removable else "disabled")
+        self.reassign_button.configure(state="normal" if removable else "disabled")
         self.route_guide.configure(state="normal" if available else "disabled")
         _write(self.route_reader, route_text(route, self.trades) if route else
                "No delivery routes. Open Buy & assign to purchase your first fleet vehicle.")
@@ -363,7 +388,52 @@ class LogisticsPanel:
         self.collect_button.configure(state="normal" if allowed and stock["output"] > 0 else "disabled")
         self.factory_guide.configure(state="normal" if site else "disabled")
         if site:
+            self.quantity_entry.configure(to=businesses.storage_capacity(self.game.town, site))
             _write(self.factory_reader, factory_text(self.game.town, site, self.trades))
+
+    def _start_reassign(self):
+        route = self._route()
+        if route is None or route["phase"] != "idle" or route["load"]:
+            return "break"
+        self._restore_reassign_enabled()
+        self.reassigning = route["id"]
+        self.reassign_was_enabled = route["enabled"]
+        if route["enabled"]:
+            self.game.town.set_delivery_enabled(route["id"], False)
+        for label, key in self.vehicle_labels.items():
+            if key == route["kind"]:
+                self.vehicle.set(label)
+                break
+        self.vehicle_combo.configure(state="disabled")
+        for label, source in self.source_labels.items():
+            if source.name == route["source"]:
+                self.source.set(label)
+                break
+        self.destination.set(route["destination"])
+        self.purchase_button.configure(text="Apply reassignment · $0", state="normal")
+        self.cancel_reassign.pack(side="left", padx=(7, 0))
+        self.purchase_status.configure(text="Reassign this empty fleet vehicle for $0. Departures pause while editing; Apply or Cancel restores its previous running state.")
+        self._purchase_preview()
+        self.notebook.select(1)
+        return "break"
+
+    def _cancel_reassign(self):
+        self._restore_reassign_enabled()
+        self.reassigning = None
+        self.vehicle_combo.configure(state="readonly")
+        self.purchase_button.configure(text="Buy & assign vehicle")
+        self.cancel_reassign.pack_forget()
+        self._purchase_preview()
+        self.refresh()
+        return "break"
+
+    def _restore_reassign_enabled(self):
+        if self.reassigning is not None and self.reassign_was_enabled is not None:
+            route = next((route for route in self.game.town.logistics["routes"]
+                          if route["id"] == self.reassigning), None)
+            if route is not None and route["enabled"] != self.reassign_was_enabled:
+                self.game.town.set_delivery_enabled(route["id"], self.reassign_was_enabled)
+        self.reassign_was_enabled = None
 
     def _create(self):
         source = self.source_labels.get(self.source.get())
@@ -372,10 +442,19 @@ class LogisticsPanel:
         if not source or not destination or not kind:
             self.purchase_status.configure(text="Choose a supplier, matching factory and fleet vehicle.")
         else:
-            success = self.game.town.create_delivery_route(kind, source.name, destination.name)
+            reassigned = self.reassigning
+            success = (self.game.town.reassign_delivery_route(reassigned, source.name, destination.name)
+                       if reassigned is not None else
+                       self.game.town.create_delivery_route(kind, source.name, destination.name))
             self.purchase_status.configure(text=self.game.town.message)
             if success:
-                route = self.game.town.logistics["routes"][-1]
+                route = next(route for route in self.game.town.logistics["routes"]
+                             if route["id"] == reassigned) if reassigned is not None else self.game.town.logistics["routes"][-1]
+                self._restore_reassign_enabled()
+                self.reassigning = None
+                self.vehicle_combo.configure(state="readonly")
+                self.purchase_button.configure(text="Buy & assign vehicle")
+                self.cancel_reassign.pack_forget()
                 self.refresh()
                 self.route_tree.selection_set(str(route["id"]))
                 self.route_tree.focus(str(route["id"]))
@@ -451,7 +530,7 @@ class LogisticsPanel:
         self._select_route()
         self._select_factory()
         self._purchase_preview()
-        self.purchase_button.configure(state="normal" if len(routes) < MAX_ROUTES else "disabled")
+        self.purchase_button.configure(state="normal" if self.reassigning is not None or len(routes) < MAX_ROUTES else "disabled")
         self.timer = self.panel.after(1000, self.refresh)
 
     @staticmethod
@@ -473,6 +552,7 @@ class LogisticsPanel:
     def _release(self):
         if self.closed:
             return
+        self._restore_reassign_enabled()
         self.closed = True
         if self.timer is not None:
             try:

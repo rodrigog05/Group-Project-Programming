@@ -8,6 +8,8 @@ from dataclasses import dataclass
 import math
 import random
 
+from contracts import research_cost
+
 
 SCHEMA_VERSION = 1
 
@@ -151,8 +153,12 @@ def normalize_state(value):
                 and level == result["levels"][branch.key] + 1
                 and level <= len(branch.levels) and _finite(remaining)
                 and 0 <= remaining <= branch.levels[level - 1].seconds):
+            base_cost = branch.levels[level-1].cost
+            paid_cost = project.get("paid_cost", base_cost)
+            if type(paid_cost) is not int or not 1 <= paid_cost <= base_cost:
+                paid_cost = base_cost
             result["project"] = {"branch": branch.key, "level": level,
-                                 "remaining": float(remaining)}
+                                 "remaining": float(remaining), "paid_cost": paid_cost}
 
     fields = {key: mapping(key) for key in (
         "goods", "orders", "demand", "prices", "sales_today", "revenue_today", "total_sold", "total_revenue")}
@@ -211,6 +217,12 @@ def next_research(town, branch):
     return info.levels[level] if level < len(info.levels) else None
 
 
+def research_quote(town, branch):
+    """Quote a new payment; paid projects retain the price saved at their start."""
+    node = next_research(town, branch)
+    return research_cost(town, node.cost) if node is not None else None
+
+
 def unlocked_recipes(town):
     level = research_level(town, "metallurgy")
     return tuple(recipe for recipe in TIER3_RECIPES if recipe.level <= level)
@@ -237,14 +249,16 @@ def start_research(town, branch):
     if node is None:
         town.message = f"{info.name} is fully researched."
         return False
-    if town.cash < node.cost:
-        town.message = f"You need ${node.cost:,} to research {info.name} level {node.level}."
+    cost = research_quote(town, branch)
+    if town.cash < cost:
+        town.message = f"You need ${cost:,} to research {info.name} level {node.level}."
         return False
-    town.cash -= node.cost
-    town.other_expenses_today += node.cost
-    state["research_spent"] += node.cost
-    state["project"] = {"branch": branch, "level": node.level, "remaining": float(node.seconds)}
-    town.message = f"Researching {info.name} level {node.level} · ${node.cost:,} paid · {node.seconds}s active play."
+    town.cash -= cost
+    town.other_expenses_today += cost
+    state["research_spent"] += cost
+    state["project"] = {"branch": branch, "level": node.level,
+                        "remaining": float(node.seconds), "paid_cost": cost}
+    town.message = f"Researching {info.name} level {node.level} · ${cost:,} paid · {node.seconds}s active play."
     return True
 
 

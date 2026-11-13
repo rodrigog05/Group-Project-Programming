@@ -3,6 +3,7 @@ import copy
 from types import SimpleNamespace
 import unittest
 
+import businesses
 from logistics import initial_state
 from logistics_panel import (collection_allowed, destination_options, factory_text,
                              factory_values, logistics_rules, operating_cost,
@@ -112,6 +113,40 @@ class LogisticsFormattingTest(unittest.TestCase):
                        "48 spaces for delivered raw materials", "up to six products",
                        "Pause prevents future departures", "paid load already in flight",
                        "no vehicle refund", "sell collected products", "no offline delivery catch-up"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+
+    def test_owned_specialization_controls_matching_factories_and_displayed_product(self):
+        town, sites, trades = fixture()
+        town.businesses = businesses.initial_state()
+        town.businesses["owned"]["Oak Workshop"] = dict(
+            role="FACTORY", trade=3, storage_level=2, equipment_level=2,
+            manual_order=None, stock=0, sales_today=0, revenue_today=0,
+            total_sold=0, total_revenue=0, invested=1800)
+        self.assertEqual([site.name for site in destination_options(sites, sites[0], town)],
+                         ["Oak Workshop", "Sunrise Bakery"])
+        self.assertEqual(destination_options(sites, sites[2], town), ())
+        stock = town.logistics["factories"]["Oak Workshop"]
+        stock.update(trade=3, input=50, output=55)
+        self.assertEqual(factory_values(town, sites[3], trades)[1:5], ("Bread", "50/96", "—", "55/96"))
+        detail = factory_text(town, sites[3], trades)
+        self.assertIn("Wheat → Bread", detail)
+        self.assertIn("55/96 Bread", detail)
+        self.assertIn("10 products per batch", detail)
+
+    def test_reassignment_preview_never_subtracts_a_second_vehicle_purchase(self):
+        town, sites, trades = fixture()
+        text = purchase_text(town, "van", sites[0], sites[1], trades, reassigning=True)
+        self.assertIn("Reassign existing vehicle for $0", text)
+        self.assertIn("Cash after reassignment: $1,000", text)
+        self.assertIn("No vehicle purchase is charged", text)
+        self.assertNotIn("Cash after vehicle purchase", text)
+
+    def test_rules_explain_free_reassignment_and_factory_upgrade_effects(self):
+        text = logistics_rules()
+        for phrase in ("storage upgrades expand both", "equipment upgrades speed production",
+                       "Reassign empty vehicle", "costs no vehicle purchase",
+                       "Paid loads cannot be reassigned", "before a factory changes product"):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, text)
 
