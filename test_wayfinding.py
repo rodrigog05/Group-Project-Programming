@@ -1,6 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
+from lisbon_scene import LisbonScene, SCENERY_BLOCKS
 from tycoon import INDUSTRIES, SITES, TRADES
 from wayfinding import MATERIALS, PRODUCTS, STAGES, site_guide
 
@@ -59,6 +60,53 @@ class WayfindingTest(unittest.TestCase):
         self.assertEqual(guide.stage, "residential")
         self.assertEqual(guide.marker, "")
         self.assertIn("no trading", guide.instruction)
+
+    def test_exchange_explains_shares_controls_and_dividend_source(self):
+        guide = site_guide(SimpleNamespace(role="EXCHANGE", trade=-1))
+        self.assertEqual((guide.stage, guide.marker, guide.title),
+                         ("services", "$", "STOCK EXCHANGE"))
+        self.assertEqual(guide.badge, "$  STOCK EXCHANGE")
+        self.assertIn("District", guide.detail)
+        self.assertIn("infrastructure", guide.detail)
+        self.assertIn("Press E to buy or sell", guide.instruction)
+        self.assertIn("bridge tolls", guide.instruction)
+        self.assertIn("tram", guide.instruction)
+        self.assertIn("dividends from city activity", guide.instruction)
+
+    def test_research_campus_explains_both_progression_branches_and_workshop(self):
+        guide = site_guide(SimpleNamespace(role="RESEARCH", trade=-1))
+        self.assertEqual((guide.stage, guide.marker, guide.title),
+                         ("services", "R", "INOVAÇÃO"))
+        for text in ("Press E", "Nova SBE", "Carcavelos", "cash", "active play time",
+                     "Green Energy", "taxes", "Advanced Metallurgy", "tier-3", "collect", "sell"):
+            self.assertIn(text, guide.instruction)
+
+    def test_campus_art_identifies_nova_sbe_and_carcavelos_in_day_and_night(self):
+        # Exercise the static painter without a Tk window or image dependencies.
+        class Canvas:
+            def __getattr__(self, name):
+                if name.startswith("create_"):
+                    return lambda *args, **kwargs: None
+                raise AttributeError(name)
+
+        labels = []
+        game = SimpleNamespace(canvas=Canvas(), label=lambda *args, **kwargs: labels.append(args[2]))
+        site = SimpleNamespace(role="RESEARCH", trade=-1, x=28, y=530,
+                               bounds=(28, 530, 204, 634), door=(116, 634))
+        scene = LisbonScene(game, [site], draw=False)
+        scene.building(site)
+        self.assertIn("NOVA SBE", labels)
+        self.assertIn("CARCAVELOS", labels)
+        self.assertIn("R  INOVAÇÃO", labels)
+        self.assertIn("E  research + workshop", labels)
+        labels.clear()
+        scene.light_research_building(site, lambda *args: None)
+        self.assertIn("NOVA SBE", labels)
+        self.assertIn("CARCAVELOS", labels)
+        self.assertIn("E  research + workshop", labels)
+
+    def test_relocated_farm_plot_has_no_residential_collision(self):
+        self.assertNotIn((1280, 530, 1456, 634), SCENERY_BLOCKS)
 
 
 if __name__ == "__main__":

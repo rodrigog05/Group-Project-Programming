@@ -10,8 +10,8 @@ VASCO_NORTH_X = 2035
 BRIDGE_TOLL = 3
 SCENERY_BLOCKS = tuple(
     (x, y, x+176, y+104)
-    for x, y in ((1540, 160), (1540, 345), (2080, 345),
-                 (1280, 530), (700, 1180), (940, 1180),
+    for x, y in ((1540, 160), (2080, 345),
+                 (700, 1180), (940, 1180),
                  (1280, 1180), (1800, 1180), (1280, 1430), (1540, 1430), (1800, 1430))
 )
 
@@ -99,7 +99,7 @@ class LisbonScene:
         for x in range(-15, 1220, 52):
             self.line((x, 707, x+13, 701, x+26, 707, x+39, 713, x+52, 707), "#a5a294", 2, smooth=True)
         for name, x in (("BELÉM", 28), ("ALCÂNTARA", 268), ("BAIXA · CHIADO", 508),
-                        ("ALFAMA · GRAÇA", 748), ("ORIENTE", 988)):
+                        ("ALFAMA · GRAÇA", 748), ("BEATO", 988)):
             self.text(x, 124, name, 10, "#6e7767", True)
         for site in self.sites:
             if site.y < RIVER_TOP:
@@ -177,6 +177,9 @@ class LisbonScene:
                           fill=color, stipple="gray50", outline="", tags="night_lights")
 
         for site in self.sites:
+            if site.role == "RESEARCH":
+                self.light_research_building(site, glow)
+                continue
             for index, x in enumerate((site.x+22, site.x+70, site.x+118)):
                 color = ("#f3d49b", "#e7b96c", "#ffe5b7")[index]
                 glow(x+12, site.y+44, 23)
@@ -186,6 +189,16 @@ class LisbonScene:
             glow(door_x, door_y+8, 21)
             c.create_oval(door_x-2, door_y-16, door_x+2, door_y-12,
                           fill="#fff1be", outline="", tags="night_lights")
+            if site.role == "EXCHANGE":
+                from wayfinding import site_guide
+                c.create_rectangle(site.x-1, site.y-22, site.x+177, site.y-4,
+                                   fill="#243e50", outline="", tags="night_lights")
+                c.create_line(site.x+2, site.y-20, site.x+174, site.y-20,
+                              fill="#d6b264", width=2, tags="night_lights")
+                self.game.label(site.x+88, site.y-12, site_guide(site).badge,
+                                9, "#ffe4a3", True, anchor="center", tag="night_lights")
+                self.game.label(site.x+88, site.y+81, "E  trade shares",
+                                9, "#ffe4a3", True, anchor="center", tag="night_lights")
         # Warm suspension-bridge lights and reflections in the Tejo.
         for x in (267, 333):
             c.create_line(x, 711, x, 924, fill="#eaa06c", width=2, tags="night_lights")
@@ -305,9 +318,105 @@ class LisbonScene:
         self.text(bridge_center(775, True)+55, 775, "VASCO", 8, "#e0efdf", True)
         self.text(bridge_center(775, True)+55, 789, "DA GAMA", 8, "#e0efdf", True)
 
+    def exchange_building(self, site, guide):
+        """Stone banking hall, drawn once into the day/night background caches."""
+        x, y, right, bottom = site.bounds
+        navy, gold = "#243e50", "#d6b264"
+        # A limestone pediment and four fluted columns distinguish the exchange.
+        self.rect(x, y+22, right, bottom, "#c8bfa9")
+        self.rect(x+5, y+26, right-5, bottom-6, "#e3d9c1")
+        self.poly((x, y+22, x+88, y, right, y+22), "#eee3ca")
+        self.poly((x+16, y+20, x+88, y+5, right-16, y+20), "#b7aa90")
+        self.line((x+4, y+24, right-4, y+24), gold, 3)
+        self.text(x+88, y+17, site.name.upper(), 7, navy, True, "center")
+        for window_x in (x+22, x+70, x+118):
+            self.rect(window_x-2, y+30, window_x+26, y+62, "#ac9f85")
+            self.rect(window_x, y+32, window_x+24, y+59, navy)
+            self.line((window_x+3, y+54, window_x+8, y+47,
+                       window_x+13, y+50, window_x+21, y+38), "#b2d0b6", 2)
+            self.line((window_x+2, y+58, window_x+22, y+58), gold)
+        for column_x in (x+9, x+58, x+108, x+157):
+            self.rect(column_x-3, y+28, column_x+12, y+33, "#f3e9d3")
+            self.rect(column_x, y+33, column_x+9, y+66, "#f0e5cc")
+            self.line((column_x+3, y+34, column_x+3, y+65), "#cec2a7")
+            self.rect(column_x-3, y+66, column_x+12, y+71, "#b6aa91")
+        self.rect(x+6, y+72, right-6, y+89, navy)
+        self.text(x+88, y+81, "E  trade shares", 9, "#fff1cf", True, "center")
+        self.rect(x+8, y+91, right-8, bottom-3, "#d6ccb5")
+        door_x, _ = site.door
+        self.rect(door_x-11, y+90, door_x+11, bottom, navy)
+        self.line((door_x, y+91, door_x, bottom), gold)
+        self.rect(door_x-16, bottom, door_x+16, bottom+8, guide.color)
+        self.rect(x+3, bottom+13, right-3, bottom+32, "#ede4cf")
+        # Keep the purpose legible at normal gameplay zoom and in night mode.
+        self.rect(x-1, y-22, right+1, y-4, navy)
+        self.rect(x+2, y-21, right-2, y-19, gold)
+        self.text(x+88, y-12, guide.badge, 9, "#ffe4a3", True, "center")
+
+    def research_building(self, site, guide):
+        """Modern coastal campus, baked into the static map like other scenery."""
+        x, y, right, bottom = site.bounds
+        navy, glass = "#244b5b", "#759fa9"
+        self.poly((x+6, y+17, right+8, y+17, right+8, bottom+7, x+6, bottom+7), "#b8b8a7")
+        self.rect(x, y+10, right, bottom, "#ecede3")
+        self.rect(right-8, y+11, right, bottom, "#bac9c6")
+        # Flat white roofs, a planted terrace and solar arrays distinguish the lab.
+        self.rect(x-2, y+4, right+2, y+13, "#faf9ec")
+        self.rect(x+10, y, x+66, y+5, "#76957b")
+        for panel_x in (x+93, x+115, x+137):
+            self.poly((panel_x, y+1, panel_x+17, y+1, panel_x+20, y+7, panel_x+3, y+7), "#436b7f")
+            self.line((panel_x+9, y+2, panel_x+12, y+6), "#a0bac3")
+        self.text(x+11, y+23, "NOVA SBE", 11, navy, True)
+        self.text(right-13, y+23, "CARCAVELOS", 7, "#47767a", True, "e")
+        self.rect(x+10, y+31, right-16, y+62, glass)
+        self.rect(x+10, y+31, right-16, y+35, "#c2dbdc")
+        for column_x in range(x+10, right-15, 25):
+            self.line((column_x, y+31, column_x, y+62), "#eaf0e6", 3)
+            self.line((column_x+5, y+38, column_x+16, y+50), "#a8cbd0")
+        self.line((x+10, y+61, right-16, y+61), "#f5f4e7", 4)
+        self.rect(x+8, y+70, right-12, y+88, navy)
+        self.text(x+88, y+79, "E  research + workshop", 8, "#f1f8eb", True, "center")
+        door_x, _ = site.door
+        self.rect(door_x-13, y+90, door_x+13, bottom, "#537d84")
+        self.line((door_x, y+91, door_x, bottom), "#d9ebe6", 2)
+        self.rect(door_x-16, bottom+1, door_x+16, bottom+8, guide.color)
+        self.rect(x+3, bottom+13, right-3, bottom+32, "#ede4cf")
+        self.rect(x-1, y-22, right+1, y-4, guide.color)
+        self.rect(x+2, y-20, right-2, y-18, "#a4d6d4")
+        self.text(x+88, y-12, guide.badge, 9, "#ffffff", True, "center")
+
+    def light_research_building(self, site, glow):
+        """Cool glazing and lit campus signs use the same cached night pass."""
+        x, y = site.x, site.y
+        c = self.c
+        for window_x in range(x+12, x+160, 25):
+            glow(window_x+9, y+47, 20, "#b8e0dc")
+            c.create_rectangle(window_x+1, y+36, window_x+21, y+58,
+                               fill="#c3e4dc", outline="", tags="night_lights")
+            c.create_line(window_x+4, y+40, window_x+17, y+51,
+                          fill="#a3c9ca", width=1, tags="night_lights")
+        c.create_rectangle(x-1, y-22, x+177, y-4,
+                           fill="#246b80", outline="", tags="night_lights")
+        self.game.label(x+88, y-12, "R  INOVAÇÃO", 9, "#d9fff1", True,
+                        anchor="center", tag="night_lights")
+        self.game.label(x+11, y+23, "NOVA SBE", 11, "#e2fff3", True,
+                        anchor="w", tag="night_lights")
+        self.game.label(x+163, y+23, "CARCAVELOS", 7, "#dcf4e6", True,
+                        anchor="e", tag="night_lights")
+        self.game.label(x+88, y+79, "E  research + workshop", 8, "#e2fff3", True,
+                        anchor="center", tag="night_lights")
+        door_x, door_y = site.door
+        glow(door_x, door_y+7, 22, "#c6e4da")
+
     def building(self, site):
         from wayfinding import site_guide
         guide = site_guide(site)
+        if site.role == "EXCHANGE":
+            self.exchange_building(site, guide)
+            return
+        if site.role == "RESEARCH":
+            self.research_building(site, guide)
+            return
         x, y, right, bottom = site.bounds
         palettes = (("#dec4a0", "#bc785b"), ("#e3c4b5", "#b87356"), ("#c7d3d0", "#ac7058"),
                     ("#e4ce95", "#b97552"))

@@ -43,7 +43,7 @@ def neighborhood_for(x, y):
             return "Palmela"
         return "Seixal" if x >= 1950 else "Cacilhas"
     for edge, name in ((238, "Belém"), (478, "Alcântara"), (718, "Baixa · Chiado"),
-                       (958, "Alfama · Graça"), (1220, "Oriente"), (1775, "Marvila")):
+                       (958, "Alfama · Graça"), (1220, "Beato"), (1775, "Marvila")):
         if x < edge:
             return name
     return "Parque das Nações"
@@ -69,7 +69,8 @@ def directory_entries(sites, landmarks=LANDMARKS):
             continue
         door_x, door_y = site.door
         instruction = " ".join(part for part in (guide.instruction, tourism_description(site)) if part)
-        entry = DirectoryEntry(site.name, guide.detail, neighborhood_for(site.x, site.y),
+        neighborhood = "Carcavelos" if site.role == "RESEARCH" else neighborhood_for(site.x, site.y)
+        entry = DirectoryEntry(site.name, guide.detail, neighborhood,
                                instruction, door_x, door_y+18, guide.marker, guide.color)
         categories = ("make", "sell") if guide.stage == "special" else (guide.stage,)
         for category in categories:
