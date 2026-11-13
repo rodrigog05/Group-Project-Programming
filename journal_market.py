@@ -9,6 +9,7 @@ from typing import Optional
 
 from innovation import TIER3_RECIPES, normalize_state as normalize_innovation
 from tourism import tourism_bonus
+import businesses
 
 
 @dataclass(frozen=True)
@@ -74,6 +75,7 @@ def market_snapshot(town, trades=None, industries=None, sites=None, *, day_secon
         industries = tycoon.INDUSTRIES if industries is None else industries
         sites = tycoon.SITES if sites is None else sites
     material_routes = {trade.supply: index for index, trade in enumerate(trades)}
+    sites = tuple(businesses.effective_site(town, site) for site in sites)
 
     tourists = []
     seen_shops = set()
@@ -93,6 +95,17 @@ def market_snapshot(town, trades=None, industries=None, sites=None, *, day_secon
         shops = ", ".join(site.name for site in sites if site.role == "PUBLIC SHOP" and site.trade == index)
         note = (f"Ordinary buyers share one pool across {shops}; that pool is counted once. "
                 "Tourist buyers remain local to their listed shop. The stock and orders shown are yours.")
+        owned_orders = 0
+        for site in sites:
+            if site.trade != index or not businesses.is_owned(town, site):
+                continue
+            owned = businesses.record_for(town, site)
+            if site.role == "FACTORY" and owned["manual_order"]:
+                owned_orders += owned["manual_order"]["quantity"]
+            elif site.role == "PUBLIC SHOP":
+                note += (f" Owned shop {site.name}: {owned['stock']} stored for customers, "
+                         f"quote ${businesses.sale_price(town, site)} each. Shop stock is separate from carried stock; "
+                         "the row's quote is the base market price.")
         for site in sites:
             if site.role != "FACTORY" or site.trade != index:
                 continue
@@ -106,7 +119,7 @@ def market_snapshot(town, trades=None, industries=None, sites=None, *, day_secon
                          "Visit this factory to collect its finished products; L opens delivery routes.")
         rows.append(MarketRow(
             f"trade:{index}", trade.product, f"{trade.supply}: {town.supplies[index]}",
-            town.costs[index], town.prices[index], town.goods[index], _order_quantity(town.orders[index]),
+            town.costs[index], town.prices[index], town.goods[index], _order_quantity(town.orders[index])+owned_orders,
             town.sales_today[index], town.demand[index], visitors(trade.product), town.revenue_today[index], note))
 
     rows.append(MarketRow(

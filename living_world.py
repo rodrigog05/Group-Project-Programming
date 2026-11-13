@@ -15,6 +15,7 @@ from wayfinding import STAGES, site_guide
 from guidance import compass, next_step
 from tram import TRAM_STOPS
 from logistics_view import FleetView
+from business_signs import BusinessSigns
 
 WORLD_TOP = 104
 STATUS_LABEL_RADIUS = 360
@@ -143,6 +144,7 @@ class LivingWorld:
         self.light_items = []
         self.create_actors()
         self.fleet = FleetView(c, self.sites, self.zoom)
+        self.business_signs = BusinessSigns(c, self.sites, self.zoom, self.font)
         self.labels = {}
         self.selection_site = None
         self.player_style = None
@@ -297,8 +299,9 @@ class LivingWorld:
         self.map_player = c.create_oval(0, 0, 1, 1, fill="#f2c15f", outline="#263f4a", width=1)
         self.map_destination = c.create_oval(0, 0, 1, 1, outline="#fff0a8", width=2, state="hidden")
 
-    def set_destination(self, name, x=None, y=None):
+    def set_destination(self, name, x=None, y=None, action=None):
         self.destination = None if name is None else (name, float(x), float(y))
+        self.destination_action = action if name is not None else None
         self.navigation_text = ""
         self.update_destination_markers()
         self.update_navigation()
@@ -324,7 +327,8 @@ class LivingWorld:
         town = self.game.town
         distance = math.hypot(x-town.x, y-town.y)
         if distance <= 30:
-            action = "Explore the landmark" if any(sight.name == name for sight in LANDMARKS) else "E to interact"
+            action = getattr(self, "destination_action", None) or (
+                "Explore the landmark" if any(sight.name == name for sight in LANDMARKS) else "E to interact")
             value = f"Arrived: {name} · {action} · P for Places"
         else:
             (wx, wy), crossing = next_step(town.x, town.y, x, y)
@@ -340,6 +344,7 @@ class LivingWorld:
     def update_labels(self, elapsed):
         color = "#f3e3bb" if self.night else "#385360"
         town = self.game.town
+        self.business_signs.paint(town, self.camera, self.night)
         guided_name = self.destination[0] if self.destination else None
         for site in self.sites:
             visible = status_label_visible(self.camera, town.x, town.y, site, guided_name)

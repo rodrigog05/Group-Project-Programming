@@ -7,6 +7,7 @@ from lisbon_landmarks import LANDMARKS
 from wayfinding import site_guide
 from tourism import monument_description, tourism_description
 from tram import TRAM_FARE, TRAM_STOPS
+import businesses
 
 
 DIRECTORY_TABS = (
@@ -59,9 +60,9 @@ def destination_for_landmark(landmark):
     return (left+right)/2, bottom+18
 
 
-def directory_entries(sites, landmarks=LANDMARKS):
+def directory_entries(sites, landmarks=LANDMARKS, *, town=None):
     """Return directory rows from current site positions; no Tk window is needed."""
-    sites = tuple(sites)
+    sites = tuple(businesses.effective_site(town, site) if town is not None else site for site in sites)
     rows = {key: [] for key, title in DIRECTORY_TABS}
     for site in sites:
         guide = site_guide(site)
@@ -69,8 +70,17 @@ def directory_entries(sites, landmarks=LANDMARKS):
             continue
         door_x, door_y = site.door
         instruction = " ".join(part for part in (guide.instruction, tourism_description(site)) if part)
+        detail = guide.detail
+        if town is not None and businesses.is_owned(town, site):
+            detail = "Owned · "+detail
+            if site.role == "PUBLIC SHOP":
+                instruction = ("Press E to stock your shop. Customers buy automatically while demand remains. "
+                               "Press B to upgrade, change product, withdraw stock or sell carried goods immediately. ")+tourism_description(site)
+            else:
+                instruction = (guide.instruction+" This is your factory. Press B to expand storage, upgrade equipment "
+                               "or change its product after emptying it and reassigning delivery routes.")
         neighborhood = "Carcavelos" if site.role == "RESEARCH" else neighborhood_for(site.x, site.y)
-        entry = DirectoryEntry(site.name, guide.detail, neighborhood,
+        entry = DirectoryEntry(site.name, detail, neighborhood,
                                instruction, door_x, door_y+18, guide.marker, guide.color)
         categories = ("make", "sell") if guide.stage == "special" else (guide.stage,)
         for category in categories:
@@ -133,7 +143,7 @@ def open_places(game, sites):
     style.configure("Places.Treeview", rowheight=29, font=("Segoe UI", 10))
     style.configure("Places.Treeview.Heading", font=("Segoe UI", 10, "bold"))
     notebook = ttk.Notebook(body)
-    rows = directory_entries(sites)
+    rows = directory_entries(sites, town=game.town)
     trees = []
     for key, title in DIRECTORY_TABS:
         page = ttk.Frame(notebook, padding=8)

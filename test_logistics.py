@@ -5,11 +5,12 @@ import json
 import math
 import unittest
 
+import businesses
 from exchange import initial_state as exchange_state
 from logistics import (BUFFER_LIMIT, FLEET_VEHICLES, MAX_ROUTES, OUTPUT_LIMIT,
                        advance_logistics, collect_output, create_route,
                        initial_state, normalize_state, remove_route,
-                       route_position, route_status, set_route_enabled)
+                       route_position, route_status, set_route_enabled, reassign_route)
 
 
 @dataclass(frozen=True)
@@ -346,6 +347,88 @@ class LogisticsTest(unittest.TestCase):
             before = financial_state(town)
             self.assertEqual(tick(town, seconds), ())
             self.assertEqual(financial_state(town), before)
+
+
+class OwnedFactoryLogisticsTest(unittest.TestCase):
+    def own(self, town, name, trade, storage=0, equipment=0):
+        if not hasattr(town, "businesses"):
+            town.businesses = businesses.initial_state()
+        town.businesses["owned"][name] = {
+            "role": "FACTORY", "trade": trade, "storage_level": storage,
+            "equipment_level": equipment, "manual_order": None, "stock": 0,
+            "sales_today": 0, "revenue_today": 0, "total_sold": 0,
+            "total_revenue": 0, "invested": 600,
+        }
+
+    def test_retooled_factory_accepts_matching_material_and_keeps_physical_route_after_reload(self):
+        town = FakeTown()
+        self.own(town, "Ironworks", 3)
+        self.assertFalse(create_route(town, "van", "Iron Hill Mine", "Ironworks", SITES, TRADES))
+        self.assertTrue(create_route(town, "van", "Goldenfield Farm", "Ironworks", SITES, TRADES))
+        route = town.logistics["routes"][0]
+        tick(town, .25)
+        self.assertEqual((route["trade"], route["load"]), (3, 6))
+        position = route_position(route, SITES)
+        self.assertNotEqual(position, (0, 0))
+        restored = normalize_state(json.loads(json.dumps(town.logistics)), SITES,
+                                   businesses_state=town.businesses)
+        self.assertEqual(restored["routes"], [route])
+        self.assertEqual(restored["factories"]["Ironworks"]["trade"], 3)
+        self.assertEqual(route_position(restored["routes"][0], SITES), position)
+
+    def test_expanded_storage_and_larger_equipment_batch_survive_save_normalization(self):
+        town = FakeTown()
+        self.own(town, "Sunrise Bakery", 3, storage=3, equipment=3)
+        factory = town.logistics["factories"]["Sunrise Bakery"]
+        factory.update(input=90, output=70, order={"quantity": 12, "remaining": 1.5})
+        restored = normalize_state(json.loads(json.dumps(town.logistics)), SITES,
+                                   businesses_state=town.businesses)
+        self.assertEqual(restored["factories"]["Sunrise Bakery"], factory)
+
+    def test_equipment_changes_new_batches_without_retiming_an_existing_paid_order(self):
+        town = FakeTown()
+        self.own(town, "Sunrise Bakery", 3, equipment=3)
+        factory = town.logistics["factories"]["Sunrise Bakery"]
+        factory["input"] = 20
+        tick(town, .1)
+        self.assertEqual(factory["order"]["quantity"], 12)
+        self.assertAlmostEqual(factory["order"]["remaining"], 4*.55-.1)
+        factory.update(input=0, order={"quantity": 6, "remaining": 3.8})
+        tick(town, .1)
+        self.assertAlmostEqual(factory["order"]["remaining"], 3.7)
+
+    def test_reassignment_is_free_and_preserves_existing_vehicle_and_cost_history(self):
+        town = FakeTown()
+        route = add(town)
+        route.update(delivered=12, trips=2, materials_spent=48, running_spent=2)
+        self.own(town, "Ironworks", 1)
+        before_cash, before_expenses = town.cash, town.other_expenses_today
+        self.assertTrue(reassign_route(town, route["id"], "Pine Mill", "Ironworks", SITES, TRADES))
+        self.assertEqual((town.cash, town.other_expenses_today), (before_cash, before_expenses))
+        self.assertEqual((route["id"], route["kind"], route["delivered"], route["materials_spent"]), (1, "van", 12, 48))
+        self.assertEqual((route["source"], route["destination"], route["trade"]), ("Pine Mill", "Ironworks", 1))
+        tick(town, .1)
+        self.assertEqual((route["phase"], route["load"]), ("outbound", 6))
+
+    def test_paid_or_incompatible_reassignments_do_not_change_cargo_or_accounting(self):
+        town = FakeTown()
+        route = add(town)
+        before = financial_state(town)
+        self.assertFalse(reassign_route(town, route["id"], "Goldenfield Farm", "Oak Workshop", SITES, TRADES))
+        self.assertEqual(financial_state(town), before)
+        tick(town, .1)
+        before = financial_state(town)
+        self.assertFalse(reassign_route(town, route["id"], "Pine Mill", "Oak Workshop", SITES, TRADES))
+        self.assertEqual(financial_state(town), before)
+
+    def test_stale_route_waits_without_purchasing_the_wrong_material(self):
+        town = FakeTown()
+        route = add(town)
+        self.own(town, "Sunrise Bakery", 1)
+        before_cash = town.cash
+        tick(town, .25)
+        self.assertEqual((town.cash, route["load"], route["phase"]), (before_cash, 0, "idle"))
+        self.assertIn("specialization", route["status"])
 
 
 if __name__ == "__main__":
