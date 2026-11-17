@@ -2,8 +2,10 @@ from pathlib import Path
 import unittest
 import wave
 
-from lisbon_scene import RIVER_BOTTOM, RIVER_TOP, STREET_TREES, bridge_center
+from lisbon_scene import (RIVER_BOTTOM, RIVER_TOP, STREET_TREES, bridge_center,
+                          SOUTH_PARK_BOUNDS, SOUTH_PARK_TUNNEL)
 from tycoon import SITES, Town, pack_save, unpack_save
+from vehicles import in_tunnel, on_road
 
 
 class LisbonMapTest(unittest.TestCase):
@@ -43,6 +45,16 @@ class LisbonMapTest(unittest.TestCase):
         self.assertEqual((restored.cash, restored.cargo), (234, 2))
         self.assertIsNone(restored.bridge_journey)
         self.assertEqual(restored.tolls_paid_total, 0)
+
+    def test_south_bank_garden_keeps_surface_clear_above_a_drivable_tunnel(self):
+        left, top, right, bottom = SOUTH_PARK_BOUNDS
+        self.assertEqual((left, right), (60, 550))
+        self.assertEqual(SOUTH_PARK_TUNNEL[2], 1370)
+        self.assertTrue(in_tunnel(300, 1370))
+        self.assertTrue(on_road(300, 1370))
+        self.assertFalse(in_tunnel(300, 1320))
+        self.assertFalse(on_road(300, 1320))
+        self.assertTrue(on_road(40, 1370))
 
     def test_every_business_entrance_is_reachable(self):
         town = Town()

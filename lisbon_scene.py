@@ -17,6 +17,9 @@ SCENERY_PLOTS = (
 )
 FOUNTAIN_BASIN = (58, 26, 118, 74)  # Inside the 176 x 104 plot
 # Solid footprints: whole apartment blocks and fountain basins. Parks are walkable.
+SOUTH_PARK_BOUNDS = (60, 1210, 550, 1530)
+# A covered east-west roadway passes beneath the south-bank garden.
+SOUTH_PARK_TUNNEL = (45, 565, 1370, 17)
 SCENERY_BLOCKS = tuple(
     (x, y, x+176, y+104) if kind == "flats"
     else (x+FOUNTAIN_BASIN[0], y+FOUNTAIN_BASIN[1], x+FOUNTAIN_BASIN[2], y+FOUNTAIN_BASIN[3])
@@ -89,6 +92,27 @@ class LisbonScene:
         self.line(points, "#747a77", width, capstyle="round", joinstyle="round")
         self.line(points, "#e4d8b9", 1, dash=(9, 14))
 
+    @staticmethod
+    def _cross_outline(x, y, vertical_half, horizontal_half, bevel):
+        """A beveled plus-shaped road/curb outline for a clean four-way junction."""
+        v, h, b = vertical_half, horizontal_half, bevel
+        reach = h+b
+        return (x-v, y-reach, x+v, y-reach,
+                x+v+b, y-h,
+                x+reach, y-h, x+reach, y+h,
+                x+v+b, y+h, x+v, y+reach,
+                x+v, y+reach, x-v, y+reach,
+                x-v-b, y+h,
+                x-reach, y+h, x-reach, y-h,
+                x-v-b, y-h, x-v, y-reach)
+
+    def road_junction(self, x, y, vertical_width, horizontal_width):
+        """Unify the curb and asphalt where perpendicular streets meet."""
+        outer_v, outer_h = vertical_width/2+5, horizontal_width/2+5
+        inner_v, inner_h = vertical_width/2, horizontal_width/2
+        self.poly(self._cross_outline(x, y, outer_v, outer_h, 4), "#b4ac98")
+        self.poly(self._cross_outline(x, y, inner_v, inner_h, 3), "#747a77")
+
     def draw(self):
         self.rect(0, 104, WORLD_WIDTH, WORLD_BOTTOM, "#dfd5bd")
         self.expanded_north()
@@ -102,8 +126,13 @@ class LisbonScene:
         for y in (301, 486):
             self.road((0, y, WORLD_WIDTH, y), 39)
         self.road((0, 660, WORLD_WIDTH, 660), 35)
+        verticals = tuple((x, 30 if x < 1200 else 29) for x in
+                          (238, 478, 718, 958, 1225, 1495, 1775, VASCO_NORTH_X, 2350))
+        for x, vertical_width in verticals:
+            for y, horizontal_width in ((301, 39), (486, 39), (660, 35)):
+                self.road_junction(x, y, vertical_width, horizontal_width)
         # Baixa's broad calçada waterfront, with wave patterns.
-        self.rect(0, 672, 1200, RIVER_TOP, "#eee5cf")
+        self.rect(0, 697, 1200, RIVER_TOP, "#eee5cf")
         for x in range(-15, 1220, 52):
             self.line((x, 707, x+13, 701, x+26, 707, x+39, 713, x+52, 707), "#a5a294", 2, smooth=True)
         for name, x in (("BELÉM", 28), ("ALCÂNTARA", 268), ("BAIXA · CHIADO", 508),
@@ -268,18 +297,23 @@ class LisbonScene:
         self.rect(0, 1085, WORLD_WIDTH, WORLD_BOTTOM, "#c5c9a6")
         for y in (1110, 1370, 1570):
             self.road((0, y, WORLD_WIDTH, y), 34)
-        for x in (620, 1190, 1495, 1775, VASCO_NORTH_X, 2350):
+        south_verticals = (620, 1190, 1495, 1775, VASCO_NORTH_X, 2350)
+        for x in south_verticals:
             self.road((x, 1060, x, 1580), 30)
+        for x in south_verticals:
+            for y, horizontal_width in ((1110, 34), (1370, 34), (1570, 34)):
+                self.road_junction(x, y, 30, horizontal_width)
         self.text(1290, 1010, "CACILHAS", 20, "#65795e", True)
         self.text(2070, 1010, "SEIXAL", 20, "#65795e", True)
         self.text(2020, 1392, "QUINTAS DA MARGEM SUL", 12, "#708461", True)
-        self.rect(60, 1210, 550, 1530, "#abbc8b")
+        self.rect(*SOUTH_PARK_BOUNDS, "#abbc8b")
         self.line((100, 1480, 300, 1250, 495, 1480), "#e1d7b6", 22, smooth=True)
         for x in range(700, 1100, 35):
             self.line((x, 1430, x+12, 1520), "#aaab71", 7)
         for x, y in ((120, 1250), (250, 1400), (470, 1290), (90, 1510), (1470, 1420),
                      (1940, 1550), (2280, 1300), (2300, 1230), (1220, 1510), (570, 1450)):
             self.tree(x, y, 26)
+        self.south_park_tunnel()
         self.residential_blocks(north=False)
 
     def night_lighting(self):
@@ -373,6 +407,8 @@ class LisbonScene:
         self.road((0, 1058, WORLD_WIDTH, 1058), 24)
         self.road((300, 902, 300, 1058), 32)
         self.road((bridge_center(902, True), 902, VASCO_NORTH_X, 1058), 32)
+        self.road_junction(300, 1058, 32, 24)
+        self.road_junction(VASCO_NORTH_X, 1058, 32, 24)
         self.text(350, 916, "ALMADA", 12, "#6c7f65", True)
         if any(site.role == "SHIPYARD" for site in self.sites):
             self.rect(458, 868, 478, 912, "#aa8b63")
@@ -397,6 +433,18 @@ class LisbonScene:
         for site in self.sites:
             if site.y >= RIVER_BOTTOM:
                 self.building(site)
+
+    def south_park_tunnel(self):
+        """Mark the covered road portals at either edge of the central garden."""
+        left, right, center_y, _ = SOUTH_PARK_TUNNEL
+        for x in (SOUTH_PARK_BOUNDS[0], SOUTH_PARK_BOUNDS[2]):
+            self.rect(x-12, center_y-25, x+12, center_y+25, "#777d73")
+            self.rect(x-9, center_y-21, x+9, center_y+21, "#202a2b")
+            self.rect(x-6, center_y-15, x+6, center_y+15, "#59615f")
+            self.line((x-5, center_y, x+5, center_y), "#dfd0aa", 1, dash=(3, 3))
+            self.rect(x-11, center_y-28, x+11, center_y-24, "#d7c59e")
+            self.rect(x-11, center_y+24, x+11, center_y+28, "#d7c59e")
+        self.text((left+right)/2, SOUTH_PARK_BOUNDS[1]+18, "JARDIM · TÚNEL", 7, "#5e6c54", True, "center")
 
     def suspension_bridge(self):
         self.line((308, 704, 308, 924), "#638b8a", 72)
