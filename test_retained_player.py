@@ -51,7 +51,7 @@ class RetainedPlayerTest(unittest.TestCase):
     def test_all_outfits_vehicles_and_zoom_levels_match_reference_animation(self):
         for zoom in (1, 1.25, 1.5):
             self.view.zoom, self.view.player_style = zoom, None
-            for vehicle in (None, "motorcycle", "car", "van"):
+            for vehicle in (None,):
                 self.town.vehicle = vehicle
                 for costume in COSTUMES:
                     self.town.profile["costume"] = costume
@@ -73,6 +73,19 @@ class RetainedPlayerTest(unittest.TestCase):
                                     self.assertEqual(self.canvas.type(actual), self.reference.type(expected))
                                     for a, b in zip(self.canvas.coords(actual), self.reference.coords(expected)):
                                         self.assertAlmostEqual(a, b, delta=.051)
+
+    def test_driving_reuses_static_seated_art_without_walking_parts(self):
+        for vehicle in ("motorcycle", "car", "van"):
+            for facing in (-1, 1):
+                self.town.vehicle, self.town.facing = vehicle, facing
+                self.draw(True)
+                items = self.canvas.find_withtag("player")
+                coordinates = [self.canvas.coords(item) for item in items]
+                self.assertFalse(self.view.player_parts)
+                self.town.elapsed += .3
+                self.draw(True)
+                self.assertEqual(items, self.canvas.find_withtag("player"))
+                self.assertEqual(coordinates, [self.canvas.coords(item) for item in items])
 
 
 if __name__ == "__main__":
