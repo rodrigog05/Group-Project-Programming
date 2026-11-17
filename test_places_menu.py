@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 import unittest
 
+from lisbon_scene import south
+
 from lisbon_landmarks import LANDMARKS, LANDMARK_SOLIDS
 from places_menu import directory_entries, destination_for_landmark, neighborhood_for
 from tycoon import SITES
@@ -16,16 +18,17 @@ class PlacesDirectoryTest(unittest.TestCase):
         self.assertIn("Daily Bread Market", square.instruction)
         self.assertIn("The Pottery Shop", square.instruction)
 
-    def test_every_tram_stop_has_a_safe_service_destination(self):
-        from tram import TRAM_FARE, TRAM_STOPS
+    def test_every_ferry_pier_has_a_safe_service_destination(self):
+        from ferry import FERRY_FARE, FERRY_PIERS
         from tycoon import Town
         rows = directory_entries(SITES)
         town = Town()
-        for stop in TRAM_STOPS:
-            entry = next(entry for entry in rows["services"] if entry.name == f"Tram · {stop.name}")
-            self.assertEqual(entry.destination, stop.position)
+        for pier in FERRY_PIERS:
+            entry = next(entry for entry in rows["services"] if entry.name == f"Ferry · {pier.name}")
+            self.assertEqual(entry.destination, pier.position)
             self.assertTrue(town.can_walk(*entry.destination))
-            self.assertIn(f"${TRAM_FARE}", entry.instruction)
+            self.assertIn(f"${FERRY_FARE}", entry.instruction)
+        self.assertFalse(any(entry.name.startswith("Tram") for entry in rows["services"]))
 
     def test_businesses_use_current_doorstep_positions_and_correct_tabs(self):
         rows = directory_entries(SITES)
@@ -69,8 +72,8 @@ class PlacesDirectoryTest(unittest.TestCase):
         for point, expected in (((28, 160), "Belém"), ((748, 160), "Alfama · Graça"),
                                 ((988, 160), "Beato"), ((1140, 704), "Beato"),
                                 ((1280, 160), "Marvila"), ((2080, 530), "Parque das Nações"),
-                                ((650, 935), "Almada · Tejo"), ((1540, 1180), "Cacilhas"),
-                                ((2060, 1430), "Palmela")):
+                                ((650, south(935)), "Almada · Tejo"), ((1540, south(1180)), "Cacilhas"),
+                                ((2060, south(1430)), "Palmela")):
             self.assertEqual(neighborhood_for(*point), expected)
 
     def test_oriente_station_district_is_kept_in_parque_das_nacoes(self):
