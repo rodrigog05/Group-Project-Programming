@@ -1287,6 +1287,7 @@ class Game:
         self.winner_window = None
         # Casino state lives only in this session, so old saves still load.
         self.casino_open = False
+        self.interior_open = False
         self.chip_index = 1
         self.wheel_angle = 0.0
         self.ball_pocket = None
@@ -1511,6 +1512,12 @@ class Game:
                     from tram_menu import open_tram
                     open_tram(self)
                     return
+            from interiors import INTERIOR_ROLES, open_interior
+            if key == "e" and nearby is not None and nearby.role in INTERIOR_ROLES:
+                # E steps inside; Q stays a quick buy-four at suppliers.
+                open_interior(self, nearby)
+                self.keys.add(key)
+                return
             if key == "e" or (nearby and nearby.role == "SUPPLIER"):
                 self.town.interact(bulk=(key == "q"))
         self.keys.add(key)
@@ -1553,7 +1560,8 @@ class Game:
         self.town.sync_market(time.time() - self.market_started_at)
         if self.spin is not None and now - self.spin["start"] >= SPIN_SECONDS:
             self.settle_spin()
-        paused = self.profile_window is not None or self.casino_open
+        # Building interiors keep your production timers running while you wait inside.
+        paused = (self.profile_window is not None and not self.interior_open) or self.casino_open
         focused = self.root.focus_displayof() is not None
         if focused and (not self.town.won or self.town.milestone_acknowledged):
             active_seconds = min(.25, max(0, dt))
