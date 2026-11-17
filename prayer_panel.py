@@ -40,9 +40,21 @@ def draw_prayer(canvas, profile, body_colors, hair_colors, costumes):
     skin = body_colors[profile["body"]]
     hair = hair_colors[profile["hair"]]
     outfit, accessory = costumes[profile["costume"]]
-    # Bent legs and clasped hands make the player's kneeling posture explicit.
-    canvas.create_line(242, 303, 227, 339, 273, 347, fill=outfit, width=22)
-    canvas.create_line(270, 346, 284, 346, fill="#3c3431", width=10)
+    # Upright thighs meet grounded knees. Both shins extend behind the player.
+    trousers = "#384958"
+    canvas.create_oval(175, 341, 275, 354, fill="#827562", width=0)
+    canvas.create_polygon(235, 296, 251, 298, 252, 337, 242, 346,
+                          185, 343, 186, 329, 233, 331,
+                          fill="#293946", outline="#25313a", width=2)
+    canvas.create_polygon(247, 296, 263, 299, 265, 340, 254, 350,
+                          198, 347, 199, 332, 246, 334,
+                          fill=trousers, outline="#25313a", width=2)
+    canvas.create_oval(247, 331, 265, 350, fill=trousers, width=0)
+    canvas.create_line(202, 340, 245, 343, fill="#566b7b", width=2)
+    canvas.create_polygon(185, 329, 185, 341, 168, 336, 169, 330,
+                          179, 319, 186, 322, fill="#292b30")
+    canvas.create_polygon(199, 332, 199, 347, 181, 342, 180, 336,
+                          191, 322, 198, 326, fill="#34373c")
     canvas.create_polygon(227, 247, 257, 243, 269, 303, 231, 311,
                           fill=outfit, outline="#383434", width=2)
     canvas.create_oval(231, 205, 270, 252, fill=skin, outline="#383434", width=2)
@@ -65,15 +77,20 @@ def open_prayer(game):
     panel.lift()
     canvas = tk.Canvas(panel, highlightthickness=0, bg="#363c42")
     canvas.pack(fill="both", expand=True)
+    footer = tk.Frame(panel, bg="#252c31", padx=18, pady=12)
+    footer.pack(fill="x")
+    tk.Label(footer, text="Mosteiro dos Jerónimos", bg="#252c31", fg="#e5d9bd",
+             font=("Segoe UI", 11)).pack(side="left")
 
     def render(event):
         canvas.delete("all")
         draw_prayer(canvas, game.town.profile, BODY_COLORS, HAIR_COLORS, COSTUMES)
-        scale_x, scale_y = event.width / 640, event.height / 400
-        canvas.scale("all", 0, 0, scale_x, scale_y)
+        scale = min(event.width / 640, event.height / 400)
+        canvas.scale("all", 0, 0, scale, scale)
+        canvas.move("all", (event.width - 640 * scale) / 2, (event.height - 400 * scale) / 2)
         for item in canvas.find_all():
             if canvas.type(item) == "text":
-                canvas.itemconfigure(item, font=("Segoe UI", max(8, round(13 * min(scale_x, scale_y))), "bold"))
+                canvas.itemconfigure(item, font=("Segoe UI", max(8, round(13 * scale)), "bold"))
 
     canvas.bind("<Configure>", render)
 
@@ -83,7 +100,8 @@ def open_prayer(game):
         panel.destroy()
         game.root.focus_set()
 
-    tk.Button(panel, text="Return to Lisboa  ·  Esc", command=close).place(
-        relx=0.02, rely=0.03, anchor="nw")
+    tk.Button(footer, text="Return to Lisboa  ·  Esc", command=close,
+              bg="#d4c6a9", fg="#252c31", activebackground="#e5d9bd",
+              relief="flat", padx=16, pady=8, font=("Segoe UI", 11, "bold")).pack(side="right")
     panel.bind("<Escape>", lambda event: close())
     panel.focus_set()
