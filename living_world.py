@@ -8,7 +8,8 @@ import time
 import tkinter as tk
 from types import SimpleNamespace
 
-from lisbon_scene import LisbonScene, WORLD_WIDTH, WORLD_BOTTOM, RIVER_TOP, RIVER_BOTTOM, bridge_center, draw_character
+from lisbon_scene import (LisbonScene, WORLD_WIDTH, WORLD_BOTTOM, RIVER_TOP, RIVER_BOTTOM,
+                          bridge_center, draw_character, SOUTH_PARK_BOUNDS)
 from windows_canvas import world_canvas
 from lisbon_landmarks import LANDMARKS
 from wayfinding import STAGES, site_guide
@@ -16,7 +17,7 @@ from guidance import compass, next_step
 from tram import TRAM_STOPS
 from logistics_view import FleetView
 from business_signs import BusinessSigns
-from vehicles import CAR_SPEED_RANGE, ROAD_EXCLUSIONS
+from vehicles import CAR_SPEED_RANGE, ROAD_EXCLUSIONS, tunnel_covers_y
 from vehicle_art import draw_player_vehicle
 
 WORLD_TOP = 104
@@ -191,7 +192,8 @@ class LivingWorld:
                                    WORLD_BOTTOM-38, WORLD_BOTTOM-22)):
             # Lanes that would cross a park or plaza start beside it instead.
             start_x = max([15] + [right+20 for left, top, right, bottom in ROAD_EXCLUSIONS
-                                  if top < y < bottom])
+                                  if top < y < bottom
+                                  and not (left == SOUTH_PARK_BOUNDS[0] and tunnel_covers_y(y))])
             # Each paired road has traffic flowing in opposite directions.
             phase_and_direction = rng.random() + (index % 2)
             self.actor("car", (start_x, y), (WORLD_WIDTH-20, y), rng.uniform(*CAR_SPEED_RANGE),

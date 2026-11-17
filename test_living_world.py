@@ -4,7 +4,7 @@ import unittest
 from living_world import AmbientActor, Camera, LivingWorld, WORLD_TOP
 from lisbon_scene import WORLD_WIDTH, WORLD_BOTTOM, SCENERY_BLOCKS, bridge_center
 from tycoon import SITES, Town, pack_save, unpack_save
-from vehicles import ROAD_EXCLUSIONS, WALK_SPEED
+from vehicles import ROAD_EXCLUSIONS, WALK_SPEED, in_tunnel
 
 
 class CameraTest(unittest.TestCase):
@@ -118,7 +118,17 @@ class ExpandedWorldTest(unittest.TestCase):
                 y = car.start[1]+(car.end[1]-car.start[1])*step/200
                 for left, top, right, bottom in ROAD_EXCLUSIONS:
                     # Allow for the car's own length (15 world units either side of its center).
-                    self.assertFalse(left-15 < x < right+15 and top < y < bottom, (car.tag, x, y))
+                    inside_exclusion = left-15 < x < right+15 and top < y < bottom
+                    if inside_exclusion:
+                        self.assertTrue(in_tunnel(x, y), (car.tag, x, y))
+
+    def test_paired_traffic_lanes_pass_through_the_south_park_tunnel(self):
+        tunnel_cars = [car for car in self.collect_cars() if 1360 <= car.start[1] <= 1380]
+        self.assertEqual(len(tunnel_cars), 2)
+        for car in tunnel_cars:
+            self.assertEqual(car.start[0], 15)
+            self.assertTrue(in_tunnel(300, car.start[1]))
+            self.assertGreater(car.end[0], 2000)
 
     def test_scenery_and_outer_world_edges_block_walking(self):
         town = Town()
