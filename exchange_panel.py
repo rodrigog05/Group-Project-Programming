@@ -6,7 +6,8 @@ from exchange import (ASSET_BY_SYMBOL, ASSETS, BID_PERCENT, CITY_TICK_SECONDS,
                       buy_shares, portfolio_rows, sell_shares, summary)
 
 
-BG, PANEL, TEXT, MUTED, GOLD = "#142c36", "#203f4b", "#f5efd9", "#c8d6d5", "#e2bd68"
+BG, PANEL, TEXT, MUTED, GOLD = "#101b2b", "#1b2b40", "#f5efd9", "#aebfd0", "#e2bd68"
+BOARD, GREEN, BLUE = "#081321", "#57d39b", "#78b9ff"
 
 
 def money_cents(value):
@@ -162,27 +163,35 @@ class ExchangePanel:
         self.panel = panel = tk.Toplevel(self.root)
         game.profile_window = panel
         panel.exchange_controller = self
-        panel.title("Foundry Town · Bolsa de Lisboa")
+        panel.title("Foundry Town · Bolsa de Lisboa Trading Floor")
         panel.transient(self.root)
         panel.configure(bg=BG)
         panel.resizable(True, True)
-        panel.minsize(680, 500)
+        panel.minsize(760, 600)
         available_width = self.root.winfo_width() if self.root.winfo_width() > 100 else self.root.winfo_screenwidth()
         available_height = self.root.winfo_height() if self.root.winfo_height() > 100 else self.root.winfo_screenheight()
-        width, height = min(1080, max(680, available_width-80)), min(700, max(500, available_height-80))
-        x = self.root.winfo_rootx()+max(0, (available_width-width)//2)
-        y = self.root.winfo_rooty()+max(0, (available_height-height)//2)
+        width, height = max(760, available_width), max(600, available_height)
+        x, y = self.root.winfo_rootx(), self.root.winfo_rooty()
         panel.geometry(f"{width}x{height}+{x}+{y}")
-        body = tk.Frame(panel, bg=BG, padx=16, pady=12)
+        panel.attributes("-fullscreen", True)
+        body = tk.Frame(panel, bg=BG, padx=22, pady=16)
         body.pack(fill="both", expand=True)
-        tk.Label(body, text="BOLSA DE LISBOA", bg=BG, fg=GOLD,
-                 font=("Segoe UI", 19, "bold")).pack(anchor="w")
-        self.heading = tk.Label(body, text="Baixa-Chiado · Own a share of the city's activity",
+        masthead = tk.Frame(body, bg=BG)
+        masthead.pack(fill="x", pady=(0, 10))
+        tk.Label(masthead, text="BOLSA DE LISBOA", bg=BG, fg=GOLD,
+                 font=("Segoe UI", 23, "bold")).pack(side="left")
+        tk.Label(masthead, text="TRADING FLOOR  /  FOUNDRY TOWN", bg=BG, fg=MUTED,
+                 font=("Segoe UI", 10, "bold")).pack(side="right", anchor="s", pady=(0, 5))
+        self.heading = tk.Label(body, text="Baixa-Chiado  ·  CITY EXCHANGE  ·  Invest in the activity of Lisbon",
                                 bg=BG, fg=MUTED, font=("Segoe UI", 10), anchor="w", justify="left")
-        self.heading.pack(fill="x", pady=(0, 5))
-        self.portfolio = tk.Label(body, bg=BG, fg=TEXT, font=("Segoe UI", 10, "bold"),
+        self.heading.pack(fill="x", pady=(0, 7))
+        self.market_board = tk.Canvas(body, height=142, bg=BOARD, highlightthickness=1,
+                                      highlightbackground="#31465e", relief="flat")
+        self.market_board.pack(fill="x", pady=(0, 11))
+        self.market_board.bind("<Configure>", lambda event: self._draw_market_board())
+        self.portfolio = tk.Label(body, bg=BG, fg=TEXT, font=("Segoe UI", 11, "bold"),
                                   justify="left", anchor="w")
-        self.portfolio.pack(fill="x", pady=(0, 8))
+        self.portfolio.pack(fill="x", pady=(0, 10))
         footer = tk.Frame(body, bg=BG)
         footer.pack(side="bottom", fill="x", pady=(8, 0))
         tk.Button(footer, text="Return to town", command=self.close, bg=GOLD, fg="#172c33",
@@ -290,6 +299,7 @@ class ExchangePanel:
             self.timer = None
         self.rows, self.snapshot = portfolio_rows(self.game.town), summary(self.game.town)
         self.portfolio.configure(text=portfolio_text(self.snapshot))
+        self._draw_market_board()
         for row in self.rows:
             values = portfolio_values(row)
             if self.tree.exists(row["symbol"]):
@@ -303,6 +313,30 @@ class ExchangePanel:
         self._select()
         _write(self.activity_reader, activity_text(self.rows, self.snapshot))
         self.timer = self.panel.after(1000, self.refresh)
+
+    def _draw_market_board(self):
+        board = getattr(self, "market_board", None)
+        if board is None or not board.winfo_exists() or not self.rows:
+            return
+        board.delete("all")
+        width = max(1, board.winfo_width())
+        board.create_text(16, 13, text="LIVE MARKET  ·  LISBON EXCHANGE", anchor="nw",
+                          fill=BLUE, font=("Segoe UI", 9, "bold"))
+        cell_width = max(1, (width-28)//4)
+        for index, row in enumerate(self.rows[:7]):
+            column, row_index = index % 4, index // 4
+            x, y = 14 + column*cell_width, 39 + row_index*49
+            asset = ASSET_BY_SYMBOL[row["symbol"]]
+            color = GREEN if row["activity"] else GOLD
+            board.create_text(x, y, text=asset.symbol, anchor="nw", fill=TEXT,
+                              font=("Segoe UI", 9, "bold"))
+            board.create_text(x+cell_width-10, y, text=f'BUY ${row["ask"]:,}', anchor="ne",
+                              fill=color, font=("Segoe UI", 10, "bold"))
+            board.create_text(x, y+22, text=f'ACT {row["activity"]}  ·  SELL ${row["bid"]:,}',
+                              anchor="nw", fill=MUTED, font=("Segoe UI", 8, "bold"))
+            if column < 3 and index < len(self.rows)-1:
+                board.create_line(x+cell_width-8, y, x+cell_width-8, y+39,
+                                  fill="#26384b", width=1)
 
     def _resized(self, event):
         if event.widget is self.panel:
