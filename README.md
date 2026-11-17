@@ -166,6 +166,12 @@ Empty factory buffers, output and manual orders before changing its product. Ass
 
 Ownership, investments, stock, specializations, equipment, production and the retail countdown save automatically. Retail sales run during focused play, including open management menus. Closing or unfocusing the game creates no retail income.
 
+## Inside the buildings
+
+Press **E** at a supplier, factory, market, Pastéis de Belém, Estaleiro do Tejo or Precision Works to step inside. Each building has its own illustrated interior: a mine with a helmeted miner, a sawmill, the clay pit, a farm with hens, a forge, a carpenter's workshop, a pottery kiln, a bakery, a covered market hall with long shared tables, an azulejo-tiled pastelaria, the shipyard dock and the precision workshop. The vendor tells you what they sell or buy and at what price, and a chalkboard shows live prices, buyers and production timers.
+
+Trade inside with the usual keys or the buttons at the bottom: **E** buys, sells, drops off or collects, **Q** buys four at suppliers, and **F** / **R** buy eggs at farms. The vendor answers with the result. Press **Esc** to return to the street. Your production timers keep running while you are inside. Outside, **Q**, **F** and **R** still work as quick purchases. The garage, warehouse, stock exchange, Nova SBE, casino and Jerónimos keep their own screens.
+
 ## Foundry Casino
 
 The Foundry Casino is in the Casino District on the right of the map. Walk to its door and press **E** to play roulette. It uses a real European wheel with 37 pockets: 18 red, 18 black, and a green 0.
