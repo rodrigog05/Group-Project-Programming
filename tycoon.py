@@ -1482,6 +1482,10 @@ class Game:
             self.keys.add(key)
             return
         if key not in self.keys and key in ("e", "q"):
+            from prayer_panel import at_monastery, open_prayer
+            if key == "e" and at_monastery(self.town):
+                open_prayer(self)
+                return
             nearby = self.town.nearby()
             if key == "e" and nearby is not None and nearby.role == "CASINO":
                 self.open_casino()
@@ -2675,10 +2679,13 @@ class Game:
         self.hud_label("message", 24, MAP_BOTTOM+23, town.message, 11, WHITE, True)
         hint = f"{near.name}   ·   {town.action_hint(near)}" if near else "P · Find suppliers, factories, markets and landmarks     M · Map     F1 · Settings"
         if near is None:
+            from prayer_panel import at_monastery
             from tram import TRAM_FARE, nearby_stop
             stop = nearby_stop(town.x, town.y)
             if stop is not None:
                 hint = f"{stop.name} · E  Board the yellow tram · ${TRAM_FARE} per trip"
+            if at_monastery(town):
+                hint = "Mosteiro dos Jerónimos · E  Enter and pray"
         self.hud_label("hint", 24, MAP_BOTTOM+46, hint, 10, GOLD if near else MUTED)
         if town.elapsed < town.speed_until:
             power_status = f"Speed boost · {math.ceil(town.speed_until-town.elapsed)}s"
