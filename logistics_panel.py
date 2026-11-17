@@ -130,7 +130,7 @@ def logistics_rules():
     return (f'AUTOMATE YOUR SUPPLY CHAIN\n\nBuy and assign up to {MAX_ROUTES} fleet vehicles. '
             'Each route links a raw-material supplier to a factory that uses that material. '
             'For example, Goldenfield Farm delivers Wheat to Sunrise Bakery; '
-            'Pine Mill or Marvila Timber Depot delivers Timber to Oak Workshop.\n\n'
+            'Pine Mill delivers Timber to Oak Workshop.\n\n'
             f'{rates}\n\n'
             'The purchase pays for one vehicle on one route. Fleet vehicles do not change '
             'the vehicle you drive or your bag capacity. Dispatches buy materials at the current '
