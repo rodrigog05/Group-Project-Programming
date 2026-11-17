@@ -2,7 +2,7 @@ import json
 import math
 import unittest
 
-from lisbon_scene import BRIDGE_TOLL, bridge_center
+from lisbon_scene import BRIDGE_TOLL, RIVER_BOTTOM, RIVER_TOP, bridge_center
 from tycoon import DAY_SECONDS, SITES, Town, pack_save, unpack_save
 
 
@@ -18,21 +18,27 @@ def travel(town, target_y, eastern=False):
             raise AssertionError(f"Blocked bridge at {town.x}, {town.y}")
 
 
+SOUTH_Y = RIVER_BOTTOM+20  # On the Almada quay, just off the bridge
+MID_Y = (RIVER_TOP+RIVER_BOTTOM)/2
+
+
 class BridgeTollTest(unittest.TestCase):
-    def town_on_bank(self, eastern=False, south=True, cash=60):
+    def town_on_bank(self, eastern=False, south=True, cash=60, vehicle="car"):
+        # The bridges only carry vehicles, so these crossings are driven.
         town = Town()
-        town.y = 920 if south else 700
+        town.vehicle = vehicle
+        town.y = SOUTH_Y if south else 700
         town.x = bridge_center(town.y, eastern)
         town.cash = cash
         return town
 
     def test_both_bridges_charge_once_only_when_returning_to_lisbon(self):
         for eastern in (False, True):
-            for vehicle in (None, "motorcycle", "car", "van"):
+            for vehicle in ("motorcycle", "car", "van"):
                 with self.subTest(eastern=eastern, vehicle=vehicle):
                     town = self.town_on_bank(eastern, south=False)
                     town.vehicle = vehicle
-                    travel(town, 920, eastern)
+                    travel(town, SOUTH_Y, eastern)
                     self.assertEqual(town.cash, 60)
                     travel(town, 700, eastern)
                     self.assertEqual(town.cash, 60-BRIDGE_TOLL)
@@ -42,21 +48,21 @@ class BridgeTollTest(unittest.TestCase):
 
     def test_turning_back_mid_bridge_or_wiggling_at_north_exit_does_not_charge(self):
         town = self.town_on_bank()
-        travel(town, 800)
-        travel(town, 920)
+        travel(town, MID_Y)
+        travel(town, SOUTH_Y)
         self.assertEqual(town.cash, 60)
         travel(town, 700)
         for target in (712, 704, 712, 700):
             travel(town, target)
         self.assertEqual(town.cash, 60-BRIDGE_TOLL)
         self.assertEqual(town.toll_count_today, 1)
-        travel(town, 920)
+        travel(town, SOUTH_Y)
         travel(town, 700)
         self.assertEqual(town.tolls_paid_total, BRIDGE_TOLL*2)
 
     def test_saved_crossing_completes_once_after_reload(self):
         town = self.town_on_bank(True)
-        travel(town, 800, True)
+        travel(town, MID_Y, True)
         restored, _ = unpack_save(json.loads(json.dumps(pack_save(town, 1000))))
         self.assertEqual(restored.bridge_journey["origin"], "south")
         travel(restored, 700, True)
@@ -73,6 +79,15 @@ class BridgeTollTest(unittest.TestCase):
         town.interact()
         self.assertEqual(town.cash, 1-BRIDGE_TOLL)
         self.assertEqual(town.supplies[0], 0)
+
+    def test_players_on_foot_cannot_walk_onto_either_bridge(self):
+        for eastern in (False, True):
+            with self.subTest(eastern=eastern):
+                town = self.town_on_bank(eastern, south=False, vehicle=None)
+                with self.assertRaises(AssertionError):
+                    travel(town, SOUTH_Y, eastern)
+                self.assertLess(town.y, RIVER_TOP)
+                self.assertIn("ferry", town.message)
 
 
 class DailyTaxTest(unittest.TestCase):

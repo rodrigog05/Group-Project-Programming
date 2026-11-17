@@ -19,13 +19,13 @@ Visit **Mosteiro dos Jerónimos** in Belém, **Castelo de São Jorge** in Alfama
 
 **Bolsa de Lisboa**, the stock exchange in **Baixa-Chiado**, is marked **$** on the map. Press **E** at its entrance to trade shares in Belém, Baixa, Alfama, Oriente and Almada businesses, the **25 de Abril tolls**, or the **tram network**. Home Market now occupies an eastern business plot; its current location remains in Places.
 
-The exchange panel shows buy/sell quotes, holdings, cost basis, cash-out value, activity and dividend credits. Simulated city commerce and traffic register every **10 active seconds**; completed player sales, paid bridge returns and tram tickets add activity to the relevant investment. Only shares held when an event occurs earn its dividend credits. The city continues while a focused menu is open; offline time creates no new activity. Quotes adjust at day close within 75–125% of their base price, and selling uses a 10% bid spread.
+The exchange panel shows buy/sell quotes, holdings, cost basis, cash-out value, activity and dividend credits. Simulated city commerce and traffic register every **10 active seconds**; completed player sales and paid bridge returns add activity to the relevant investment; the tram network earns from simulated city activity. Only shares held when an event occurs earn its dividend credits. The city continues while a focused menu is open; offline time creates no new activity. Quotes adjust at day close within 75–125% of their base price, and selling uses a 10% bid spread.
 
 Dividends pay automatically at day close in whole dollars **per investment**, with fractional cents carried forward. Cash dividends and realized share gains/losses enter the normal profit/tax accounts; buying or receiving back share principal does not create a business expense or revenue. Holdings, basis, quotes, pending credits, statements and payment guards save with your progress. Older saves receive an empty portfolio, and reloading cannot pay the same day's dividends twice.
 
 Monuments attract extra **local buyers each day**. Jerónimos adds 6 and Torre de Belém adds 3 for Pastéis de Belém; Praça do Comércio adds 4 each for Daily Bread Market, The Pottery Shop and Tool Market; Castelo adds another 3 for The Pottery Shop. The shop's `buyers` display includes its remaining tourists. Regular customers are served first, then the local tourist pool. These extra buyers refresh once per day, keep their remaining counts through saves, and cannot be spent at unrelated markets. Select a shop or landmark in Places to see its tourism effect.
 
-At **Motorworks Garage**, press **E** to buy a ride. The active vehicle's trunk combines with your personal bag and warehouse upgrades:
+At **Motorworks Garage** or **Cacilhas Garage**, press **E** to enter the showroom. The motorcycle, car and van stand on turntables with price cards showing the price, trunk, total cargo and road and off-road speeds, and a salesperson answers your questions. Click a vehicle or press **1**, **2** or **3** to buy it; **Delivery fleet** opens the automated deliveries. The active vehicle's trunk combines with your personal bag and warehouse upgrades:
 
 | Vehicle | Price | Extra trunk slots | Total with starter bag | Road / off-road speed |
 | --- | ---: | ---: | ---: | ---: |
@@ -35,13 +35,13 @@ At **Motorworks Garage**, press **E** to buy a ride. The active vehicle's trunk 
 
 The HUD shows **BAG + TRUNK**, total capacity and the active road-speed bonus. All purchases, factory collections and eggs use that combined capacity. Switching to a smaller trunk is blocked while your cargo and reserved orders exceed its limit. Older car saves gain the new trunk automatically without repeatedly adding slots.
 
-For early travel, walk to a yellow **TRAM · E · $3** platform and press **E**. Choose any other stop for a **$3 express trip** between Belém, Alcântara, Baixa/Praça do Comércio, Alfama, Beato, Marvila and Parque das Nações. Stops are marked **T** on the minimap and listed in Places → Services. Trips keep your cargo, vehicle and orders; fares count as expenses. The tram serves Lisbon's north bank, while the two bridges connect to Almada.
+The Tejo is wide, and **both bridges carry vehicles only**. On foot, take the **ferry** (cacilheiro) between **Cais do Sodré** on the Lisbon side and **Cacilhas** in Almada: walk to the pier, press **E**, and pay **$2**. You ride across the river in a short animation (press **Esc** to skip) and land at the other pier with your cargo, vehicle and orders. Piers are marked **F** on the minimap and listed in Places → Services, and the fare counts as an expense. The yellow elétrico still runs along the waterfront, but only as scenery.
 
 At the fullscreen start menu, choose your character's name, skin tone, hair, and outfit before starting or continuing. Behind the menu, an animated view looks west along the Tejo to the 25 de Abril bridge, with Cristo Rei and Almada on the left and Alfama's rooftops and the Castelo de São Jorge on the right. Cars and a train cross the bridge, ferries and sailboats cross the river, the yellow tram runs along the waterfront, and a one-minute day/night cycle lights up the city.
 
 The game fills the monitor in fullscreen and follows the window size in windowed mode. A smooth following camera shows a portion of the world at a readable scale, with the HUD and Settings fixed on screen. Press **M** to toggle the minimap and use **Settings → Camera zoom** to choose 1.0×, 1.25× or 1.5×.
 
-The playable world is **2400 × 1600**, with closer districts and about one third less area than the first expanded map. Destinations include Oriente Tool Market, Mercado das Nações, Quinta de Palmela, Cacilhas Garage and Armazém do Seixal. Their prices, daily demand and upgrades belong to the same town economy. Old saves keep their inventory and finances; a saved position that is no longer walkable returns to the starting street. New district positions also save normally.
+The playable world is **2400 × 1780**, with closer districts and about one third less area than the first expanded map. Destinations include Oriente Tool Market, Mercado das Nações, Quinta de Palmela, Cacilhas Garage and Armazém do Seixal. Their prices, daily demand and upgrades belong to the same town economy. Old saves keep their inventory and finances; a saved position that is no longer walkable returns to the starting street. New district positions also save normally.
 
 The city now has 30 walking pedestrians, 12 road vehicles, four moving boats, water movement, the traveling elétrico and repair activity at the shipyard. There are 73 additional trees along waterfront paths, streets and parks, baked into the scenery. Windows uses cached map bitmaps and antialiased sprites through its built-in graphics APIs; it needs no additional Python packages. macOS, Linux and systems without that backend use the Tk renderer. The player and power-ups reuse their drawing objects, and the minimap refreshes at 10 Hz. The renderer targets **120 FPS**, using a high-resolution clock for both movement and frame pacing, with an actual FPS readout on the minimap. Settings can toggle traffic and ambient activity independently.
 
@@ -70,7 +70,7 @@ Foundry Precision Works is the Tier 2 factory. Bring one Tool and one Furniture 
 
 **Estaleiro do Tejo** is on the Almada waterfront, next to the repair dock. Bring **2 Timber + 2 Iron ore** and press **E** to accept a boat repair. After 20 seconds, return and press **E** to claim the agreed payment (base $100 against $24 of materials). Boat repairs are services, so boats do not occupy your bag. The quoted payment is fixed when the job starts, including across a save or a market-day change. There are three repair contracts at base daily demand.
 
-Iron Hill Mine is on the Almada bank; use Places guidance to reach it across either bridge. New businesses use the dynamic daily market and appear in the P&L panel. Eggs, pastéis, repair contracts and quoted payments are included in autosaves; older saves receive the new inventory and business defaults.
+Iron Hill Mine is on the Almada bank; drive across either bridge or take the ferry to Cacilhas. New businesses use the dynamic daily market and appear in the P&L panel. Eggs, pastéis, repair contracts and quoted payments are included in autosaves; older saves receive the new inventory and business defaults.
 
 A game day lasts five minutes, with three minutes of daylight and two minutes of night. Every third day, a one-day market event changes a route's material cost, selling price, and customer demand. Look for the market banner to see the changes.
 
@@ -78,7 +78,7 @@ At night, building windows and entrances, waterfront lamps, both bridges and the
 
 At each full day's end, the game charges **20% of positive net daily profit**, rounded to the nearest whole dollar. This is a cash-based game calculation: all income received (sales, repair fees, bonuses and casino payouts) minus materials, eggs, vehicle/warehouse purchases, casino stakes and tolls. Starting cash is excluded, and loss-making or break-even days pay no tax. The P&L panel shows the estimate, last day's settlement, total taxes and tolls. Settlements are saved and cannot be charged twice after a reload or an offline time jump.
 
-Both bridges charge a **$3 game toll for a completed Almada → Lisboa crossing**, on foot, by motorcycle or by car. Lisboa → Almada and halfway turnarounds are free. A crossing saved mid-bridge resumes normally and charges once at the Lisbon end. The fee still applies if cash is low, so the balance can become negative; buying materials never creates negative quantities. These are fictional game rates.
+Both bridges charge a **$3 game toll for a completed Almada → Lisboa crossing** by motorcycle, car or van. Lisboa → Almada and halfway turnarounds are free. A crossing saved mid-bridge resumes normally and charges once at the Lisbon end. The fee still applies if cash is low, so the balance can become negative; buying materials never creates negative quantities. These are fictional game rates.
 
 Choose **Rules & How to Play** on the start menu for game instructions. During play, click **Settings** in the top bar to switch between fullscreen and windowed mode, toggle moving traffic, or reopen the rules.
 
@@ -124,7 +124,7 @@ Use the network panel to inspect routes and factory stocks, pause or resume depa
 
 Route progress, paid cargo, buffers and production save with the rest of the game. Automation runs during focused play, including open menus, and pauses while the game is closed or unfocused.
 
-The district above the casino is **Beato**. **Oriente** remains beside the station in Parque das Nações; the tram stop at Beato and the Places directory use the corrected Beato name.
+The district above the casino is **Beato**. **Oriente** remains beside the station in Parque das Nações; the Places directory uses the corrected Beato name.
 
 ## Contracts & city projects
 

@@ -2,7 +2,7 @@ import math
 import unittest
 
 from living_world import AmbientActor, Camera, LivingWorld, WORLD_TOP
-from lisbon_scene import WORLD_WIDTH, WORLD_BOTTOM, SCENERY_BLOCKS, bridge_center
+from lisbon_scene import WORLD_WIDTH, WORLD_BOTTOM, SCENERY_BLOCKS, bridge_center, south
 from tycoon import SITES, Town, pack_save, unpack_save
 from vehicles import ROAD_EXCLUSIONS, WALK_SPEED, in_tunnel
 
@@ -82,7 +82,7 @@ class ExpandedWorldTest(unittest.TestCase):
                 actors.append(AmbientActor(str(len(actors)), start, end, speed, offset, kind))
 
         LivingWorld.create_actors(Collector())
-        self.assertEqual(len(actors), 60)
+        self.assertEqual(len(actors), 62)  # Includes a river boat and the ferry
         town = Town()
         for actor in actors:
             for step in range(21):
@@ -123,7 +123,7 @@ class ExpandedWorldTest(unittest.TestCase):
                         self.assertTrue(in_tunnel(x, y), (car.tag, x, y))
 
     def test_paired_traffic_lanes_pass_through_the_south_park_tunnel(self):
-        tunnel_cars = [car for car in self.collect_cars() if 1360 <= car.start[1] <= 1380]
+        tunnel_cars = [car for car in self.collect_cars() if south(1360) <= car.start[1] <= south(1380)]
         self.assertEqual(len(tunnel_cars), 2)
         for car in tunnel_cars:
             self.assertEqual(car.start[0], 15)

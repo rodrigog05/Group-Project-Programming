@@ -10,9 +10,11 @@ import math
 
 NORTH_ROWS = (301, 486, 660)
 NORTH_COLUMNS = (238, 478, 718, 958, 1225, 1495, 1775, 2035, 2350)
-SOUTH_ROWS = (1058, 1110, 1370, 1570)
+# These mirror lisbon_scene (kept local to avoid an import cycle); a test checks they match.
+SOUTH_SHIFT = 180
+SOUTH_ROWS = tuple(y+SOUTH_SHIFT for y in (1058, 1110, 1370, 1570))
 SOUTH_COLUMNS = (620, 1190, 1495, 1775, 2035, 2350)
-RIVER_TOP, RIVER_BOTTOM = 718, 900
+RIVER_TOP, RIVER_BOTTOM = 718, 900+SOUTH_SHIFT
 
 
 def _bridge_x(y):
@@ -54,8 +56,10 @@ def road_path(start, end):
             for top, bottom in zip(rows, rows[1:]):
                 connect((x, top), (x, bottom))
 
-    connect((300, 660), (300, 1058))
-    east = ((2035, 660), (_bridge_x(698), 698), (_bridge_x(919), 919), (2035, 1058))
+    south_road = SOUTH_ROWS[0]
+    connect((300, 660), (300, south_road))
+    east = ((2035, 660), (_bridge_x(RIVER_TOP-20), RIVER_TOP-20), (_bridge_x(RIVER_BOTTOM+19), RIVER_BOTTOM+19),
+            (2035, south_road))
     for a, b in zip(east, east[1:]):
         connect(a, b)
     connect(start, first)
@@ -103,4 +107,4 @@ def bridge_used(points):
     """Identify the actual bridge of a cross-bank van route."""
     if (points[0][1] < RIVER_TOP) == (points[-1][1] < RIVER_TOP):
         return None
-    return "25 de Abril" if (300, 660) in points and (300, 1058) in points else "Vasco da Gama"
+    return "25 de Abril" if (300, 660) in points and (300, SOUTH_ROWS[0]) in points else "Vasco da Gama"
