@@ -77,8 +77,15 @@ class AmbientActor:
 
     def position(self, elapsed):
         length = max(1, math.dist(self.start, self.end))
-        progress = (elapsed*self.speed/length+self.offset) % 2
-        progress = progress if progress <= 1 else 2-progress
+        if self.kind == "car":
+            # Cars follow one-way lanes. The whole-number part of offset selects
+            # direction; wrapping at the road edge makes traffic enter smoothly.
+            direction = -1 if self.offset >= 1 else 1
+            phase = (elapsed*self.speed/length+self.offset % 1) % 1
+            progress = phase if direction > 0 else 1-phase
+        else:
+            progress = (elapsed*self.speed/length+self.offset) % 2
+            progress = progress if progress <= 1 else 2-progress
         x = self.start[0]+(self.end[0]-self.start[0])*progress
         y = self.start[1]+(self.end[1]-self.start[1])*progress
         if self.kind == "pedestrian":
@@ -184,8 +191,10 @@ class LivingWorld:
             # Lanes that would cross a park or plaza start beside it instead.
             start_x = max([15] + [right+20 for left, top, right, bottom in ROAD_EXCLUSIONS
                                   if top < y < bottom])
-            self.actor("car", (start_x, y), (WORLD_WIDTH-20, y), rng.uniform(*CAR_SPEED_RANGE), rng.random()*2,
-                       rng.choice(("#9b584e", "#c6c5b5", "#759ca5", "#b89b62")))
+            # Each paired road has traffic flowing in opposite directions.
+            phase_and_direction = rng.random() + (index % 2)
+            self.actor("car", (start_x, y), (WORLD_WIDTH-20, y), rng.uniform(*CAR_SPEED_RANGE),
+                       phase_and_direction, rng.choice(("#9b584e", "#c6c5b5", "#759ca5", "#b89b62")))
         for start, end, speed in (((400, 780), (900, 780), 32),
                                   ((1240, 802), (bridge_center(802, True)-80, 802), 62),
                                   ((bridge_center(860, True)+90, 860), (WORLD_WIDTH-65, 860), 38),
@@ -204,8 +213,12 @@ class LivingWorld:
             c.create_oval(-4, -7, 4, 5, fill=color, width=0, tags=tag)
             c.create_oval(-3, -13, 3, -6, fill="#dfbb93", width=0, tags=tag)
         elif kind == "car":
-            c.create_polygon(-15, -6, -11, -9, 11, -9, 15, -5, 15, 5, 10, 8, -10, 8, -15, 4,
-                              smooth=True, fill=color, outline="#435c5c", tags=tag)
+            direction = -1 if offset >= 1 else 1
+            points = [(-15, -6), (-11, -9), (11, -9), (15, -5),
+                      (15, 5), (10, 8), (-10, 8), (-15, 4)]
+            points = [coordinate*(direction if axis == 0 else 1)
+                      for point in points for axis, coordinate in enumerate(point)]
+            c.create_polygon(*points, smooth=True, fill=color, outline="#435c5c", tags=tag)
             item = c.create_rectangle(-7, -5, 7, 4, fill="#aac5c8", outline="", tags=tag)
             self.light_items.append(item)
         elif kind == "boat":
@@ -218,7 +231,11 @@ class LivingWorld:
         else:
             c.create_line(-10, 0, 10, 0, fill=color, width=1, tags=tag)
         c.scale(tag, 0, 0, self.zoom, self.zoom)
-        self.actors.append(AmbientActor(tag, start, end, speed, offset, kind))
+        actor = AmbientActor(tag, start, end, speed, offset, kind)
+        x, y = actor.position(self.game.town.elapsed)
+        c.move(tag, x*self.zoom, y*self.zoom)
+        actor.drawn_x, actor.drawn_y = x, y
+        self.actors.append(actor)
 
     def set_night(self, enabled):
         if self.night == enabled:

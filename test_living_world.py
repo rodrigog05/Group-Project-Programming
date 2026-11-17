@@ -29,12 +29,23 @@ class CameraTest(unittest.TestCase):
         self.assertTrue(camera.sees(camera.x+100, camera.y+100))
         self.assertFalse(camera.sees(WORLD_WIDTH+200, WORLD_BOTTOM+200))
 
-    def test_ambient_routes_are_deterministic_and_reverse_at_endpoints(self):
-        actor = AmbientActor('test', (100, 800), (300, 800), 20, 0, 'car')
-        self.assertEqual(actor.position(0), (100, 800))
-        self.assertEqual(actor.position(10), (300, 800))
-        self.assertEqual(actor.position(20), (100, 800))
-        self.assertTrue(all(math.isfinite(v) for v in actor.position(1234)))
+    def test_cars_keep_their_lane_direction_and_wrap_at_the_road_edge(self):
+        eastbound = AmbientActor('eastbound', (100, 800), (300, 800), 20, .1, 'car')
+        westbound = AmbientActor('westbound', (100, 800), (300, 800), 20, 1.1, 'car')
+        self.assertEqual(eastbound.position(0), (120, 800))
+        self.assertEqual(eastbound.position(1), (140, 800))
+        self.assertEqual(westbound.position(0), (280, 800))
+        self.assertEqual(westbound.position(1), (260, 800))
+        self.assertAlmostEqual(eastbound.position(10)[0], 120)
+        self.assertAlmostEqual(eastbound.position(10)[1], 800)
+        self.assertTrue(all(math.isfinite(v) for v in eastbound.position(1234)))
+
+    def test_pedestrians_still_turn_around_at_route_endpoints(self):
+        actor = AmbientActor('walker', (100, 800), (300, 800), 20, 0, 'pedestrian')
+        self.assertAlmostEqual(actor.position(0)[0], 100)
+        self.assertAlmostEqual(actor.position(10)[0], 300)
+        self.assertAlmostEqual(actor.position(10)[1], 800, delta=1)
+        self.assertAlmostEqual(actor.position(20)[0], 100)
 
 
 class ExpandedWorldTest(unittest.TestCase):
