@@ -4,7 +4,6 @@ import unittest
 
 from exchange import advance_city, buy_shares, initial_state, sell_shares
 from lisbon_scene import bridge_center
-from tram import TRAM_STOPS, ride_tram
 from tycoon import DAY_SECONDS, SITES, Town, pack_save, unpack_save
 
 
@@ -60,21 +59,19 @@ class ExchangeIntegrationTest(unittest.TestCase):
         town.interact()
         self.assertEqual(town.exchange, previous)
 
-    def test_paid_tram_and_bridge_events_feed_only_their_infrastructure_shares(self):
+    def test_paid_bridge_events_feed_only_their_infrastructure_share(self):
+        # The tram is scenery now, so only bridge crossings add player activity.
         town = Town()
         town.cash = 400
         buy_shares(town, "TRAM", 1)
         buy_shares(town, "BRIDGE25", 1)
-        town.x, town.y = TRAM_STOPS[0].position
-        self.assertTrue(ride_tram(town, TRAM_STOPS[-1].name))
-        self.assertEqual(town.exchange["activity_today"]["TRAM"]["player"], 1)
         town.x, town.y = bridge_center(704), 704
         town.bridge_journey = {"origin": "south", "bridge": "25 de Abril"}
         town.check_bridge_crossing(710)
         town.check_bridge_crossing(710)
         self.assertEqual(town.exchange["activity_today"]["BRIDGE25"]["player"], 1)
-        self.assertEqual((town.exchange["pending_cents"]["TRAM"], town.exchange["pending_cents"]["BRIDGE25"]), (1, 1))
-        self.assertEqual((town.tolls_today, town.other_expenses_today), (3, 3))
+        self.assertEqual((town.exchange["pending_cents"]["TRAM"], town.exchange["pending_cents"]["BRIDGE25"]), (0, 1))
+        self.assertEqual((town.tolls_today, town.other_expenses_today), (3, 0))
 
     def test_realized_share_profit_is_taxed_without_taxing_returned_principal(self):
         town = Town()

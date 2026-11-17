@@ -2,7 +2,7 @@ from pathlib import Path
 import unittest
 import wave
 
-from lisbon_scene import (RIVER_BOTTOM, RIVER_TOP, STREET_TREES, bridge_center,
+from lisbon_scene import (RIVER_BOTTOM, RIVER_TOP, STREET_TREES, bridge_center, south,
                           SOUTH_PARK_BOUNDS, SOUTH_PARK_TUNNEL)
 from tycoon import SITES, Town, pack_save, unpack_save
 from vehicles import in_tunnel, on_road
@@ -19,15 +19,25 @@ class LisbonMapTest(unittest.TestCase):
                 door_x, door_y = site.door
                 self.assertGreater((x-door_x)**2+(y-door_y)**2, (size+20)**2, site.name)
 
-    def test_river_blocks_walking_but_both_bridges_connect_banks(self):
-        town = Town()
+    def test_river_blocks_walking_but_both_bridges_connect_banks_for_vehicles(self):
+        walker, driver = Town(), Town()
+        driver.vehicle = "car"
         for y in range(RIVER_TOP-5, RIVER_BOTTOM+6, 5):
-            self.assertFalse(town.can_walk(600, y))
-            self.assertTrue(town.can_walk(bridge_center(y), y))
-            self.assertTrue(town.can_walk(bridge_center(y, True), y))
+            for town in (walker, driver):
+                self.assertFalse(town.can_walk(600, y))
+            # Only vehicles may use the bridges; walkers take the ferry.
+            self.assertTrue(driver.can_walk(bridge_center(y), y))
+            self.assertTrue(driver.can_walk(bridge_center(y, True), y))
+            if RIVER_TOP+10 < y < RIVER_BOTTOM-10:
+                self.assertFalse(walker.can_walk(bridge_center(y), y))
+                self.assertFalse(walker.can_walk(bridge_center(y, True), y))
+
+    def test_river_is_wider_than_the_original_channel(self):
+        self.assertGreaterEqual(RIVER_BOTTOM-RIVER_TOP, 2*182-10)
 
     def test_vasco_crossing_is_by_parque_das_nacoes_and_old_channel_is_water(self):
         town = Town()
+        town.vehicle = "car"
         market = next(site for site in SITES if site.name == "Mercado das Nações")
         self.assertLess(abs(bridge_center(RIVER_TOP, True)-market.x), 100)
         for y in range(RIVER_TOP, RIVER_BOTTOM+1, 5):
@@ -49,12 +59,12 @@ class LisbonMapTest(unittest.TestCase):
     def test_south_bank_garden_keeps_surface_clear_above_a_drivable_tunnel(self):
         left, top, right, bottom = SOUTH_PARK_BOUNDS
         self.assertEqual((left, right), (60, 550))
-        self.assertEqual(SOUTH_PARK_TUNNEL[2], 1370)
-        self.assertTrue(in_tunnel(300, 1370))
-        self.assertTrue(on_road(300, 1370))
-        self.assertFalse(in_tunnel(300, 1320))
-        self.assertFalse(on_road(300, 1320))
-        self.assertTrue(on_road(40, 1370))
+        self.assertEqual(SOUTH_PARK_TUNNEL[2], south(1370))
+        self.assertTrue(in_tunnel(300, south(1370)))
+        self.assertTrue(on_road(300, south(1370)))
+        self.assertFalse(in_tunnel(300, south(1320)))
+        self.assertFalse(on_road(300, south(1320)))
+        self.assertTrue(on_road(40, south(1370)))
 
     def test_every_business_entrance_is_reachable(self):
         town = Town()

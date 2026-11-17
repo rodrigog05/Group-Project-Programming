@@ -1,7 +1,7 @@
 import math
 import unittest
 
-from lisbon_scene import bridge_center
+from lisbon_scene import bridge_center, south
 from tycoon import BAG_SIZE, CASH_GOAL, COLLISION_BOUNDS, Order, SITES, Town, pack_save, unpack_save
 from vehicles import VEHICLES, on_road
 
@@ -124,13 +124,13 @@ class VehicleTrunkTest(unittest.TestCase):
     def test_road_bonus_uses_paved_lanes_and_both_bridges(self):
         town = Town()
         town.vehicle = "car"
-        for x, y in ((480, 321), (100, 301), (1500, 1110), (300, 1370),
+        for x, y in ((480, 321), (100, 301), (1500, south(1110)), (300, south(1370)),
                       (bridge_center(800), 800), (bridge_center(800, True), 800)):
             town.x, town.y = x, y
             with self.subTest(road=(x, y)):
                 self.assertTrue(town.road_bonus_active)
                 self.assertEqual(town.movement_speed, 690)
-        for x, y in ((300, 1250), (1910, 580), (596, 582), (100, 400), (2028, 210)):
+        for x, y in ((300, south(1250)), (1910, 580), (596, 582), (100, 400), (2028, 210)):
             town.x, town.y = x, y
             with self.subTest(offroad=(x, y)):
                 self.assertFalse(on_road(x, y, COLLISION_BOUNDS))

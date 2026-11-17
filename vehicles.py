@@ -1,7 +1,7 @@
 """Vehicle costs, reusable trunk capacity and the town's painted road network."""
 from dataclasses import dataclass
 
-from lisbon_scene import (WORLD_WIDTH, VASCO_NORTH_X, bridge_center,
+from lisbon_scene import (WORLD_WIDTH, VASCO_NORTH_X, RIVER_TOP, RIVER_BOTTOM, bridge_center, south,
                           SOUTH_PARK_BOUNDS, SOUTH_PARK_TUNNEL)
 
 
@@ -38,19 +38,20 @@ def in_tunnel(x, y):
     return left <= x <= right and abs(y-center_y) <= half_width
 
 # Center lines and half-widths match LisbonScene's paved lanes. Pavements,
-# parks and the tram promenade do not grant the driving speed bonus.
+# parks and the waterfront promenade do not grant the driving speed bonus.
 ROAD_SEGMENTS = (
     tuple((x, 140, x, 653, 15) for x in (238, 478, 718, 958))
     + tuple((0, y, WORLD_WIDTH, y, 19.5) for y in (301, 486))
     + ((0, 660, WORLD_WIDTH, 660, 17.5),)
     + tuple((x, 140, x, 660, 14.5) for x in (1225, 1495, 1775, VASCO_NORTH_X, 2350))
-    + tuple((0, y, WORLD_WIDTH, y, 17) for y in (1110, 1370, 1570))
-    + tuple((x, 1060, x, 1580, 15) for x in (620, 1190, 1495, 1775, VASCO_NORTH_X, 2350))
-    + ((0, 1058, WORLD_WIDTH, 1058, 12), (300, 902, 300, 1058, 16),
-       (bridge_center(902, True), 902, VASCO_NORTH_X, 1058, 16),
-       (300, 695, 300, 935, 27),
-       (bridge_center(698, True), 698, bridge_center(919, True), 919, 22.5),
-       (VASCO_NORTH_X, 660, bridge_center(698, True), 698, 16))
+    + tuple((0, south(y), WORLD_WIDTH, south(y), 17) for y in (1110, 1370, 1570))
+    + tuple((x, south(1060), x, south(1580), 15) for x in (620, 1190, 1495, 1775, VASCO_NORTH_X, 2350))
+    + ((0, south(1058), WORLD_WIDTH, south(1058), 12), (300, RIVER_BOTTOM+2, 300, south(1058), 16),
+       (bridge_center(RIVER_BOTTOM+2, True), RIVER_BOTTOM+2, VASCO_NORTH_X, south(1058), 16),
+       # Bridge decks span the river from quay to quay.
+       (300, RIVER_TOP-23, 300, RIVER_BOTTOM+35, 27),
+       (bridge_center(RIVER_TOP-20, True), RIVER_TOP-20, bridge_center(RIVER_BOTTOM+19, True), RIVER_BOTTOM+19, 22.5),
+       (VASCO_NORTH_X, 660, bridge_center(RIVER_TOP-20, True), RIVER_TOP-20, 16))
 )
 
 
