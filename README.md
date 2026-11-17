@@ -37,7 +37,7 @@ The HUD shows **BAG + TRUNK**, total capacity and the active road-speed bonus. A
 
 For early travel, walk to a yellow **TRAM · E · $3** platform and press **E**. Choose any other stop for a **$3 express trip** between Belém, Alcântara, Baixa/Praça do Comércio, Alfama, Beato, Marvila and Parque das Nações. Stops are marked **T** on the minimap and listed in Places → Services. Trips keep your cargo, vehicle and orders; fares count as expenses. The tram serves Lisbon's north bank, while the two bridges connect to Almada.
 
-At the fullscreen start menu, choose your character's name, skin tone, hair, and outfit before starting or continuing.
+At the fullscreen start menu, choose your character's name, skin tone, hair, and outfit before starting or continuing. Behind the menu, an animated view looks west along the Tejo to the 25 de Abril bridge, with Cristo Rei and Almada on the left and Alfama's rooftops and the Castelo de São Jorge on the right. Cars and a train cross the bridge, ferries and sailboats cross the river, the yellow tram runs along the waterfront, and a one-minute day/night cycle lights up the city.
 
 The game fills the monitor in fullscreen and follows the window size in windowed mode. A smooth following camera shows a portion of the world at a readable scale, with the HUD and Settings fixed on screen. Press **M** to toggle the minimap and use **Settings → Camera zoom** to choose 1.0×, 1.25× or 1.5×.
 
