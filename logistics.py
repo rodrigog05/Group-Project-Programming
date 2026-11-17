@@ -102,6 +102,10 @@ def _duration(kind, pair):
     return max(.1, path_length(path)/FLEET_VEHICLES[kind].speed)
 
 
+# Suppliers removed from the map. Saved routes move to the replacement so nobody loses a paid vehicle.
+RENAMED_SUPPLIERS = {"Marvila Timber Depot": "Pine Mill"}
+
+
 def normalize_state(value, sites, businesses_state=None):
     """Restore valid paid cargo without buying again or granting elapsed time."""
     sites = tuple(sites)
@@ -141,7 +145,9 @@ def normalize_state(value, sites, businesses_state=None):
         if (type(identifier) is not int or identifier < 1 or identifier in used
                 or not isinstance(kind, str) or kind not in FLEET_VEHICLES):
             continue
-        pair = _pair(saved.get("source"), saved.get("destination"), table,
+        source = saved.get("source")
+        source = RENAMED_SUPPLIERS.get(source, source) if isinstance(source, str) else source
+        pair = _pair(source, saved.get("destination"), table,
                      businesses_state=businesses_state)
         phase, elapsed = saved.get("phase"), saved.get("elapsed", 0)
         if pair is None or phase not in ("idle", "outbound", "returning") or not _finite(elapsed):
