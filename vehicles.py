@@ -1,7 +1,8 @@
 """Vehicle costs, reusable trunk capacity and the town's painted road network."""
 from dataclasses import dataclass
 
-from lisbon_scene import WORLD_WIDTH, VASCO_NORTH_X, bridge_center
+from lisbon_scene import (WORLD_WIDTH, VASCO_NORTH_X, bridge_center,
+                          SOUTH_PARK_BOUNDS, SOUTH_PARK_TUNNEL)
 
 
 @dataclass(frozen=True)
@@ -22,7 +23,19 @@ VEHICLES = {
 WALK_SPEED = 228
 # City traffic outpaces a walking player, even one with the 1.5x speed power-up.
 CAR_SPEED_RANGE = (360, 440)
-ROAD_EXCLUSIONS = ((60, 1210, 550, 1530), (1810, 520, 2010, 640))
+ROAD_EXCLUSIONS = (SOUTH_PARK_BOUNDS, (1810, 520, 2010, 640))
+
+
+def tunnel_covers_y(y):
+    """Whether a lane center runs inside the covered south-bank underpass."""
+    _, _, center_y, half_width = SOUTH_PARK_TUNNEL
+    return abs(y-center_y) <= half_width
+
+
+def in_tunnel(x, y):
+    """Whether a point is on the playable tunnel road below the central park."""
+    left, right, center_y, half_width = SOUTH_PARK_TUNNEL
+    return left <= x <= right and abs(y-center_y) <= half_width
 
 # Center lines and half-widths match LisbonScene's paved lanes. Pavements,
 # parks and the tram promenade do not grant the driving speed bonus.
@@ -43,7 +56,8 @@ ROAD_SEGMENTS = (
 
 def on_road(x, y, blocked=()):
     """Test actual lane width; collision footprints take priority over paint."""
-    if any(left < x < right and top < y < bottom for left, top, right, bottom in ROAD_EXCLUSIONS):
+    if any(left < x < right and top < y < bottom and not in_tunnel(x, y)
+           for left, top, right, bottom in ROAD_EXCLUSIONS):
         return False
     if any(left < x < right and top < y < bottom for left, top, right, bottom in blocked):
         return False
