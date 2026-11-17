@@ -13,6 +13,7 @@ from tkinter import messagebox
 from saves import RemoteSaves, SaveConflict, desktop_storage
 from lisbon_scene import LisbonScene, MAP_BOTTOM, WORLD_WIDTH, WORLD_BOTTOM, SCENERY_BLOCKS, RIVER_TOP, RIVER_BOTTOM, BRIDGE_TOLL, bridge_at, draw_character, walkable_terrain
 from soundtrack import music_for
+from menu_scene import LisbonMenuScene
 from living_world import LivingWorld
 from journal_recipes import RECIPE_BY_KEY, infer_discoveries, normalize_discoveries, recipe_key_for_site
 from lisbon_landmarks import LANDMARK_SOLIDS
@@ -2695,6 +2696,8 @@ class Game:
 class StartMenu:
     """Load player progress without blocking Tk while the API responds."""
 
+    CARD = "#16303a"
+
     def __init__(self, root, connection=None):
         self.root = root
         self.connection = connection
@@ -2706,49 +2709,78 @@ class StartMenu:
         root.attributes("-fullscreen", True)
         root.resizable(False, False)
         root.protocol("WM_DELETE_WINDOW", self.close)
-        self.frame = tk.Frame(root, bg=INK, padx=48, pady=28)
-        self.frame.pack(expand=True)
-        tk.Label(self.frame, text="FOUNDRY TOWN", font=(FONT, 24, "bold"),
-                 bg=INK, fg=GOLD).pack(pady=12)
-        tk.Label(self.frame, text="LISBOA · Build your fortune along the Tejo.",
-                 bg=INK, fg=WHITE).pack(pady=8)
-        self.status = tk.StringVar(value="Loading your save…")
-        tk.Label(self.frame, textvariable=self.status, bg=INK, fg=MINT,
-                 wraplength=440).pack(pady=12)
-        tk.Label(self.frame, text="CREATE YOUR CHARACTER", font=(FONT, 14, "bold"),
-                 bg=INK, fg=WHITE).pack(anchor="w", pady=(4, 8))
+        # An animated view of Lisbon fills the screen, with the menu on a card over the Tejo.
+        self.canvas = tk.Canvas(root, bg=INK, highlightthickness=0)
+        self.canvas.pack(fill="both", expand=True)
+        card = self.CARD
+        self.frame = tk.Frame(self.canvas, bg=card, padx=26, pady=18, highlightthickness=2,
+                              highlightbackground=GOLD, highlightcolor=GOLD)
+        self.card = self.canvas.create_window(0, 0, window=self.frame, anchor="n")
+        self.scene = LisbonMenuScene(self.canvas, FONT, on_layout=self.place_card)
+
+        left = tk.Frame(self.frame, bg=card)
+        left.grid(row=0, column=0, sticky="n")
+        tk.Frame(self.frame, bg="#2c4a55", width=2).grid(row=0, column=1, sticky="ns", padx=22)
+        right = tk.Frame(self.frame, bg=card)
+        right.grid(row=0, column=2, sticky="n")
+
+        tk.Label(left, text="CREATE YOUR CHARACTER", font=(FONT, 13, "bold"),
+                 bg=card, fg=GOLD).pack(anchor="w", pady=(0, 8))
         self.character_vars = {
             "name": tk.StringVar(root, "Player"),
             "body": tk.StringVar(root, "Peach"),
             "hair": tk.StringVar(root, "Chestnut"),
             "costume": tk.StringVar(root, "Builder"),
         }
-        character_frame = tk.Frame(self.frame, bg=INK)
-        character_frame.pack(fill="x", pady=(0, 8))
-        self.preview = tk.Canvas(character_frame, width=100, height=116, bg="#20343c", highlightthickness=0)
-        self.preview.pack(side="right", padx=(22, 0), pady=4)
-        options = tk.Frame(character_frame, bg=INK)
+        character_frame = tk.Frame(left, bg=card)
+        character_frame.pack(fill="x")
+        self.preview = tk.Canvas(character_frame, width=100, height=116, bg="#20343c", highlightthickness=1,
+                                 highlightbackground="#2c4a55")
+        self.preview.pack(side="right", padx=(18, 0), pady=2)
+        options = tk.Frame(character_frame, bg=card)
         options.pack(side="left", fill="x", expand=True)
-        tk.Label(options, text="Name", bg=INK, fg=WHITE).grid(row=0, column=0, sticky="w", pady=3)
-        tk.Entry(options, textvariable=self.character_vars["name"], width=24).grid(row=0, column=1, sticky="ew", pady=3)
+        tk.Label(options, text="Name", bg=card, fg=WHITE).grid(row=0, column=0, sticky="w", pady=3, padx=(0, 10))
+        tk.Entry(options, textvariable=self.character_vars["name"], width=20).grid(row=0, column=1, sticky="ew", pady=3)
         for row, (key, label, choices) in enumerate((
             ("body", "Skin", BODY_COLORS), ("hair", "Hair", HAIR_COLORS), ("costume", "Outfit", COSTUMES),
         ), start=1):
-            tk.Label(options, text=label, bg=INK, fg=WHITE).grid(row=row, column=0, sticky="w", pady=3)
-            tk.OptionMenu(options, self.character_vars[key], *choices).grid(row=row, column=1, sticky="ew", pady=3)
+            tk.Label(options, text=label, bg=card, fg=WHITE).grid(row=row, column=0, sticky="w", pady=3, padx=(0, 10))
+            menu = tk.OptionMenu(options, self.character_vars[key], *choices)
+            menu.configure(highlightbackground=card)
+            menu.grid(row=row, column=1, sticky="ew", pady=3)
         options.columnconfigure(1, weight=1)
         for variable in self.character_vars.values():
             variable.trace_add("write", lambda *_: self.draw_character_preview())
         self.draw_character_preview()
-        self.new_button = tk.Button(self.frame, text="New Game", command=self.new_game, state="disabled")
-        self.new_button.pack(fill="x", pady=4)
-        self.continue_button = tk.Button(self.frame, text="Continue", command=self.continue_game, state="disabled")
-        self.continue_button.pack(fill="x", pady=4)
-        self.rules_button = tk.Button(self.frame, text="Rules & How to Play", command=lambda: show_rules(self.root))
-        self.rules_button.pack(fill="x", pady=4)
-        tk.Button(self.frame, text="Quit", command=self.close).pack(fill="x", pady=(10, 4))
+
+        self.status = tk.StringVar(value="Loading your save…")
+        tk.Label(right, textvariable=self.status, bg=card, fg=MINT, wraplength=240, justify="center",
+                 font=(FONT, 11, "bold")).pack(fill="x", pady=(0, 10))
+        self.new_button = self.menu_button(right, "New Game", self.new_game, primary=True)
+        self.new_button.configure(state="disabled")
+        self.continue_button = self.menu_button(right, "Continue", self.continue_game, primary=True)
+        self.continue_button.configure(state="disabled")
+        self.rules_button = self.menu_button(right, "Rules & How to Play", lambda: show_rules(self.root))
+        self.menu_button(right, "Quit", self.close).pack_configure(pady=(10, 0))
+        self.scene.start()
         self.future = self.worker.submit(self.load, connection)
         self.poll_timer = root.after(50, self.poll)
+
+    def menu_button(self, parent, text, command, primary=False):
+        options = {"text": text, "command": command, "width": 22, "font": (FONT, 12, "bold" if primary else "normal")}
+        if not IS_MAC:
+            # macOS draws native buttons and ignores these colors, so only style them elsewhere.
+            options.update(bg=GOLD if primary else "#2c4a55", fg=INK if primary else WHITE,
+                           activebackground="#ffd68f" if primary else "#3b5d69",
+                           activeforeground=INK if primary else WHITE, relief="flat", pady=6, cursor="hand2")
+        button = tk.Button(parent, highlightbackground=self.CARD, **options)
+        button.pack(fill="x", pady=4)
+        return button
+
+    def place_card(self, width, height):
+        self.frame.update_idletasks()
+        top = self.scene.card_top(self.frame.winfo_reqheight())
+        self.canvas.coords(self.card, width/2, top)
 
     @staticmethod
     def load(connection):
@@ -2790,7 +2822,8 @@ class StartMenu:
 
     def start(self, session):
         self.worker.shutdown(wait=False)
-        self.frame.destroy()
+        self.scene.stop()
+        self.canvas.destroy()
         Game(self.root, session, self.character_values())
 
     def character_values(self):
@@ -2807,6 +2840,7 @@ class StartMenu:
 
     def close(self):
         self.root.after_cancel(self.poll_timer)
+        self.scene.stop()
         self.worker.shutdown(wait=False)
         self.music.stop()
         self.root.destroy()

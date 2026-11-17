@@ -20,6 +20,8 @@ VEHICLES = {
     "van": Vehicle("Delivery van", 360, 108, 430, 620),
 }
 WALK_SPEED = 228
+# City traffic outpaces a walking player, even one with the 1.5x speed power-up.
+CAR_SPEED_RANGE = (360, 440)
 ROAD_EXCLUSIONS = ((60, 1210, 550, 1530), (1810, 520, 2010, 640))
 
 # Center lines and half-widths match LisbonScene's paved lanes. Pavements,

@@ -4,6 +4,7 @@ import unittest
 from living_world import AmbientActor, Camera, LivingWorld, WORLD_TOP
 from lisbon_scene import WORLD_WIDTH, WORLD_BOTTOM, SCENERY_BLOCKS, bridge_center
 from tycoon import SITES, Town, pack_save, unpack_save
+from vehicles import ROAD_EXCLUSIONS, WALK_SPEED
 
 
 class CameraTest(unittest.TestCase):
@@ -82,6 +83,31 @@ class ExpandedWorldTest(unittest.TestCase):
                 elif actor.kind == 'boat':
                     for eastern in (False, True):
                         self.assertGreater(abs(x-bridge_center(y, eastern)), 62, (actor.tag, eastern, x, y))
+
+    def collect_cars(self):
+        actors = []
+
+        class Collector:
+            def actor(self, kind, start, end, speed, offset, color):
+                actors.append(AmbientActor(str(len(actors)), start, end, speed, offset, kind))
+
+        LivingWorld.create_actors(Collector())
+        return [actor for actor in actors if actor.kind == "car"]
+
+    def test_traffic_is_faster_than_a_walking_player_even_with_a_speed_boost(self):
+        cars = self.collect_cars()
+        self.assertEqual(len(cars), 12)
+        for car in cars:
+            self.assertGreater(car.speed, WALK_SPEED * 1.5, car.tag)
+
+    def test_cars_never_drive_through_parks_or_plazas(self):
+        for car in self.collect_cars():
+            for step in range(201):
+                x = car.start[0]+(car.end[0]-car.start[0])*step/200
+                y = car.start[1]+(car.end[1]-car.start[1])*step/200
+                for left, top, right, bottom in ROAD_EXCLUSIONS:
+                    # Allow for the car's own length (15 world units either side of its center).
+                    self.assertFalse(left-15 < x < right+15 and top < y < bottom, (car.tag, x, y))
 
     def test_scenery_and_outer_world_edges_block_walking(self):
         town = Town()
