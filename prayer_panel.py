@@ -107,6 +107,7 @@ def open_prayer(game):
     if game.profile_window is not None:
         return
     from tycoon import BODY_COLORS, HAIR_COLORS, COSTUMES
+    game.town.visit_monastery()
     game.keys.clear()
     panel = game.profile_window = tk.Frame(game.root, bg="#363c42")
     panel.place(x=0, y=0, relwidth=1, relheight=1)
@@ -115,7 +116,8 @@ def open_prayer(game):
     canvas.pack(fill="both", expand=True)
     footer = tk.Frame(panel, bg="#252c31", padx=18, pady=12)
     footer.pack(fill="x")
-    tk.Label(footer, text="Mosteiro dos Jerónimos", bg="#252c31", fg="#e5d9bd",
+    tk.Label(footer, text=f"Casino luck +{game.town.casino_luck} percentage points · Maximum +20",
+             bg="#252c31", fg="#e5d9bd",
              font=("Segoe UI", 11)).pack(side="left")
 
     def render(event):
