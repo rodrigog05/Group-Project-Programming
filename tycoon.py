@@ -392,6 +392,7 @@ class Town:
         self.profile = {"name": "Player", "body": "Peach", "hair": "Chestnut", "costume": "Builder"}
         self.notice = ""
         self.notice_until = 0
+        self.monastery_visits = 0
         self.message = "Open Places (P): 1 Buy raw materials → 2 Make products → 3 Sell products."
 
     def set_profile(self, values):
@@ -1060,6 +1061,22 @@ class Town:
         else:
             self.message = f"Baking {quantity} × Pastéis with Wheat + Eggs. Ready in {recipe.seconds}s."
 
+    @property
+    def casino_luck(self):
+        return min(self.monastery_visits, 4) * 5
+
+    def visit_monastery(self):
+        self.monastery_visits = min(self.monastery_visits + 1, 4)
+        self.message = f"Monastery visited · Casino win chance +{self.casino_luck} percentage points."
+
+    def roulette_pocket(self, choice):
+        winners = [index for index, number in enumerate(ROULETTE_POCKETS)
+                   if roulette_color(number) == choice]
+        losers = [index for index, number in enumerate(ROULETTE_POCKETS)
+                  if roulette_color(number) != choice]
+        chance = len(winners) / len(ROULETTE_POCKETS) + self.casino_luck / 100
+        return random.choice(winners if random.random() < chance else losers)
+
     def bet_roulette(self, choice, stake, number):
         """Take a stake on red, black, or green and return the payout for `number`.
 
@@ -1225,6 +1242,9 @@ def unpack_save(data):
     state["logistics"] = logistics.normalize_state(state.get("logistics"), SITES, businesses_state=state["businesses"])
     state["contracts"] = contracts.normalize_state(state.get("contracts"))
     state.setdefault("milestone_acknowledged", False)
+    state.setdefault("monastery_visits", 0)
+    if type(state["monastery_visits"]) is not int or not 0 <= state["monastery_visits"] <= 4:
+        raise ValueError("Invalid monastery visit bonus in save")
     if type(state["milestone_acknowledged"]) is not bool:
         raise ValueError("Invalid cash milestone state in save")
     if data["version"] != 1 or state.keys() != vars(town).keys():
@@ -1753,7 +1773,7 @@ class Game:
         if self.spin is not None:
             return
         stake = CHIPS[self.chip_index]
-        pocket = random.randrange(len(ROULETTE_POCKETS))
+        pocket = self.town.roulette_pocket(choice)
         number = ROULETTE_POCKETS[pocket]
         payout = self.town.bet_roulette(choice, stake, number)
         if payout is None:
@@ -2597,7 +2617,8 @@ class Game:
         self.label(center_x, 604, text, 13, color, True, anchor="center", tag="live")
 
         # Chips
-        self.label(center_x, 634, "CHIP", 8, MUTED, True, anchor="center", tag="live")
+        self.label(center_x, 634, f"CHIP · Monastery luck +{town.casino_luck} percentage points",
+                   8, GOLD, True, anchor="center", tag="live")
         chip_colors = ("#e6e9df", "#d65655", "#3f8fd2", "#2f9e5e", "#1b1d22")
         for index, value in enumerate(CHIPS):
             chip_x, chip_y = center_x + (index - 2) * 64, 670
