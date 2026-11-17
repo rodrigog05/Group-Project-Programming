@@ -16,6 +16,7 @@ from guidance import compass, next_step
 from tram import TRAM_STOPS
 from logistics_view import FleetView
 from business_signs import BusinessSigns
+from vehicles import CAR_SPEED_RANGE, ROAD_EXCLUSIONS
 
 WORLD_TOP = 104
 STATUS_LABEL_RADIUS = 360
@@ -180,7 +181,10 @@ class LivingWorld:
                        rng.choice(("#b37262", "#547d8b", "#81926f", "#ba9d61", "#8a7195")))
         for index, y in enumerate((291, 308, 476, 493, 650, 666, 1101, 1119, 1362, 1378,
                                    WORLD_BOTTOM-38, WORLD_BOTTOM-22)):
-            self.actor("car", (15, y), (WORLD_WIDTH-20, y), rng.uniform(75, 125), rng.random()*2,
+            # Lanes that would cross a park or plaza start beside it instead.
+            start_x = max([15] + [right+20 for left, top, right, bottom in ROAD_EXCLUSIONS
+                                  if top < y < bottom])
+            self.actor("car", (start_x, y), (WORLD_WIDTH-20, y), rng.uniform(*CAR_SPEED_RANGE), rng.random()*2,
                        rng.choice(("#9b584e", "#c6c5b5", "#759ca5", "#b89b62")))
         for start, end, speed in (((400, 780), (900, 780), 32),
                                   ((1240, 802), (bridge_center(802, True)-80, 802), 62),
