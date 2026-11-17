@@ -22,7 +22,9 @@ class Painter:
     def points(self, coords):
         if len(coords) == 1 and isinstance(coords[0], (tuple, list)):
             coords = coords[0]
-        return [(coords[i]*self.scale_x, coords[i+1]*self.scale_y) for i in range(0, len(coords), 2)]
+        # shift_y is set by LisbonScene.shifted() for south-bank art drawn in older coordinates.
+        shift = getattr(self, "shift_y", 0)
+        return [(coords[i]*self.scale_x, (coords[i+1]+shift)*self.scale_y) for i in range(0, len(coords), 2)]
 
     def skip(self, options):
         return options.get("tags") == "tram"
@@ -96,7 +98,7 @@ class Painter:
                           Path("/usr/share/fonts/truetype/dejavu")/("DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf"))
             font_path = next((p for p in candidates if p.exists()), None)
             self.fonts[key] = ImageFont.truetype(str(font_path), round(size*4/3*self.scale)) if font_path else ImageFont.load_default()
-        self.draw.text((x*self.scale_x, y*self.scale_y), text, fill=color, font=self.fonts[key],
+        self.draw.text((x*self.scale_x, (y+getattr(self, "shift_y", 0))*self.scale_y), text, fill=color, font=self.fonts[key],
                        anchor={"w": "lm", "e": "rm", "center": "mm"}.get(anchor, "lm"))
 
 

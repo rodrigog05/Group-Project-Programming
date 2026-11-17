@@ -6,7 +6,8 @@ from tkinter import ttk
 from lisbon_landmarks import LANDMARKS
 from wayfinding import site_guide
 from tourism import monument_description, tourism_description
-from tram import TRAM_FARE, TRAM_STOPS
+from ferry import FERRY_FARE, FERRY_PIERS, other_pier
+from lisbon_scene import south
 import businesses
 
 
@@ -40,7 +41,7 @@ def neighborhood_for(x, y):
     if y >= 900:
         if x < 1200:
             return "Almada · Tejo"
-        if y >= 1380:
+        if y >= south(1380):
             return "Palmela"
         return "Seixal" if x >= 1950 else "Cacilhas"
     for edge, name in ((238, "Belém"), (478, "Alcântara"), (718, "Baixa · Chiado"),
@@ -98,11 +99,12 @@ def directory_entries(sites, landmarks=LANDMARKS, *, town=None):
         instruction = " ".join(part for part in (instruction, monument_description(landmark, sites)) if part)
         rows["landmarks"].append(DirectoryEntry(landmark.name, detail, neighborhood_for(left, top),
                                                  instruction, x, y, "◆", "#d5bf76"))
-    for stop in TRAM_STOPS:
+    for pier in FERRY_PIERS:
         rows["services"].append(DirectoryEntry(
-            f"Tram · {stop.name}", f"${TRAM_FARE} express travel", stop.name,
-            f"Walk to the yellow TRAM platform and press E. Pay ${TRAM_FARE} to travel to any other north-bank stop. "
-            "Your cargo and vehicle remain available after the trip.", stop.x, stop.y, "T", "#936f22"))
+            f"Ferry · {pier.name}", f"${FERRY_FARE} to {other_pier(pier).name}", neighborhood_for(pier.x, pier.y),
+            f"The bridges carry vehicles only. On foot, walk to the {pier.name} pier and press E to cross the Tejo "
+            f"to {other_pier(pier).name} for ${FERRY_FARE}. Your cargo and vehicle come with you.",
+            pier.x, pier.y, "F", "#936f22"))
     return {key: tuple(sorted(entries, key=lambda entry: entry.name.casefold())) for key, entries in rows.items()}
 
 

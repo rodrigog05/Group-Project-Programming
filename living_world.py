@@ -9,12 +9,12 @@ import tkinter as tk
 from types import SimpleNamespace
 
 from lisbon_scene import (LisbonScene, WORLD_WIDTH, WORLD_BOTTOM, RIVER_TOP, RIVER_BOTTOM,
-                          bridge_center, draw_character, SOUTH_PARK_BOUNDS)
+                          bridge_center, draw_character, SOUTH_PARK_BOUNDS, SOUTH_SHIFT, south)
 from windows_canvas import world_canvas
 from lisbon_landmarks import LANDMARKS
 from wayfinding import STAGES, site_guide
 from guidance import compass, next_step
-from tram import TRAM_STOPS
+from ferry import FERRY_PIERS
 from logistics_view import FleetView
 from business_signs import BusinessSigns
 from vehicles import CAR_SPEED_RANGE, ROAD_EXCLUSIONS, tunnel_covers_y
@@ -165,8 +165,9 @@ class LivingWorld:
         self.selection = c.create_rectangle(0, 0, 1, 1, outline="#f4cc79", width=2, state="hidden")
         self.destination_marker = c.create_oval(0, 0, 1, 1, fill="", outline="#ffd177", width=3, state="hidden")
         self.update_destination_markers()
-        self.spark = c.create_line(479*self.zoom, 864*self.zoom, 488*self.zoom, 854*self.zoom,
-                                   492*self.zoom, 869*self.zoom, fill="#fff0b1", width=2, state="hidden")
+        dock = SOUTH_SHIFT  # The repair dock moved down with the south bank.
+        self.spark = c.create_line(479*self.zoom, (864+dock)*self.zoom, 488*self.zoom, (854+dock)*self.zoom,
+                                   492*self.zoom, (869+dock)*self.zoom, fill="#fff0b1", width=2, state="hidden")
         self.night = None
         self.set_night(self.game.town.market_elapsed % 300 >= 180)
         self.last_scroll = None
@@ -182,14 +183,15 @@ class LivingWorld:
         routes = (((32, 280), (1160, 280)), ((40, 465), (1160, 465)),
                   ((50, 647), (1150, 647)), ((1260, 280), (WORLD_WIDTH-70, 280)),
                   ((1260, 465), (WORLD_WIDTH-90, 465)), ((1270, 645), (WORLD_WIDTH-80, 645)),
-                  ((90, 1090), (WORLD_WIDTH-120, 1090)), ((85, 1395), (WORLD_WIDTH-130, 1395)),
+                  ((90, south(1090)), (WORLD_WIDTH-120, south(1090))),
+                  ((85, south(1395)), (WORLD_WIDTH-130, south(1395))),
                   ((65, WORLD_BOTTOM-55), (WORLD_WIDTH-110, WORLD_BOTTOM-55)))
         for index in range(30):
             start, end = routes[index % len(routes)]
             self.actor("pedestrian", start, end, rng.uniform(20, 34), rng.random()*2,
                        rng.choice(("#b37262", "#547d8b", "#81926f", "#ba9d61", "#8a7195")))
-        for index, y in enumerate((291, 308, 476, 493, 650, 666, 1101, 1119, 1362, 1378,
-                                   WORLD_BOTTOM-38, WORLD_BOTTOM-22)):
+        for index, y in enumerate((291, 308, 476, 493, 650, 666, south(1101), south(1119), south(1362),
+                                   south(1378), WORLD_BOTTOM-38, WORLD_BOTTOM-22)):
             # Lanes that would cross a park or plaza start beside it instead.
             start_x = max([15] + [right+20 for left, top, right, bottom in ROAD_EXCLUSIONS
                                   if top < y < bottom
@@ -200,13 +202,17 @@ class LivingWorld:
                        phase_and_direction, rng.choice(("#9b584e", "#c6c5b5", "#759ca5", "#b89b62")))
         for start, end, speed in (((400, 780), (900, 780), 32),
                                   ((1240, 802), (bridge_center(802, True)-80, 802), 62),
-                                  ((bridge_center(860, True)+90, 860), (WORLD_WIDTH-65, 860), 38),
-                                  ((430, 835), (870, 835), 20)):
+                                  ((bridge_center(960, True)+90, 960), (WORLD_WIDTH-65, 960), 38),
+                                  ((430, 835), (870, 835), 20),
+                                  ((420, 1010), (1100, 1010), 26)):
             self.actor("boat", start, end, speed, rng.random()*2, "#f2e4c9")
+        # The cacilheiro shuttles between its two piers.
+        north_pier, south_pier = FERRY_PIERS
+        self.actor("boat", (north_pier.x+30, RIVER_TOP+80), (south_pier.x-30, RIVER_BOTTOM-80), 45, 0.0, "#e07a2e")
         for index in range(14):
             x = 360+index*(WORLD_WIDTH-500)/13
-            self.actor("ripple", (x, 750+index % 4*32),
-                       (x+60, 750+index % 4*32), 4, rng.random()*2, "#b3d5d5")
+            y = RIVER_TOP+32+index % 6*(RIVER_BOTTOM-RIVER_TOP-60)/6
+            self.actor("ripple", (x, y), (x+60, y), 4, rng.random()*2, "#b3d5d5")
 
     def actor(self, kind, start, end, speed, offset, color):
         c = self.canvas
@@ -309,15 +315,15 @@ class LivingWorld:
             x, y = point(*landmark.map_point)
             c.create_polygon(x, y-5, x+4, y, x, y+5, x-4, y,
                               fill="#ffe0a1", outline="#6a5224", width=1)
-        for stop in TRAM_STOPS:
-            x, y = point(stop.x, stop.y)
+        for pier in FERRY_PIERS:
+            x, y = point(pier.x, pier.y)
             c.create_rectangle(x-4, y-4, x+4, y+4, fill="#ffe0a1", outline="#6a5224", width=1)
-            c.create_text(x, y, text="T", fill="#354f57", font=(self.font, 6, "bold"))
+            c.create_text(x, y, text="F", fill="#354f57", font=(self.font, 6, "bold"))
         for stage, x in zip(STAGES[:3], (12, 91, 177)):
             c.create_text(x, 187, text=f"● {stage.key.upper()}", anchor="w",
                           fill={"buy": "#ffd177", "make": "#94d1ff", "sell": "#8de5bc"}[stage.key],
                           font=(self.font, 8, "bold"))
-        c.create_text(12, 204, text="◆ Sights · T Tram · P Places", anchor="w", fill="#efe0bd", font=(self.font, 8))
+        c.create_text(12, 204, text="◆ Sights · F Ferry · P Places", anchor="w", fill="#efe0bd", font=(self.font, 8))
         self.map_view = c.create_rectangle(0, 0, 1, 1, outline="#f8eee0", width=1)
         self.map_player = c.create_oval(0, 0, 1, 1, fill="#f2c15f", outline="#263f4a", width=1)
         self.map_destination = c.create_oval(0, 0, 1, 1, outline="#fff0a8", width=2, state="hidden")

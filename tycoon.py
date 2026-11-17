@@ -11,7 +11,7 @@ import tkinter as tk
 from tkinter import messagebox
 
 from saves import RemoteSaves, SaveConflict, desktop_storage
-from lisbon_scene import LisbonScene, MAP_BOTTOM, WORLD_WIDTH, WORLD_BOTTOM, SCENERY_BLOCKS, RIVER_TOP, RIVER_BOTTOM, BRIDGE_TOLL, bridge_at, draw_character, walkable_terrain
+from lisbon_scene import LisbonScene, MAP_BOTTOM, WORLD_WIDTH, WORLD_BOTTOM, SCENERY_BLOCKS, RIVER_TOP, RIVER_BOTTOM, BRIDGE_TOLL, bridge_at, draw_character, walkable_terrain, south
 from soundtrack import music_for
 from menu_scene import LisbonMenuScene
 from living_world import LivingWorld
@@ -71,14 +71,14 @@ RULES_TEXT = (
     "wait for production, and return to collect the finished goods. Sell goods at the matching public market.\n\n"
     "TIER 2 FACTORY\n"
     "Foundry Precision Works combines 1 Tool and 1 Furniture into 1 Precision Machinery. "
-    "Wait 12 seconds, collect it, then interact again to sell it at the factory. It is in Almada, across either bridge.\n\n"
+    "Wait 12 seconds, collect it, then interact again to sell it at the factory. It is in Almada: drive across either bridge or take the ferry.\n\n"
     "BELÉM & THE SHIPYARD\n"
     "At Goldenfield Farm, E/Q buys Wheat (1/4) and F/R buys Eggs (1/4), at $2 per egg. "
     "Pastéis de Belém combines 1 Wheat + 1 Egg into 1 Pastel in 8 seconds. Collect and sell it there (base price $24). "
     "Estaleiro do Tejo in Almada uses 2 Timber + 2 Iron ore for a 20-second boat repair (base payment $100). "
     "Return to claim the agreed payment. Iron Hill Mine is now on the Almada bank.\n\n"
     "LISBOA\n"
-    "Cross the Tejo using Ponte 25 de Abril or Ponte Vasco da Gama. The yellow elétrico travels along the north bank. "
+    "Drive across the Tejo on Ponte 25 de Abril or Ponte Vasco da Gama; the bridges carry vehicles only. On foot, take the ferry between Cais do Sodré and Cacilhas ($2). The yellow elétrico runs along the north bank as part of the scenery. "
     "Visit Mosteiro dos Jerónimos, Castelo de São Jorge, Torre de Belém and Praça do Comércio. "
     "Colored building signs show the trading loop: BUY MATERIALS (orange) → MAKE PRODUCTS (blue) → SELL PRODUCTS (green). "
     "Open Places (P) to see recipes and locations, then choose Guide me here for a destination marker. "
@@ -99,7 +99,7 @@ RULES_TEXT = (
     "Your cargo and vehicle remain available after the trip.\n\n"
     "STOCK EXCHANGE\n"
     "Visit Bolsa de Lisboa in Baixa-Chiado and press E to buy or sell district and infrastructure shares. "
-    "City trade, paid 25 de Abril returns and tram journeys earn dividend credits for shares you already hold. "
+    "City trade and paid 25 de Abril returns earn dividend credits for shares you already hold. "
     "The wider city also records simulated activity every 10 active seconds, including while the exchange is open. "
     "Whole-dollar dividends are paid per investment at day close and included in taxable profit; fractional credits carry over. "
     "Share capital is separate from operating expenses; only realized gains or losses affect profit. "
@@ -142,7 +142,7 @@ RULES_TEXT = (
     "NIGHT, TAX & TOLLS\n"
     "Buildings and both bridges light up at night. At the end of each full day, tax starts at 20% of positive net profit "
     "(all income received minus purchases, upgrades, casino stakes and tolls). Loss-making days pay no tax. "
-    "Each completed Almada-to-Lisbon bridge crossing costs $3, on foot or in a vehicle. Outbound crossings and halfway turnarounds are free.\n\n"
+    "Each completed Almada-to-Lisbon bridge crossing costs $3. Outbound crossings and halfway turnarounds are free.\n\n"
     "TOWN & GOAL\n"
     "Each day lasts 5 minutes: 3 minutes of daylight and 2 minutes of night. Prices and customer demand "
     "change daily. Reach $500 for the first milestone, then choose Continue building & researching to keep playing. "
@@ -295,7 +295,7 @@ class Site:
 
 
 SITES = (
-    Site("Iron Hill Mine", "SUPPLIER", 0, 1010, 935, "#d6a46e"),
+    Site("Iron Hill Mine", "SUPPLIER", 0, 1010, south(935), "#d6a46e"),
     Site("Ironworks", "FACTORY", 0, 268, 345, "#ef8f76"),
     Site("Tool Market", "PUBLIC SHOP", 0, 508, 345, "#72d8bc"),
     Site("Pine Mill", "SUPPLIER", 1, 1280, 160, "#d6a46e"),
@@ -312,15 +312,15 @@ SITES = (
     Site("Motorworks Garage", "GARAGE", -1, 988, 530, "#86caff"),
     Site("Foundry Warehouse", "WAREHOUSE", -1, 988, 160, "#d2a7e5"),
     Site("Pastéis de Belém", "PASTELARIA", -1, 28, 160, "#f1d69b"),
-    Site("Estaleiro do Tejo", "SHIPYARD", -1, 380, 935, "#94bdc9"),
+    Site("Estaleiro do Tejo", "SHIPYARD", -1, 380, south(935), "#94bdc9"),
     Site("Oriente Tool Market", "PUBLIC SHOP", 0, 1820, 345, "#72d8bc"),
     Site("Mercado das Nações", "PUBLIC SHOP", 2, 2080, 530, "#d2a7e5"),
-    Site("Quinta de Palmela", "SUPPLIER", 3, 2060, 1430, "#e3c77e"),
-    Site("Cacilhas Garage", "GARAGE", -1, 1540, 1180, "#86caff"),
-    Site("Armazém do Seixal", "WAREHOUSE", -1, 2060, 1180, "#d2a7e5"),
+    Site("Quinta de Palmela", "SUPPLIER", 3, 2060, south(1430), "#e3c77e"),
+    Site("Cacilhas Garage", "GARAGE", -1, 1540, south(1180), "#86caff"),
+    Site("Armazém do Seixal", "WAREHOUSE", -1, 2060, south(1180), "#d2a7e5"),
     Site("Bolsa de Lisboa", "EXCHANGE", -1, 508, 160, "#d7bb6e"),
     Site("Nova SBE · Carcavelos", "RESEARCH", -1, 28, 530, "#83bac9"),
-    Site("Foundry Precision Works", "TIER2", -1, 650, 935, "#ffc66c"),
+    Site("Foundry Precision Works", "TIER2", -1, 650, south(935), "#ffc66c"),
 )
 COLLISION_BOUNDS = tuple(site.bounds for site in SITES)+SCENERY_BLOCKS+LANDMARK_SOLIDS+((1780, 190, 2030, 260),)
 
@@ -780,6 +780,12 @@ class Town:
             self.x = next_x
         if self.can_walk(self.x, next_y):
             self.y = next_y
+        elif (self.vehicle is None and RIVER_TOP-PLAYER_RADIUS < next_y < RIVER_BOTTOM+PLAYER_RADIUS
+              and bridge_at(self.x, next_y, PLAYER_RADIUS)):
+            # The bridges only carry vehicles; walkers take the ferry.
+            from ferry import FERRY_FARE
+            self.message = (f"The bridges are for vehicles only. On foot, take the ferry at Cais do Sodré "
+                            f"or Cacilhas (${FERRY_FARE}), or buy a vehicle at a garage.")
         self.check_bridge_crossing(old_y)
         self.collect_power_up()
 
@@ -811,7 +817,7 @@ class Town:
 
     def can_walk(self, x, y):
         return (PLAYER_RADIUS <= x <= WORLD_WIDTH-PLAYER_RADIUS and MAP_TOP+PLAYER_RADIUS <= y <= WORLD_BOTTOM-PLAYER_RADIUS
-                and walkable_terrain(x, y, PLAYER_RADIUS)) and not any(
+                and walkable_terrain(x, y, PLAYER_RADIUS, on_foot=self.vehicle is None)) and not any(
             left - PLAYER_RADIUS < x < right + PLAYER_RADIUS
             and top - PLAYER_RADIUS < y < bottom + PLAYER_RADIUS
             for left, top, right, bottom in COLLISION_BOUNDS
@@ -1511,7 +1517,8 @@ class Game:
                 self.open_casino()
                 return
             if key == "e" and nearby is not None and nearby.role == "GARAGE":
-                self.open_vehicle_shop()
+                from garage_panel import open_garage
+                open_garage(self, nearby)
                 self.keys.add(key)
                 return
             if key == "e" and nearby is not None and nearby.role == "WAREHOUSE":
@@ -1527,10 +1534,11 @@ class Game:
                 self.keys.add(key)
                 return
             if key == "e" and nearby is None:
-                from tram import nearby_stop
-                if nearby_stop(self.town.x, self.town.y) is not None:
-                    from tram_menu import open_tram
-                    open_tram(self)
+                from ferry import nearby_pier
+                if nearby_pier(self.town.x, self.town.y) is not None:
+                    from ferry_panel import open_ferry
+                    open_ferry(self)
+                    self.keys.add(key)
                     return
             from interiors import INTERIOR_ROLES, open_interior
             if key == "e" and nearby is not None and nearby.role in INTERIOR_ROLES:
@@ -2708,10 +2716,10 @@ class Game:
         hint = f"{near.name}   ·   {town.action_hint(near)}" if near else "P · Find suppliers, factories, markets and landmarks     M · Map     F1 · Settings"
         if near is None:
             from prayer_panel import at_monastery
-            from tram import TRAM_FARE, nearby_stop
-            stop = nearby_stop(town.x, town.y)
-            if stop is not None:
-                hint = f"{stop.name} · E  Board the yellow tram · ${TRAM_FARE} per trip"
+            from ferry import FERRY_FARE, nearby_pier, other_pier
+            pier = nearby_pier(town.x, town.y)
+            if pier is not None:
+                hint = f"{pier.name} pier · E  Take the ferry to {other_pier(pier).name} · ${FERRY_FARE}"
             if at_monastery(town):
                 hint = "Mosteiro dos Jerónimos · E  Enter and pray"
         self.hud_label("hint", 24, MAP_BOTTOM+46, hint, 10, GOLD if near else MUTED)

@@ -139,7 +139,9 @@ class LocalIndustryTest(unittest.TestCase):
         self.assertEqual(town.shipyard_quote, 100)
 
     def test_all_businesses_connect_to_starting_area_across_bridges(self):
+        # The bridges only carry vehicles, so explore the map by car.
         town = Town()
+        town.vehicle = "car"
         visited = {(480, 321)}
         queue = deque(visited)
         while queue:

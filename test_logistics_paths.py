@@ -4,7 +4,8 @@ import math
 import unittest
 
 from logistics_paths import bridge_used, path_length, point_on_path, road_path
-from lisbon_scene import bridge_at
+from lisbon_scene import RIVER_BOTTOM, RIVER_TOP, SOUTH_SHIFT, bridge_at
+import logistics_paths
 from tycoon import COLLISION_BOUNDS, SITES, Town
 from vehicles import on_road
 
@@ -16,6 +17,7 @@ def entrance(site):
 class LogisticsPathTest(unittest.TestCase):
     def test_every_valid_supplier_factory_pair_has_walkable_paved_route(self):
         town = Town()
+        town.vehicle = "van"  # Delivery vans drive; the bridges only carry vehicles.
         for source in SITES:
             for factory in SITES:
                 if source.role != "SUPPLIER" or factory.role != "FACTORY" or source.trade != factory.trade:
@@ -36,7 +38,7 @@ class LogisticsPathTest(unittest.TestCase):
                             self.assertTrue(on_road(x, y, COLLISION_BOUNDS) or apron,
                                             (source.name, factory.name, x, y))
                             self.assertTrue(town.can_walk(x, y), (source.name, factory.name, x, y))
-                            if 718 <= y <= 900:
+                            if RIVER_TOP <= y <= RIVER_BOTTOM:
                                 self.assertIsNotNone(bridge_at(x, y, 3))
 
     def test_crossings_choose_actual_shortest_useful_bridge(self):
@@ -67,6 +69,12 @@ class LogisticsPathTest(unittest.TestCase):
             point_on_path(first, .25)
         cache = road_path.cache_info()
         self.assertEqual((cache.misses, cache.hits), (1, 120))
+
+
+    def test_local_river_constants_match_the_map(self):
+        # logistics_paths keeps its own copy of the river edges to avoid an import cycle.
+        self.assertEqual((logistics_paths.RIVER_TOP, logistics_paths.RIVER_BOTTOM), (RIVER_TOP, RIVER_BOTTOM))
+        self.assertEqual(logistics_paths.SOUTH_SHIFT, SOUTH_SHIFT)
 
 
 if __name__ == "__main__":
