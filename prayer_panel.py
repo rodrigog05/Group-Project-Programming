@@ -24,26 +24,27 @@ def draw_prayer(canvas, profile, body_colors, hair_colors, costumes):
     for row, (floor_y, scale) in enumerate(((258, .65), (292, .8), (327, .95))):
         for side, seats in enumerate(((65, 105, 145), (530, 568, 605))):
             for seat, person_x in enumerate(seats):
+                person_scale = scale * 1.25
                 coat = ("#657b80", "#866653", "#6d6380", "#74794f")[(row+side+seat) % 4]
                 skin_tone = ("#deb08a", "#b9825e", "#895d46")[(row+seat) % 3]
                 hair_tone = ("#544539", "#c4b8a1", "#3b3431")[(side+seat) % 3]
-                canvas.create_oval(person_x-10*scale, floor_y-4*scale,
-                                   person_x+12*scale, floor_y+3*scale,
+                canvas.create_oval(person_x-10*person_scale, floor_y-4*person_scale,
+                                   person_x+12*person_scale, floor_y+3*person_scale,
                                    fill="#766d5d", width=0)
-                canvas.create_polygon(person_x-8*scale, floor_y-31*scale,
-                                      person_x+8*scale, floor_y-31*scale,
-                                      person_x+11*scale, floor_y-7*scale,
-                                      person_x-11*scale, floor_y-7*scale,
+                canvas.create_polygon(person_x-8*person_scale, floor_y-31*person_scale,
+                                      person_x+8*person_scale, floor_y-31*person_scale,
+                                      person_x+11*person_scale, floor_y-7*person_scale,
+                                      person_x-11*person_scale, floor_y-7*person_scale,
                                       fill=coat)
-                canvas.create_oval(person_x-7*scale, floor_y-47*scale,
-                                   person_x+7*scale, floor_y-30*scale,
+                canvas.create_oval(person_x-7*person_scale, floor_y-47*person_scale,
+                                   person_x+7*person_scale, floor_y-30*person_scale,
                                    fill=skin_tone, width=0)
-                canvas.create_arc(person_x-7*scale, floor_y-48*scale,
-                                  person_x+7*scale, floor_y-35*scale,
+                canvas.create_arc(person_x-7*person_scale, floor_y-48*person_scale,
+                                  person_x+7*person_scale, floor_y-35*person_scale,
                                   start=0, extent=180, fill=hair_tone, outline=hair_tone)
-                canvas.create_line(person_x-6*scale, floor_y-23*scale,
-                                   person_x, floor_y-17*scale, person_x+5*scale, floor_y-23*scale,
-                                   fill=skin_tone, width=max(1, 3*scale))
+                canvas.create_line(person_x-6*person_scale, floor_y-23*person_scale,
+                                   person_x, floor_y-17*person_scale, person_x+5*person_scale, floor_y-23*person_scale,
+                                   fill=skin_tone, width=max(1, 3*person_scale))
             left, right = seats[0]-17*scale, seats[-1]+17*scale
             canvas.create_rectangle(left, floor_y-12*scale, right, floor_y-5*scale,
                                     fill="#684a35", width=0)
@@ -66,7 +67,8 @@ def draw_prayer(canvas, profile, body_colors, hair_colors, costumes):
     canvas.create_oval(393, 166, 406, 179, fill="#dbab83", width=0)
     canvas.create_line(449, 119, 452, 119, fill="#423229", width=2)
     canvas.create_line(463, 119, 466, 119, fill="#423229", width=2)
-    canvas.create_line(452, 128, 461, 128, fill="#8d5745", width=1)
+    canvas.create_arc(451, 122, 464, 131, start=200, extent=140,
+                      style="arc", outline="#8d5745", width=2)
     canvas.create_rectangle(398, 305, 514, 324, fill="#d4c6a9", width=0)
     canvas.create_text(457, 37, text="Priest", fill="#f6e4b2", font=("Segoe UI", 13, "bold"))
     skin = body_colors[profile["body"]]
@@ -96,6 +98,8 @@ def draw_prayer(canvas, profile, body_colors, hair_colors, costumes):
     canvas.create_oval(287, 237, 298, 255, fill=skin, width=0)
     canvas.create_oval(297, 237, 305, 255, fill=skin, width=0)
     canvas.create_line(259, 225, 264, 227, fill="#383434", width=2)
+    canvas.create_arc(254, 231, 266, 240, start=200, extent=140,
+                      style="arc", outline="#8d5745", width=2)
     canvas.create_text(246, 375, text=profile["name"], fill="#fff2d5", font=("Segoe UI", 13, "bold"))
 
 
