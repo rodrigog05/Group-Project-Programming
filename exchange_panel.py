@@ -185,7 +185,7 @@ class ExchangePanel:
         self.heading = tk.Label(body, text="Baixa-Chiado  ·  CITY EXCHANGE  ·  Invest in the activity of Lisbon",
                                 bg=BG, fg=MUTED, font=("Segoe UI", 10), anchor="w", justify="left")
         self.heading.pack(fill="x", pady=(0, 7))
-        self.market_board = tk.Canvas(body, height=142, bg=BOARD, highlightthickness=1,
+        self.market_board = tk.Canvas(body, height=270, bg=BOARD, highlightthickness=1,
                                       highlightbackground="#31465e", relief="flat")
         self.market_board.pack(fill="x", pady=(0, 11))
         self.market_board.bind("<Configure>", lambda event: self._draw_market_board())
@@ -315,28 +315,95 @@ class ExchangePanel:
         self.timer = self.panel.after(1000, self.refresh)
 
     def _draw_market_board(self):
+        """Paint a light-weight perspective trading hall and its live quote wall."""
         board = getattr(self, "market_board", None)
         if board is None or not board.winfo_exists() or not self.rows:
             return
         board.delete("all")
         width = max(1, board.winfo_width())
-        board.create_text(16, 13, text="LIVE MARKET  ·  LISBON EXCHANGE", anchor="nw",
-                          fill=BLUE, font=("Segoe UI", 9, "bold"))
-        cell_width = max(1, (width-28)//4)
+        height = max(1, board.winfo_height())
+        center = width / 2
+        horizon = height * 0.67
+
+        # Room shell: ceiling, side walls and a deep floor converging on the quote wall.
+        board.create_polygon(0, 0, width, 0, width*.84, horizon, width*.16, horizon,
+                            fill="#17283b", outline="")
+        board.create_polygon(0, 0, width*.16, horizon, width*.16, height,
+                            0, height, fill="#20364a", outline="")
+        board.create_polygon(width, 0, width*.84, horizon, width*.84, height,
+                            width, height, fill="#1b3044", outline="")
+        board.create_polygon(0, height, width, height, width*.84, horizon,
+                            width*.16, horizon, fill="#263344", outline="")
+
+        # Ceiling beams and tall windows on the side walls add perspective and scale.
+        for fraction in (.08, .31, .69, .92):
+            bx = width*fraction
+            board.create_line(bx, 0, center+(bx-center)*.84, horizon,
+                              fill="#30445a", width=max(1, int(width/900)))
+        for side in (0, 1):
+            outer = 0 if side == 0 else width
+            inner = width*.14 if side == 0 else width*.86
+            for window_index in range(3):
+                t = .17 + window_index*.22
+                wx = outer + (inner-outer)*t
+                edge = wx + (14 if side == 0 else -14)
+                board.create_polygon(wx, height*.16, edge, height*.18,
+                                     edge, height*.49, wx, height*.47,
+                                     fill="#31516a", outline="#7892a3", width=1)
+                board.create_line(wx, height*.32, edge, height*.33,
+                                  fill="#9db0b7", width=1)
+
+        # Perspective floor tiles lead the eye to the center of the room.
+        for fraction in (0, .2, .4, .6, .8, 1):
+            edge_x = width*fraction
+            board.create_line(center, horizon, edge_x, height,
+                              fill="#465366", width=1)
+        for fraction in (.12, .28, .48, .71, .91):
+            y = horizon + (height-horizon)*fraction
+            half = (width*.34)*fraction
+            board.create_line(center-half, y, center+half, y,
+                              fill="#3a485b", width=1)
+
+        # Framed electronic board mounted on the far wall.
+        left, right = width*.19, width*.81
+        top, bottom = height*.12, height*.57
+        board.create_polygon(left-8, top-7, right+8, top-7, right+3, bottom+8,
+                            left-3, bottom+8, fill="#0a1422", outline="#52627a", width=2)
+        board.create_rectangle(left, top, right, bottom, fill="#091523",
+                               outline="#687e91", width=1)
+        board.create_text(left+12, top+8, text="BOLSA DE LISBOA  ·  LIVE MARKET",
+                          anchor="nw", fill=BLUE, font=("Segoe UI", 9, "bold"))
+        columns = 4
+        cell_width = (right-left-20)/columns
+        card_height = (bottom-top-42)/2
         for index, row in enumerate(self.rows[:7]):
-            column, row_index = index % 4, index // 4
-            x, y = 14 + column*cell_width, 39 + row_index*49
+            column, row_index = index % columns, index // columns
+            x = left+10+column*cell_width
+            y = top+31+row_index*card_height
             asset = ASSET_BY_SYMBOL[row["symbol"]]
-            color = GREEN if row["activity"] else GOLD
-            board.create_text(x, y, text=asset.symbol, anchor="nw", fill=TEXT,
-                              font=("Segoe UI", 9, "bold"))
-            board.create_text(x+cell_width-10, y, text=f'BUY ${row["ask"]:,}', anchor="ne",
-                              fill=color, font=("Segoe UI", 10, "bold"))
-            board.create_text(x, y+22, text=f'ACT {row["activity"]}  ·  SELL ${row["bid"]:,}',
-                              anchor="nw", fill=MUTED, font=("Segoe UI", 8, "bold"))
-            if column < 3 and index < len(self.rows)-1:
-                board.create_line(x+cell_width-8, y, x+cell_width-8, y+39,
-                                  fill="#26384b", width=1)
+            accent = GREEN if row["activity"] else GOLD
+            board.create_rectangle(x, y, x+cell_width-6, y+card_height-4,
+                                   fill="#132337", outline="#253c52", width=1)
+            board.create_text(x+7, y+4, text=asset.symbol, anchor="nw",
+                              fill=TEXT, font=("Segoe UI", 8, "bold"))
+            board.create_text(x+cell_width-13, y+3, text=f'BUY ${row["ask"]:,}', anchor="ne",
+                              fill=accent, font=("Segoe UI", 9, "bold"))
+            board.create_text(x+7, y+card_height*.54,
+                              text=f'ACT {row["activity"]}  ·  SELL ${row["bid"]:,}',
+                              anchor="nw", fill=MUTED, font=("Segoe UI", 7))
+
+        # Tiny broker silhouettes give the hall a human scale without animated load.
+        for fx, scale in ((.36, .72), (.43, .93), (.57, .84), (.64, .68)):
+            px = width*fx
+            py = horizon + height*.13*scale
+            radius = max(2, height*.018*scale)
+            board.create_oval(px-radius, py-radius*3, px+radius, py-radius,
+                              fill="#d5b98c", outline="")
+            board.create_polygon(px-radius*1.3, py-radius*.8, px+radius*1.3, py-radius*.8,
+                                 px+radius*1.8, py+radius*3.5, px-radius*1.8, py+radius*3.5,
+                                 fill="#172536", outline="")
+        board.create_rectangle(0, height-5, width, height,
+                               fill="#b27c46", outline="")
 
     def _resized(self, event):
         if event.widget is self.panel:
