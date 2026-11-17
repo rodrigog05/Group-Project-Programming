@@ -17,19 +17,27 @@ class WayfindingTest(unittest.TestCase):
             with self.subTest(site=site.name):
                 self.assertTrue(guide.instruction)
                 if site.role == "SUPPLIER":
-                    self.assertEqual((guide.stage, guide.marker), ("buy", "1"))
+                    self.assertEqual(guide.stage, "buy")
                     self.assertIn(TRADES[site.trade].supply, guide.detail)
                 elif site.role == "FACTORY":
-                    self.assertEqual((guide.stage, guide.marker), ("make", "2"))
+                    self.assertEqual(guide.stage, "make")
                     self.assertIn(TRADES[site.trade].supply, guide.detail)
                     self.assertIn(TRADES[site.trade].product, guide.detail)
                 elif site.role == "PUBLIC SHOP":
-                    self.assertEqual((guide.stage, guide.marker), ("sell", "3"))
+                    self.assertEqual(guide.stage, "sell")
                     self.assertIn(TRADES[site.trade].product, guide.detail)
                     self.assertIn("does not buy raw materials", guide.instruction)
         main = STAGES[:3]
+        # Buy, make and sell are told apart by color and plain words, without numbers.
         self.assertEqual(len({stage.color for stage in main}), 3)
-        self.assertEqual(len({stage.marker for stage in main}), 3)
+        self.assertEqual([stage.title for stage in main], ["BUY MATERIALS", "MAKE PRODUCTS", "SELL PRODUCTS"])
+
+    def test_signs_have_no_step_numbers(self):
+        for site in SITES:
+            badge = site_guide(site).badge
+            with self.subTest(site=site.name, badge=badge):
+                self.assertFalse(any(character.isdigit() for character in badge))
+                self.assertEqual(badge, badge.strip())
 
     def test_farms_explain_both_wheat_and_egg_purchase_controls(self):
         for site in SITES:
@@ -42,7 +50,7 @@ class WayfindingTest(unittest.TestCase):
     def test_special_places_explain_same_place_collection_sale_or_payment(self):
         for role in ("PASTELARIA", "SHIPYARD", "TIER2"):
             guide = site_guide(SimpleNamespace(role=role, trade=-1))
-            self.assertEqual((guide.stage, guide.marker), ("special", "2+3"))
+            self.assertEqual(guide.stage, "special")
             self.assertIn("here", guide.instruction)
             self.assertIn("collect", guide.instruction)
         for role, recipe in INDUSTRIES.items():
@@ -63,9 +71,8 @@ class WayfindingTest(unittest.TestCase):
 
     def test_exchange_explains_shares_controls_and_dividend_source(self):
         guide = site_guide(SimpleNamespace(role="EXCHANGE", trade=-1))
-        self.assertEqual((guide.stage, guide.marker, guide.title),
-                         ("services", "$", "STOCK EXCHANGE"))
-        self.assertEqual(guide.badge, "$  STOCK EXCHANGE")
+        self.assertEqual((guide.stage, guide.title), ("services", "STOCK EXCHANGE"))
+        self.assertEqual(guide.badge, "STOCK EXCHANGE")
         self.assertIn("District", guide.detail)
         self.assertIn("infrastructure", guide.detail)
         self.assertIn("Press E to buy or sell", guide.instruction)
@@ -75,8 +82,7 @@ class WayfindingTest(unittest.TestCase):
 
     def test_research_campus_explains_both_progression_branches_and_workshop(self):
         guide = site_guide(SimpleNamespace(role="RESEARCH", trade=-1))
-        self.assertEqual((guide.stage, guide.marker, guide.title),
-                         ("services", "R", "INOVAÇÃO"))
+        self.assertEqual((guide.stage, guide.title), ("services", "INOVAÇÃO"))
         for text in ("Press E", "Nova SBE", "Carcavelos", "cash", "active play time",
                      "Green Energy", "taxes", "Advanced Metallurgy", "tier-3", "collect", "sell"):
             self.assertIn(text, guide.instruction)
@@ -97,7 +103,7 @@ class WayfindingTest(unittest.TestCase):
         scene.building(site)
         self.assertIn("NOVA SBE", labels)
         self.assertIn("CARCAVELOS", labels)
-        self.assertIn("R  INOVAÇÃO", labels)
+        self.assertIn("INOVAÇÃO", labels)
         self.assertIn("E  research + workshop", labels)
         labels.clear()
         scene.light_research_building(site, lambda *args: None)
