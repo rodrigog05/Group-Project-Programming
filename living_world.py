@@ -475,10 +475,11 @@ class LivingWorld:
         if style != self.player_style:
             c.delete("player")
             if town.vehicle:
-                draw_player_vehicle(c, town.vehicle, town.facing)
+                draw_player_vehicle(c, town.vehicle, town.facing, town.profile, body_colors, costumes)
             vehicle_items = len(c.find_withtag("player"))
-            draw_character(c, town.profile, body_colors, hair_colors, costumes, 0, 0,
-                           facing=town.facing, tag="player")
+            if not town.vehicle:
+                draw_character(c, town.profile, body_colors, hair_colors, costumes, 0, 0,
+                               facing=town.facing, tag="player")
             self.player_parts = c.find_withtag("player")[vehicle_items:]
             c.scale("player", 0, 0, zoom, zoom)
             self.player_style = style
@@ -489,6 +490,8 @@ class LivingWorld:
         if (x, y) != (old_x, old_y):
             c.move("player", x-old_x, y-old_y)
             self.player_position = (x, y)
+        if town.vehicle:
+            return
         stride = round(math.sin(town.elapsed*13)*3*zoom, 1) if moving else 0
         if stride != self.player_stride:
             for side, leg, foot in ((-1, 1, 2), (1, 3, 4)):
