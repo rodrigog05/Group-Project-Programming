@@ -20,23 +20,23 @@ def draw_prayer(canvas, profile, body_colors, hair_colors, costumes):
     canvas.create_rectangle(0, 340, 640, 400, fill="#a79982", width=0)
     canvas.create_polygon(260, 400, 405, 310, 525, 310, 640, 400,
                           fill="#72594a", width=0)
-    # A peaceful depiction of Jesus beside the altar, facing the praying player.
-    canvas.create_oval(412, 50, 502, 140, outline="#dfc17d", width=4)
-    canvas.create_rectangle(450, 80, 464, 165, fill="#775137", width=0)
-    canvas.create_rectangle(424, 102, 491, 114, fill="#775137", width=0)
-    canvas.create_oval(435, 92, 478, 145, fill="#694533", width=0)
+    # The priest welcomes the praying player beside the altar.
+    canvas.create_oval(440, 94, 474, 137, fill="#8e8b82", width=0)
     canvas.create_oval(442, 99, 472, 135, fill="#dbab83", width=0)
+    canvas.create_arc(441, 95, 473, 122, start=0, extent=180,
+                      fill="#8e8b82", outline="#8e8b82")
     canvas.create_polygon(439, 139, 476, 139, 502, 300, 414, 300,
-                          fill="#efe5cc", outline="#d3c4aa", width=2)
-    canvas.create_polygon(470, 140, 480, 142, 493, 288, 468, 298,
-                          fill="#a25445", width=0)
-    canvas.create_line(440, 158, 422, 189, 401, 175, fill="#efe5cc", width=13)
+                          fill="#242830", outline="#555b63", width=2)
+    canvas.create_rectangle(451, 139, 464, 145, fill="#faf4e6", width=0)
+    canvas.create_polygon(443, 148, 449, 149, 442, 261, 435, 259, fill="#9365aa")
+    canvas.create_polygon(469, 148, 475, 148, 488, 259, 481, 261, fill="#9365aa")
+    canvas.create_line(440, 158, 422, 189, 401, 175, fill="#242830", width=13)
     canvas.create_oval(393, 166, 406, 179, fill="#dbab83", width=0)
     canvas.create_line(449, 119, 452, 119, fill="#423229", width=2)
     canvas.create_line(463, 119, 466, 119, fill="#423229", width=2)
-    canvas.create_polygon(446, 127, 457, 140, 468, 127, 458, 132, fill="#694533")
+    canvas.create_line(452, 128, 461, 128, fill="#8d5745", width=1)
     canvas.create_rectangle(398, 305, 514, 324, fill="#d4c6a9", width=0)
-    canvas.create_text(457, 37, text="Jesus Christ", fill="#f6e4b2", font=("Segoe UI", 13, "bold"))
+    canvas.create_text(457, 37, text="Priest", fill="#f6e4b2", font=("Segoe UI", 13, "bold"))
     skin = body_colors[profile["body"]]
     hair = hair_colors[profile["hair"]]
     outfit, accessory = costumes[profile["costume"]]
@@ -60,14 +60,22 @@ def open_prayer(game):
         return
     from tycoon import BODY_COLORS, HAIR_COLORS, COSTUMES
     game.keys.clear()
-    panel = game.profile_window = tk.Toplevel(game.root)
-    panel.title("Mosteiro dos Jerónimos · Prayer")
-    panel.transient(game.root)
-    panel.resizable(False, False)
-    panel.grab_set()
-    canvas = tk.Canvas(panel, width=640, height=400, highlightthickness=0)
-    canvas.pack()
-    draw_prayer(canvas, game.town.profile, BODY_COLORS, HAIR_COLORS, COSTUMES)
+    panel = game.profile_window = tk.Frame(game.root, bg="#363c42")
+    panel.place(x=0, y=0, relwidth=1, relheight=1)
+    panel.lift()
+    canvas = tk.Canvas(panel, highlightthickness=0, bg="#363c42")
+    canvas.pack(fill="both", expand=True)
+
+    def render(event):
+        canvas.delete("all")
+        draw_prayer(canvas, game.town.profile, BODY_COLORS, HAIR_COLORS, COSTUMES)
+        scale_x, scale_y = event.width / 640, event.height / 400
+        canvas.scale("all", 0, 0, scale_x, scale_y)
+        for item in canvas.find_all():
+            if canvas.type(item) == "text":
+                canvas.itemconfigure(item, font=("Segoe UI", max(8, round(13 * min(scale_x, scale_y))), "bold"))
+
+    canvas.bind("<Configure>", render)
 
     def close():
         game.keys.clear()
@@ -75,6 +83,7 @@ def open_prayer(game):
         panel.destroy()
         game.root.focus_set()
 
-    tk.Button(panel, text="Return to Lisboa", command=close).pack(pady=10)
+    tk.Button(panel, text="Return to Lisboa  ·  Esc", command=close).place(
+        relx=0.02, rely=0.03, anchor="nw")
     panel.bind("<Escape>", lambda event: close())
-    panel.protocol("WM_DELETE_WINDOW", close)
+    panel.focus_set()
