@@ -20,6 +20,38 @@ def draw_prayer(canvas, profile, body_colors, hair_colors, costumes):
     canvas.create_rectangle(0, 340, 640, 400, fill="#a79982", width=0)
     canvas.create_polygon(260, 400, 405, 310, 525, 310, 640, 400,
                           fill="#72594a", width=0)
+    # Congregants occupy both sides of the aisle, with nearer pews drawn last.
+    for row, (floor_y, scale) in enumerate(((258, .65), (292, .8), (327, .95))):
+        for side, seats in enumerate(((65, 105, 145), (530, 568, 605))):
+            for seat, person_x in enumerate(seats):
+                coat = ("#657b80", "#866653", "#6d6380", "#74794f")[(row+side+seat) % 4]
+                skin_tone = ("#deb08a", "#b9825e", "#895d46")[(row+seat) % 3]
+                hair_tone = ("#544539", "#c4b8a1", "#3b3431")[(side+seat) % 3]
+                canvas.create_oval(person_x-10*scale, floor_y-4*scale,
+                                   person_x+12*scale, floor_y+3*scale,
+                                   fill="#766d5d", width=0)
+                canvas.create_polygon(person_x-8*scale, floor_y-31*scale,
+                                      person_x+8*scale, floor_y-31*scale,
+                                      person_x+11*scale, floor_y-7*scale,
+                                      person_x-11*scale, floor_y-7*scale,
+                                      fill=coat)
+                canvas.create_oval(person_x-7*scale, floor_y-47*scale,
+                                   person_x+7*scale, floor_y-30*scale,
+                                   fill=skin_tone, width=0)
+                canvas.create_arc(person_x-7*scale, floor_y-48*scale,
+                                  person_x+7*scale, floor_y-35*scale,
+                                  start=0, extent=180, fill=hair_tone, outline=hair_tone)
+                canvas.create_line(person_x-6*scale, floor_y-23*scale,
+                                   person_x, floor_y-17*scale, person_x+5*scale, floor_y-23*scale,
+                                   fill=skin_tone, width=max(1, 3*scale))
+            left, right = seats[0]-17*scale, seats[-1]+17*scale
+            canvas.create_rectangle(left, floor_y-12*scale, right, floor_y-5*scale,
+                                    fill="#684a35", width=0)
+            canvas.create_rectangle(left, floor_y-5*scale, right, floor_y-2*scale,
+                                    fill="#a77b50", width=0)
+            for leg in (left+5*scale, right-5*scale):
+                canvas.create_line(leg, floor_y-3*scale, leg, floor_y+5*scale,
+                                   fill="#533b2b", width=3*scale)
     # The priest welcomes the praying player beside the altar.
     canvas.create_oval(440, 94, 474, 137, fill="#8e8b82", width=0)
     canvas.create_oval(442, 99, 472, 135, fill="#dbab83", width=0)
