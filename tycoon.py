@@ -411,8 +411,8 @@ class Town:
         self.notice_until = self.elapsed+4
         return True
 
-    def congratulate(self, quantity, item):
-        self.notice = f"Congratulations {self.profile['name']}, you just collect {quantity} {item}"
+    def congratulate(self, quantity, item, action="collected"):
+        self.notice = f"Congratulations {self.profile['name']}, you just {action} {quantity} {item}"
         self.notice_until = self.elapsed + 4
 
     def start_research(self, branch):
@@ -892,7 +892,7 @@ class Town:
                 self.tier2_total_sold += quantity
                 self.tier2_revenue_today += revenue
                 self.message = f"Sold {quantity} × Precision Machinery for ${revenue}."
-                self.congratulate(quantity, "precision machinery")
+                self.congratulate(quantity, "precision machinery", action="sold")
                 record_trade(self, site, quantity)
                 self.add_cash(revenue, business=True)
                 return
@@ -966,7 +966,7 @@ class Town:
             self.total_sold[index] += quantity
             self.revenue_today[index] += revenue
             self.message = f"Sold {quantity} × {trade.product} to customers for ${revenue}."
-            self.congratulate(quantity, trade.product.lower())
+            self.congratulate(quantity, trade.product.lower(), action="sold")
             record_trade(self, site, quantity)
             self.add_cash(revenue, business=True)
 
