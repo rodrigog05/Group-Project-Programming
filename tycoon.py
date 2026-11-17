@@ -80,7 +80,7 @@ RULES_TEXT = (
     "LISBOA\n"
     "Cross the Tejo using Ponte 25 de Abril or Ponte Vasco da Gama. The yellow elétrico travels along the north bank. "
     "Visit Mosteiro dos Jerónimos, Castelo de São Jorge, Torre de Belém and Praça do Comércio. "
-    "Building signs follow 1 BUY RAW MATERIALS → 2 MAKE PRODUCTS → 3 SELL PRODUCTS. "
+    "Colored building signs show the trading loop: BUY MATERIALS (orange) → MAKE PRODUCTS (blue) → SELL PRODUCTS (green). "
     "Open Places (P) to see recipes and locations, then choose Guide me here for a destination marker. "
     "Press J or click Journal to track recipes you have discovered, read landmark and Tejo history, "
     "and check current market stock, orders, prices and buyers. Talk to a production building with E to record its recipe. "
@@ -114,7 +114,7 @@ RULES_TEXT = (
     "AUTOMATED DELIVERIES\n"
     "Click Deliveries or press L to buy and assign a delivery van ($320, 6 items) or drone ($600, 3 items). "
     "Choose a raw-material supplier and a factory that uses that material: Goldenfield Farm → Sunrise Bakery "
-    "for Wheat, Pine Mill or Marvila Timber Depot → Oak Workshop for Timber. Each departure buys materials "
+    "for Wheat, Pine Mill → Oak Workshop for Timber. Each departure buys materials "
     "at current prices and charges a $1 van / $2 drone operating fee. Vans follow roads and pay normal "
     "northbound bridge tolls; drones fly directly. Factories automatically process deliveries into their own "
     "storage, separate from your bag. Visit the factory and press E to collect output, then sell at a market. "
@@ -313,7 +313,6 @@ SITES = (
     Site("Foundry Warehouse", "WAREHOUSE", -1, 988, 160, "#d2a7e5"),
     Site("Pastéis de Belém", "PASTELARIA", -1, 28, 160, "#f1d69b"),
     Site("Estaleiro do Tejo", "SHIPYARD", -1, 380, 935, "#94bdc9"),
-    Site("Marvila Timber Depot", "SUPPLIER", 1, 1280, 345, "#d6a46e"),
     Site("Oriente Tool Market", "PUBLIC SHOP", 0, 1820, 345, "#72d8bc"),
     Site("Mercado das Nações", "PUBLIC SHOP", 2, 2080, 530, "#d2a7e5"),
     Site("Quinta de Palmela", "SUPPLIER", 3, 2060, 1430, "#e3c77e"),

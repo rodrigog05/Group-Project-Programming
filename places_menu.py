@@ -165,7 +165,8 @@ def open_places(game, sites):
         horizontal.grid(row=1, column=0, sticky="ew")
         lookup = {}
         for index, entry in enumerate(rows[key]):
-            item = tree.insert("", "end", iid=str(index), values=(f"{entry.marker} · {entry.name}", entry.detail, entry.neighborhood))
+            name = f"{entry.marker} · {entry.name}" if entry.marker else entry.name
+            item = tree.insert("", "end", iid=str(index), values=(name, entry.detail, entry.neighborhood))
             lookup[item] = entry
         if lookup:
             first = next(iter(lookup))

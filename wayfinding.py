@@ -14,12 +14,13 @@ class Stage:
     color: str
 
 
+# Signs use plain words and colors; numbered steps made the town harder to read.
 STAGES = (
-    Stage("buy", "1", "BUY RAW MATERIALS", "#96620c"),
-    Stage("make", "2", "MAKE PRODUCTS", "#23679b"),
-    Stage("sell", "3", "SELL PRODUCTS", "#167253"),
-    Stage("special", "2+3", "MAKE + SELL", "#724b94"),
-    Stage("services", "+", "TOWN SERVICES", "#526274"),
+    Stage("buy", "", "BUY MATERIALS", "#96620c"),
+    Stage("make", "", "MAKE PRODUCTS", "#23679b"),
+    Stage("sell", "", "SELL PRODUCTS", "#167253"),
+    Stage("special", "", "MAKE & SELL", "#724b94"),
+    Stage("services", "", "TOWN SERVICES", "#526274"),
     Stage("residential", "", "LISBOA HOMES", "#5d7060"),
 )
 STAGE_BY_KEY = {stage.key: stage for stage in STAGES}
@@ -72,7 +73,7 @@ def _guide(role, trade):
     if role == "SHIPYARD":
         return _description("special", "2 Timber + 2 Iron ore → Repair",
                             "Bring 2 Timber + 2 Iron ore and press E to start a boat repair. Return after 20 seconds and press E to collect payment here.",
-                            title="REPAIR + GET PAID")
+                            title="BOAT REPAIRS")
     if role == "GARAGE":
         return _description("services", "Cars, vans + motorcycles",
                             "Press E to buy a motorcycle ($120), car ($240) or delivery van ($360). "
@@ -81,12 +82,12 @@ def _guide(role, trade):
     if role == "WAREHOUSE":
         return _description("services", "Increase your bag capacity", "Press E to buy more storage when your bag is full.", title="BUY STORAGE")
     if role == "EXCHANGE":
-        return SiteGuide("services", "$", "STOCK EXCHANGE", "#947123",
+        return SiteGuide("services", "", "STOCK EXCHANGE", "#947123",
                          "District + infrastructure shares",
                          "Press E to buy or sell shares in districts, bridge tolls and the tram network. "
                          "Owned shares earn dividends from city activity.")
     if role == "RESEARCH":
-        return SiteGuide("services", "R", "INOVAÇÃO", "#246b80",
+        return SiteGuide("services", "", "INOVAÇÃO", "#246b80",
                          "Research + tier-3 workshop",
                          "Press E at Nova SBE in Carcavelos to fund research with cash and active play time. "
                          "Green Energy lowers operating taxes; Advanced Metallurgy unlocks tier-3 recipes. "

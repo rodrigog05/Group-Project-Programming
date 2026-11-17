@@ -90,7 +90,9 @@ class Painter:
         key = size, bold
         if key not in self.fonts:
             font_name = "segoeuib.ttf" if bold else "segoeui.ttf"
+            # Segoe UI on Windows; Arial on macOS, whose fallback bitmap font is tiny and never bold.
             candidates = (Path("C:/Windows/Fonts")/font_name,
+                          Path("/System/Library/Fonts/Supplemental")/("Arial Bold.ttf" if bold else "Arial.ttf"),
                           Path("/usr/share/fonts/truetype/dejavu")/("DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf"))
             font_path = next((p for p in candidates if p.exists()), None)
             self.fonts[key] = ImageFont.truetype(str(font_path), round(size*4/3*self.scale)) if font_path else ImageFont.load_default()

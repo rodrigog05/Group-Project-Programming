@@ -300,9 +300,8 @@ class LivingWorld:
         for site in self.sites:
             x, y = point(site.x+88, site.y+52)
             guide = site_guide(site)
-            radius = 9 if len(guide.marker) > 1 else 6
-            c.create_oval(x-radius, y-6, x+radius, y+6, fill=guide.color, outline="#f0eadc", width=.6)
-            c.create_text(x, y, text=guide.marker, fill="#ffffff", font=(self.font, 6 if radius == 9 else 7, "bold"))
+            # Plain colored dots: the legend below names each color.
+            c.create_oval(x-5, y-5, x+5, y+5, fill=guide.color, outline="#f0eadc", width=.6)
         for landmark in LANDMARKS:
             x, y = point(*landmark.map_point)
             c.create_polygon(x, y-5, x+4, y, x, y+5, x-4, y,
@@ -312,7 +311,7 @@ class LivingWorld:
             c.create_rectangle(x-4, y-4, x+4, y+4, fill="#ffe0a1", outline="#6a5224", width=1)
             c.create_text(x, y, text="T", fill="#354f57", font=(self.font, 6, "bold"))
         for stage, x in zip(STAGES[:3], (12, 91, 177)):
-            c.create_text(x, 187, text=f"{stage.marker} {stage.key.upper()}", anchor="w",
+            c.create_text(x, 187, text=f"● {stage.key.upper()}", anchor="w",
                           fill={"buy": "#ffd177", "make": "#94d1ff", "sell": "#8de5bc"}[stage.key],
                           font=(self.font, 8, "bold"))
         c.create_text(12, 204, text="◆ Sights · T Tram · P Places", anchor="w", fill="#efe0bd", font=(self.font, 8))

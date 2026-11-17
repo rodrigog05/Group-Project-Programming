@@ -8,11 +8,19 @@ MAP_BOTTOM = 1080
 WORLD_WIDTH, WORLD_BOTTOM = 2400, 1600
 VASCO_NORTH_X = 2035
 BRIDGE_TOLL = 3
+# Plots without a business are apartment blocks, small parks or fountain squares,
+# so they never look like a shop the player could use.
+SCENERY_PLOTS = (
+    ((1540, 160), "flats"), ((1280, 345), "fountain"), ((2080, 345), "flats"),
+    ((700, 1180), "flats"), ((940, 1180), "park"), ((1280, 1180), "flats"), ((1800, 1180), "fountain"),
+    ((1280, 1430), "park"), ((1540, 1430), "flats"), ((1800, 1430), "park"),
+)
+FOUNTAIN_BASIN = (58, 26, 118, 74)  # Inside the 176 x 104 plot
+# Solid footprints: whole apartment blocks and fountain basins. Parks are walkable.
 SCENERY_BLOCKS = tuple(
-    (x, y, x+176, y+104)
-    for x, y in ((1540, 160), (2080, 345),
-                 (700, 1180), (940, 1180),
-                 (1280, 1180), (1800, 1180), (1280, 1430), (1540, 1430), (1800, 1430))
+    (x, y, x+176, y+104) if kind == "flats"
+    else (x+FOUNTAIN_BASIN[0], y+FOUNTAIN_BASIN[1], x+FOUNTAIN_BASIN[2], y+FOUNTAIN_BASIN[3])
+    for (x, y), kind in SCENERY_PLOTS if kind != "park"
 )
 
 
@@ -141,13 +149,120 @@ class LisbonScene:
         self.residential_blocks(north=True)
 
     def residential_blocks(self, north):
-        from types import SimpleNamespace
-        for index, bounds in enumerate(SCENERY_BLOCKS):
-            x, y, right, bottom = bounds
+        for index, ((x, y), kind) in enumerate(SCENERY_PLOTS):
             if (y < RIVER_TOP) != north:
                 continue
-            self.building(SimpleNamespace(bounds=bounds, door=(x+88, bottom), x=x, y=y,
-                                          trade=index % 4, role="RESIDENTIAL", name=""))
+            {"flats": self.flats, "park": self.park, "fountain": self.fountain_square}[kind](x, y, index)
+
+    FLAT_COLORS = ("#e7d3a1", "#c9dfe0", "#eac2b3", "#d8e2c6", "#f1e9d8")
+
+    def flat_windows(self, x, y):
+        """Window rectangles of an apartment block: four floors of five."""
+        return [(x+18+column*29, y-4+floor*24) for floor in range(4) for column in range(5)]
+
+    def flats(self, x, y, index):
+        """A four-storey apartment block: taller than the shops, flat roof, no shopfront."""
+        right, bottom = x+176, y+104
+        wall = self.FLAT_COLORS[index % len(self.FLAT_COLORS)]
+        rng = random.Random(index)
+        # The roofline stays below the street above, level with the other buildings' signs.
+        self.poly((x+12, y-6, right+4, y-6, right+4, bottom+8, x+12, bottom+8), "#bfb69e")
+        self.rect(x+8, y-14, right-8, bottom, wall)
+        self.rect(right-17, y-11, right-8, bottom, "#afaa97")
+        # Flat roof with a parapet, a water tank and a stairwell hut.
+        self.rect(x+4, y-22, right-4, y-14, "#9a958a")
+        self.rect(x+4, y-22, right-4, y-20, "#c9c2b0")
+        self.rect(x+24, y-21, x+46, y-15, "#7d8a8c")
+        self.rect(right-48, y-21, right-30, y-15, "#b3ab9a")
+        for window_x, window_y in self.flat_windows(x, y):
+            self.rect(window_x-2, window_y-2, window_x+20, window_y+15, "#efe6d2")
+            self.rect(window_x, window_y, window_x+18, window_y+13, "#5f7d82")
+            self.rect(window_x+2, window_y+2, window_x+8, window_y+8, "#a5c0bb")
+            if (window_x-x) % 58 == 18:
+                # Wrought-iron balcony rail.
+                self.line((window_x-3, window_y+16, window_x+21, window_y+16), "#4e625e", 2)
+        # Washing hung out to dry on one balcony.
+        line_x, line_y = x+18+rng.randrange(0, 3)*58, y-4+rng.randrange(1, 3)*24+15
+        self.line((line_x-3, line_y-6, line_x+21, line_y-6), "#7d7466")
+        for offset, color in ((0, "#d65655"), (7, "#86caff"), (14, "#f5efe2")):
+            self.rect(line_x+offset, line_y-6, line_x+offset+5, line_y, color)
+        # Ground floor: a plain residents' entrance, no trading sign or coloured doorstep.
+        self.rect(x+8, y+88, right-8, bottom, "#d8cfba")
+        self.rect(x+80, y+86, x+96, bottom, "#6d5a45")
+        self.rect(x+80, y+84, x+96, y+86, "#efe6d2")
+        self.rect(x+3, bottom+13, x+173, bottom+32, "#ede4cf")
+
+    def park(self, x, y, index):
+        """A small neighbourhood garden with a path, benches and flower beds."""
+        right, bottom = x+176, y+104
+
+        # Every other park is mirrored so neighbouring gardens look different.
+        mirrored = sum(kind == "park" for _, kind in SCENERY_PLOTS[:index]) % 2 == 1
+
+        def across(offset):
+            return right-offset if mirrored else x+offset
+
+        self.rect(x, y, right, bottom, "#9db584")
+        self.rect(x+4, y+4, right-4, bottom-4, "#b7c99a")
+        self.line((across(4), bottom-22, across(60), y+50, across(120), y+58, across(172), y+20),
+                  "#ece3c7", 11, smooth=True)
+        for bed_x, bed_y, color in ((across(30), y+22, "#e8807a"), (across(132), y+76, "#f1cf6b"),
+                                    (across(92), y+86, "#c69ae0")):
+            self.c.create_oval(bed_x-14, bed_y-7, bed_x+14, bed_y+7, fill="#7f9a6a", outline="", tags="city")
+            for dot in range(-9, 10, 6):
+                self.c.create_oval(bed_x+dot-2, bed_y-3, bed_x+dot+2, bed_y+1, fill=color, outline="", tags="city")
+        for bench_x, bench_y in ((across(64), y+36), (across(112), y+70)):
+            self.rect(bench_x-11, bench_y-3, bench_x+11, bench_y+2, "#8e6d4e")
+            self.rect(bench_x-11, bench_y-7, bench_x+11, bench_y-5, "#7a5c41")
+        for tree_x, tree_y, size in ((across(26), y+70, 15), (across(150), y+36, 14), (across(92), y+30, 12)):
+            self.tree(tree_x, tree_y, size)
+        self.text(x+88, bottom-10, "JARDIM", 7, "#5f7650", True, "center")
+
+    def fountain_square(self, x, y, index):
+        """A paved praça with wavy calçada and a fountain in the middle."""
+        right, bottom = x+176, y+104
+        self.rect(x, y, right, bottom, "#ede5d1")
+        for row in range(6):
+            wave_y = y+10+row*17
+            self.line([value for step in range(12) for value in (x+4+step*15.3, wave_y+4*math.sin(step*1.1+row))],
+                      "#596566", 2, smooth=True)
+        left, top, basin_right, basin_bottom = (x+FOUNTAIN_BASIN[0], y+FOUNTAIN_BASIN[1],
+                                                x+FOUNTAIN_BASIN[2], y+FOUNTAIN_BASIN[3])
+        self.c.create_oval(left-4, top-2, basin_right+4, basin_bottom+6, fill="#bfb69e", outline="", tags="city")
+        self.c.create_oval(left, top, basin_right, basin_bottom, fill="#d8cfba", outline="", tags="city")
+        self.c.create_oval(left+6, top+5, basin_right-6, basin_bottom-5, fill="#7fbac2", outline="", tags="city")
+        self.c.create_oval(left+14, top+11, basin_right-14, basin_bottom-11, fill="#9fd0d4", outline="", tags="city")
+        center_x, center_y = x+88, y+50
+        self.rect(center_x-4, center_y-18, center_x+4, center_y+2, "#d8cfba")
+        self.c.create_oval(center_x-9, center_y-24, center_x+9, center_y-16, fill="#cfc6b1", outline="", tags="city")
+        for side in (-1, 1):
+            self.line((center_x, center_y-22, center_x+side*10, center_y-34, center_x+side*20, center_y-14),
+                      "#bfe4ea", 2, smooth=True)
+        for bench_x, bench_y in ((x+22, y+20), (x+154, y+20), (x+22, y+86), (x+154, y+86)):
+            self.rect(bench_x-11, bench_y-3, bench_x+11, bench_y+2, "#8e6d4e")
+        for lamp_x in (x+8, right-8):
+            self.line((lamp_x, bottom-6, lamp_x, y+12), "#4a5455", 2)
+            self.c.create_oval(lamp_x-4, y+6, lamp_x+4, y+14, fill="#f1e6c2", outline="", tags="city")
+        self.text(x+88, bottom-6, "PRAÇA", 7, "#5f6a6a", True, "center")
+
+    def light_scenery(self, glow):
+        """Night pass for apartment windows, fountain lamps and lit water."""
+        c = self.c
+        for index, ((x, y), kind) in enumerate(SCENERY_PLOTS):
+            if kind == "flats":
+                rng = random.Random(index*7+1)
+                for window_x, window_y in self.flat_windows(x, y):
+                    if rng.random() < .6:
+                        c.create_rectangle(window_x, window_y, window_x+18, window_y+13,
+                                           fill=rng.choice(("#f3d49b", "#e7b96c", "#ffe5b7")),
+                                           outline="", tags="night_lights")
+                glow(x+88, y+92, 18)
+            elif kind == "fountain":
+                for lamp_x in (x+8, x+168):
+                    glow(lamp_x, y+10, 16)
+                glow(x+88, y+50, 26, "#bfe4ea")
+            else:
+                glow(x+88, y+52, 22, "#d8e8b0")
 
     def expanded_south(self):
         self.rect(0, 1085, WORLD_WIDTH, WORLD_BOTTOM, "#c5c9a6")
@@ -228,6 +343,7 @@ class LisbonScene:
             x = bridge_center(y, True)-42
             c.create_line(x-14, y, x+8, y, fill="#b0d1d2", stipple="gray25", width=2, tags="night_lights")
         glow(149, 930, 32, "#c5dde0")
+        self.light_scenery(glow)
         light_landmarks(self)
 
     def river(self):
@@ -397,7 +513,7 @@ class LisbonScene:
                           fill="#a3c9ca", width=1, tags="night_lights")
         c.create_rectangle(x-1, y-22, x+177, y-4,
                            fill="#246b80", outline="", tags="night_lights")
-        self.game.label(x+88, y-12, "R  INOVAÇÃO", 9, "#d9fff1", True,
+        self.game.label(x+88, y-12, "INOVAÇÃO", 9, "#d9fff1", True,
                         anchor="center", tag="night_lights")
         self.game.label(x+11, y+23, "NOVA SBE", 11, "#e2fff3", True,
                         anchor="w", tag="night_lights")
@@ -457,7 +573,7 @@ class LisbonScene:
         self.rect(x+8, y+72, right-11, bottom-4, "#314c55")
         self.text(x+15, y+81, site.name, 8, "#fff5df", True)
         if site.role != "RESIDENTIAL":
-            # The numbered signs make the trading loop readable without relying on color.
+            # Colored signs name each building's role in the trading loop.
             self.rect(x-1, y-22, right+1, y-4, guide.color)
             self.rect(x+2, y-19, right-2, y-17, "#f6e7bf")
             self.text(x+88, y-12, guide.badge, 9, "#ffffff", True, anchor="center")
