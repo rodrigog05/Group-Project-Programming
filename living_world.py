@@ -18,6 +18,7 @@ from tram import TRAM_STOPS
 from logistics_view import FleetView
 from business_signs import BusinessSigns
 from vehicles import CAR_SPEED_RANGE, ROAD_EXCLUSIONS, tunnel_covers_y
+from vehicle_art import draw_player_vehicle
 
 WORLD_TOP = 104
 STATUS_LABEL_RADIUS = 360
@@ -474,19 +475,7 @@ class LivingWorld:
         if style != self.player_style:
             c.delete("player")
             if town.vehicle:
-                if town.vehicle == "van":
-                    c.create_oval(-31, -10, 33, 16, fill="#7f887d", outline="", tags="player")
-                    c.create_polygon(-30, -18, 20, -18, 31, -8, 31, 11, -30, 11,
-                                     fill="#b8c9b5", outline="#56746c", width=1, tags="player")
-                    c.create_rectangle(-27, -14, -7, 8, fill="#e7e5cb", outline="#90a48f", tags="player")
-                    c.create_rectangle(12, -13, 22, -5, fill="#94c1d0", outline="", tags="player")
-                    c.create_text(-18, 1, text="FT", fill="#48675d", font=(self.font, 6, "bold"), tags="player")
-                    for wx in (-22, 22):
-                        c.create_oval(wx-4, 7, wx+4, 15, fill="#354a4d", outline="", tags="player")
-                else:
-                    c.create_oval(-24, -7, 25, 13, fill="#7f887d", outline="", tags="player")
-                    c.create_polygon(-24, -7, -16, -16, 17, -16, 25, -7, 25, 8, -24, 8,
-                                     smooth=True, fill="#87a8b1" if town.vehicle == "car" else "#ad6a5c", tags="player")
+                draw_player_vehicle(c, town.vehicle, town.facing)
             vehicle_items = len(c.find_withtag("player"))
             draw_character(c, town.profile, body_colors, hair_colors, costumes, 0, 0,
                            facing=town.facing, tag="player")
