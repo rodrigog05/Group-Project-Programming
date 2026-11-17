@@ -1,7 +1,7 @@
 """Reference-inspired vehicle silhouettes for the retained town renderer."""
 
 
-def draw_player_vehicle(canvas, kind, facing):
+def draw_player_vehicle(canvas, kind, facing, profile, body_colors, costumes):
     previous = set(canvas.find_withtag("player"))
 
     def polygon(points, color):
@@ -31,6 +31,18 @@ def draw_player_vehicle(canvas, kind, facing):
         line((16,-16,28,-15), "#24292e", 2)
         oval((15,-20,20,-17), "#303940")
         polygon((28,-5,33,-3,30,0,26,-1), "#f6e7b3")
+        # Seated rider: thigh reaches forward, shin folds back to the foot peg.
+        jacket, accent = costumes[profile["costume"]]
+        skin = body_colors[profile["body"]]
+        polygon((-10,-14,0,-15,14,-5,8,9,1,9,5,-3,-10,-7), "#45647d")
+        polygon((1,6,9,6,12,11,0,11), "#252c33")
+        polygon((-14,-17,-12,-35,0,-37,10,-22,1,-12), jacket)
+        line((-6,-32,4,-23,18,-18), jacket, 6)
+        oval((15,-20,21,-16), skin)
+        line((-11,-31,-4,-23), accent, 2)
+        oval((-10,-53,9,-34), "#242e38")
+        polygon((1,-49,9,-47,10,-41,1,-40), "#87a8b1")
+        line((-5,-51,2,-52), "#c9d1d4", 2)
     elif kind == "car":
         polygon((-36,-4,-29,-10,-11,-13,1,-22,18,-21,29,-10,37,-5,36,9,-34,9), "#b91d30")
         polygon((-35,-4,-13,-8,19,-8,35,-4,32,3,-32,3), "#e23845")
