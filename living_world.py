@@ -157,6 +157,8 @@ class LivingWorld:
         self.scene.create_tram()
         from casino_art import CasinoLights
         self.casino_lights = CasinoLights(c, self.sites, self.zoom)
+        from fountain_water import FountainWater
+        self.fountain_water = FountainWater(c, self.zoom)
         c.scale("tram", 0, 0, self.zoom, self.zoom)
         self.actors = []
         self.light_items = []
@@ -406,6 +408,7 @@ class LivingWorld:
 
     def render(self, body_colors, hair_colors, costumes):
         self.casino_lights.update(self.game.town.elapsed)
+        self.fountain_water.update(self.game.town.elapsed)
         now = time.perf_counter()
         dt, self.last_time = min(.15, now-self.last_time), now
         self.fps_frames += 1
