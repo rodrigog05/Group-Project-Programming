@@ -714,7 +714,7 @@ class Town:
     def purchase_vehicle(self, vehicle):
         ride = VEHICLES.get(vehicle)
         if ride is None:
-            self.message = "Choose a motorcycle, car or delivery van at the garage."
+            self.message = "Choose a motorcycle, car, delivery van or F1 car at the garage."
             return False
         if self.vehicle == vehicle:
             self.message = f"You already own this {ride.label.lower()}."
@@ -855,7 +855,7 @@ class Town:
             self.message = "Welcome to the Foundry Casino. Place your bets!"
             return
         if site.role == "GARAGE":
-            self.message = "Motorworks Garage · E to browse motorcycles, cars and delivery vans."
+            self.message = "Motorworks Garage · E to browse motorcycles, cars, vans and F1 cars."
             return
         if site.role == "WAREHOUSE":
             self.message = "Foundry Warehouse · E to expand your carrying capacity."

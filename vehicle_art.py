@@ -44,11 +44,14 @@ def draw_player_vehicle(canvas, kind, facing, profile, body_colors, costumes):
         polygon((1,-49,9,-47,10,-41,1,-40), "#87a8b1")
         line((-5,-51,2,-52), "#c9d1d4", 2)
     elif kind == "car":
-        polygon((-36,-4,-29,-10,-11,-13,1,-22,18,-21,29,-10,37,-5,36,9,-34,9), "#b91d30")
-        polygon((-35,-4,-13,-8,19,-8,35,-4,32,3,-32,3), "#e23845")
-        polygon((-9,-13,2,-20,16,-19,24,-11), "#263a45")
-        polygon((2,-18,14,-18,18,-12,0,-12), "#6a8c99")
-        polygon((20,-9,34,-6,29,-3,15,-5), "#f04850")
+        polygon((-37,-2,-32,-10,-23,-13,-12,-23,3,-25,14,-22,25,-12,35,-9,40,-2,37,9,-35,9), "#c51b2b")
+        polygon((-18,-14,-10,-21,2,-23,12,-20,23,-12), "#192c35")
+        polygon((-8,-20,2,-22,10,-20,18,-14,-5,-14), "#506a75")
+        polygon((-34,-7,-22,-10,-8,-9,7,-1,23,-8,36,-5,33,2,10,5,-12,1), "#ef3540")
+        polygon((-16,-4,-3,-3,10,2,17,0,11,6,-9,2), "#921523")
+        polygon((21,-9,34,-7,37,-4,26,-5), "#f9eacb")
+        polygon((30,1,40,-1,38,7,28,7), "#1b252c")
+        polygon((-37,-8,-28,-10,-26,-7,-37,-5), "#771321")
         polygon((-34,4,35,4,36,10,-34,10), "#292f35")
         polygon((28,-4,37,-3,35,-1,27,-2), "#f6f0cf")
         line((25,-7,35,-6), "#ffeec7", 2)
@@ -57,6 +60,25 @@ def draw_player_vehicle(canvas, kind, facing, profile, body_colors, costumes):
         line((11,-7,15,-7), "#c5bcc0")
         polygon((-29,-11,-18,-12,-17,-9,-30,-8), "#252f34")
         wheel_positions = (-23, 24)
+    elif kind == "f1":
+        # Open wheels, low nose, sidepods, halo and high rear wing.
+        polygon((-38,5,41,5,43,9,-39,9), "#171d29")
+        line((-28,7,29,7), "#8d9296", 2)
+        polygon((-31,3,-25,-13,-10,-16,-3,-24,7,-24,13,-9,36,-3,40,3), "#24264f")
+        polygon((-27,-8,-12,-13,4,-8,18,-3,9,3,-22,2), "#333e7d")
+        polygon((9,-8,34,-3,39,1,29,3,13,-1), "#efc62e")
+        polygon((-26,-10,-17,-14,-4,-11,5,-6,-7,-5), "#cf313e")
+        polygon((-37,-25,-22,-25,-22,-21,-37,-21), "#25283f")
+        line((-32,-22,-30,2), "#191f2c", 3)
+        polygon((30,3,43,3,43,6,29,6), "#24283b")
+        oval((-2,-24,8,-14), "#d4c235")
+        polygon((2,-22,8,-21,8,-18,3,-18), "#263a50")
+        line((-5,-12,-4,-23,9,-24,14,-13), "#151c28", 3)
+        for x in (-27, 28):
+            oval((x-10,-1,x+10,19), "#171c22")
+            oval((x-7,-.0,x+7,17), "#d5bd3e")
+            oval((x-5,2,x+5,15), "#343b44")
+            oval((x-2,6,x+2,11), "#6c7379")
     else:
         polygon((-36,-25,12,-25,28,-15,37,-6,37,10,-36,10), "#c7cecf")
         polygon((-33,-23,10,-23,10,6,-33,6), "#f3f3ed")
@@ -73,13 +95,13 @@ def draw_player_vehicle(canvas, kind, facing, profile, body_colors, costumes):
         line((32,3,37,3), "#77868b", 2)
         line((-36,-14,-36,-4), "#c34a40", 2)
         wheel_positions = (-24, 25)
-    if kind != "motorcycle":
+    if kind in ("car", "van"):
         for x in wheel_positions:
             oval((x-8, 2, x+8, 18), "#1c2228")
-            oval((x-5.5, 4.5, x+5.5, 15.5), "#b9c4c9")
+            oval((x-5.5, 4.5, x+5.5, 15.5), "#343b40" if kind == "car" else "#b9c4c9")
             oval((x-3, 7, x+3, 13), "#39434b")
             for dx, dy in ((0, 5), (4, 2), (3, -4)):
-                line((x-dx, 10-dy, x+dx, 10+dy), "#d7dedf", 1)
+                line((x-dx, 10-dy, x+dx, 10+dy), "#606970" if kind == "car" else "#d7dedf", 1)
             oval((x-1, 9, x+1, 11), "#d4b752" if kind == "car" else "#818c91")
     if facing < 0:
         for item in set(canvas.find_withtag("player")) - previous:
