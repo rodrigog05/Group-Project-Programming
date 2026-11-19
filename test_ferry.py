@@ -79,6 +79,16 @@ class FerryTest(unittest.TestCase):
         for site in SITES:
             self.assertTrue(any(math.hypot(x-site.door[0], y-site.door[1]) <= REACH for x, y in everywhere), site.name)
 
+    def test_ferry_scene_darkens_at_night_but_keeps_lights_bright(self):
+        from ferry_panel import LAMP, ScenePainter
+        night = ScenePainter.__new__(ScenePainter)
+        night.night = True
+        self.assertNotEqual(night.tint("#e07a2e"), "#e07a2e")
+        self.assertEqual(night.tint(LAMP, lit=True), LAMP)
+        day = ScenePainter.__new__(ScenePainter)
+        day.night = False
+        self.assertEqual(day.tint("#e07a2e"), "#e07a2e")
+
     def test_garage_salesperson_mentions_the_bridge_rule_to_walkers(self):
         town = Town()
         self.assertIn("vehicles only", greeting(town))
