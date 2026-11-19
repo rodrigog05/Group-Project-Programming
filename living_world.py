@@ -14,7 +14,7 @@ from windows_canvas import world_canvas
 from lisbon_landmarks import LANDMARKS
 from wayfinding import STAGES, site_guide
 from guidance import compass, next_step
-from ferry import FERRY_PIERS
+from ferry import FERRY_PIERS, nearby_pier
 from logistics_view import FleetView
 from business_signs import BusinessSigns
 from vehicles import CAR_SPEED_RANGE, ROAD_EXCLUSIONS, tunnel_covers_y
@@ -438,12 +438,17 @@ class LivingWorld:
         self.fleet.paint(getattr(town, "logistics", None), self.camera)
         self.scene.animate(town.elapsed)
         near = town.nearby()
-        selection_site = near.name if near else None
+        selection_site, bounds = (near.name, near.bounds) if near else (None, None)
+        if near is None:
+            # Ferry ticket kiosks get the same yellow outline as buildings you can use.
+            pier = nearby_pier(town.x, town.y)
+            if pier is not None:
+                selection_site, bounds = f"pier:{pier.name}", pier.kiosk
         if selection_site != self.selection_site:
-            if near:
-                x1, y1, x2, y2 = near.bounds
+            if bounds:
+                x1, y1, x2, y2 = bounds
                 c.coords(self.selection, (x1-2)*zoom, (y1-2)*zoom, (x2+2)*zoom, (y2+2)*zoom)
-            c.itemconfigure(self.selection, state="normal" if near else "hidden")
+            c.itemconfigure(self.selection, state="normal" if bounds else "hidden")
             self.selection_site = selection_site
         if now-self.last_labels >= .12:
             self.update_labels(town.elapsed)
