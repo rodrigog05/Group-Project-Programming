@@ -308,7 +308,7 @@ SITES = (
     Site("Sunrise Bakery", "FACTORY", 3, 1540, 530, "#ebbe83"),
     Site("Daily Bread Market", "PUBLIC SHOP", 3, 268, 530, "#f3ca85"),
     # The casino has no trade route, so its trade index is unused.
-    Site("Foundry Casino", "CASINO", -1, 988, 345, "#e8455a"),
+    Site("Foundry Casino", "CASINO", -1, 1004, 342, "#e8455a"),
     Site("Motorworks Garage", "GARAGE", -1, 988, 530, "#86caff"),
     Site("Foundry Warehouse", "WAREHOUSE", -1, 988, 160, "#d2a7e5"),
     Site("Pastéis de Belém", "PASTELARIA", -1, 28, 160, "#f1d69b"),
