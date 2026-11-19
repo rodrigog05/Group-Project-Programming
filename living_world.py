@@ -17,7 +17,7 @@ from guidance import compass, next_step
 from ferry import FERRY_PIERS, nearby_pier
 from logistics_view import FleetView
 from business_signs import BusinessSigns
-from vehicles import CAR_SPEED_RANGE, ROAD_EXCLUSIONS, tunnel_covers_y
+from vehicles import CAR_SPEED_RANGE, ROAD_EXCLUSIONS, in_tunnel, tunnel_covers_y
 from vehicle_art import draw_player_vehicle
 
 WORLD_TOP = 104
@@ -95,6 +95,12 @@ class AmbientActor:
         elif self.kind == "boat":
             y += math.sin(elapsed*.7+self.offset)*1.5
         return x, y
+
+
+def underground(actor, x, y):
+    """Cars vanish between the two portals of the tunnel under the Almada garden."""
+    left, _, right, _ = SOUTH_PARK_BOUNDS
+    return actor.kind == "car" and left < x < right and in_tunnel(x, y)
 
 
 class LivingWorld:
@@ -426,7 +432,7 @@ class LivingWorld:
         for actor in self.actors:
             x, y = actor.position(town.elapsed)
             enabled = self.game.traffic_enabled if actor.kind == "car" else self.actors_enabled
-            visible = enabled and self.camera.sees(x, y)
+            visible = enabled and self.camera.sees(x, y) and not underground(actor, x, y)
             if actor.visible != visible:
                 c.itemconfigure(actor.tag, state="normal" if visible else "hidden")
                 actor.visible = visible
