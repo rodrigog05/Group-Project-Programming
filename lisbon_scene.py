@@ -393,6 +393,18 @@ class LisbonScene:
                           fill=color, stipple="gray50", outline="", tags="night_lights")
 
         for site in self.sites:
+            if site.role == "CASINO":
+                from casino_art import window_bounds
+                glow(site.x+88, site.y+51, 33, "#df58b1")
+                self.game.label(site.x+88, site.y+51, "Lisbon Casino", 8, "#ffe2f5", True,
+                                anchor="center", tag="night_lights")
+                for left, top, right, bottom in window_bounds(site):
+                    glow((left+right)/2, (top+bottom)/2, 6)
+                    c.create_rectangle(left, top, right, bottom, fill="#ffd17a",
+                                       outline="", tags="night_lights")
+                door_x, door_y = site.door
+                glow(door_x, door_y-8, 16)
+                continue
             if site.role == "RESEARCH":
                 self.light_research_building(site, glow)
                 continue
