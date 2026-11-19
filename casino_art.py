@@ -1,6 +1,13 @@
 """Neon casino facade and shared positions for animated marquee bulbs."""
 
 
+def window_bounds(site):
+    for left in (site.x+3, site.x+155):
+        for height in (38, 52, 66, 84):
+            for offset in (0, 8):
+                yield left+offset, site.y+height, left+offset+5, site.y+height+9
+
+
 def bulb_positions(site):
     x, y = site.x, site.y
     for side in (25, 135):
@@ -19,10 +26,8 @@ def draw_casino(scene, site):
     p = scene
     p.poly((x+5,y+12,right+5,y+12,right+5,bottom+5,x+5,bottom+5), "#615264")
     p.rect(x,y+25,right,bottom,"#493353")
-    for left in (x+3,right-21):
-        for height in (38,52,66,84):
-            for offset in (0,8):
-                p.rect(left+offset,y+height,left+offset+5,y+height+9,"#ffd17a")
+    for bounds in window_bounds(site):
+        p.rect(*bounds, "#62546b")
     p.rect(x+41,y+12,right-40,bottom,"#683851")
     for height in (13,23,33):
         p.rect(x+39,y+height,right-39,y+height+4,"#edb55d")

@@ -2587,6 +2587,9 @@ class Game:
         def point(angle, radius):
             return center_x + radius * math.sin(angle), center_y - radius * math.cos(angle)
 
+        from casino_interior import draw_background
+        draw_background(canvas, WIDTH, MAP_TOP, MAP_BOTTOM)
+
         # Table
         self.box(center_x - 300, 116, center_x + 300, 930, "#123b2c", "live")
         self.box(center_x - 300, 116, center_x + 300, 119, GOLD, "live")
