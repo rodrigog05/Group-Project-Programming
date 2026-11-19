@@ -61,24 +61,46 @@ def draw_player_vehicle(canvas, kind, facing, profile, body_colors, costumes):
         polygon((-29,-11,-18,-12,-17,-9,-30,-8), "#252f34")
         wheel_positions = (-23, 24)
     elif kind == "f1":
-        # Open wheels, low nose, sidepods, halo and high rear wing.
-        polygon((-38,5,41,5,43,9,-39,9), "#171d29")
-        line((-28,7,29,7), "#8d9296", 2)
-        polygon((-31,3,-25,-13,-10,-16,-3,-24,7,-24,13,-9,36,-3,40,3), "#24264f")
-        polygon((-27,-8,-12,-13,4,-8,18,-3,9,3,-22,2), "#333e7d")
-        polygon((9,-8,34,-3,39,1,29,3,13,-1), "#efc62e")
-        polygon((-26,-10,-17,-14,-4,-11,5,-6,-7,-5), "#cf313e")
-        polygon((-37,-25,-22,-25,-22,-21,-37,-21), "#25283f")
-        line((-32,-22,-30,2), "#191f2c", 3)
-        polygon((30,3,43,3,43,6,29,6), "#24283b")
-        oval((-2,-24,8,-14), "#d4c235")
-        polygon((2,-22,8,-21,8,-18,3,-18), "#263a50")
-        line((-5,-12,-4,-23,9,-24,14,-13), "#151c28", 3)
-        for x in (-27, 28):
-            oval((x-10,-1,x+10,19), "#171c22")
-            oval((x-7,-.0,x+7,17), "#d5bd3e")
-            oval((x-5,2,x+5,15), "#343b44")
-            oval((x-2,6,x+2,11), "#6c7379")
+        # Overhead three-quarter silhouette follows the blueprint's long
+        # wheelbase, broad rear body and narrow nose between exposed wheels.
+        oval((-48, -23, 49, 25), "#34433f")
+        polygon((-40,-13,-40,13,-29,16,-6,14,4,8,39,4,39,-4,4,-8,-6,-14,-29,-16), "#20264b")
+        polygon((-32,-10,-15,-12,-3,-7,-3,7,-15,12,-32,10), "#343f7c")
+        polygon((-30,-5,-19,-7,-4,-4,-4,4,-19,7,-30,5), "#ca303d")
+        # Engine cover tapers toward the rear wing, behind the central cockpit.
+        polygon((-33,-3,-12,-6,-8,-3,-8,3,-12,6,-33,3), "#30376a")
+        polygon((-30,-2,-12,-3,-12,0,-30,1), "#e9b829")
+        # Suspension arms connect each wheel to the chassis.
+        for axle in (-30, 27):
+            for side in (-1, 1):
+                line((axle-7,side*4,axle,side*18,axle+6,side*4), "#a0a7ac", 1)
+        # Four wide slick tyres with yellow sidewall stripes.
+        for axle in (-30, 27):
+            for side in (-1, 1):
+                center_y = side * 18
+                polygon((axle-8,center_y-5,axle-6,center_y-7,
+                         axle+6,center_y-7,axle+8,center_y-5,
+                         axle+8,center_y+5,axle+6,center_y+7,
+                         axle-6,center_y+7,axle-8,center_y+5), "#151b22")
+                line((axle-5,center_y-5,axle+5,center_y-5), "#d1b83e", 1)
+                line((axle-5,center_y+5,axle+5,center_y+5), "#d1b83e", 1)
+        # Cockpit and halo sit between the sculpted sidepods.
+        oval((-11,-6,5,6), "#111b27")
+        oval((-8,-4,-1,4), "#d9c334")
+        polygon((-5,-3,-1,-2,-1,2,-5,3), "#526e86")
+        line((-10,-7,3,-7,6,0,3,7,-10,7), "#7d8797", 2)
+        line((6,0,14,0), "#7d8797", 2)
+        # Long yellow nose reaches a multi-element, swept front wing.
+        polygon((7,-5,20,-3,42,-2,44,2,20,3,7,5), "#ebbe2e")
+        polygon((37,-26,43,-26,44,-12,48,-5,48,5,44,12,43,26,
+                 37,26,39,10,43,3,43,-3,39,-10), "#242c50")
+        line((40,-24,41,-12,46,-4), "#6673a1")
+        line((46,4,41,12,40,24), "#6673a1")
+        # Tall rear wing and endplates span the rear tyre track.
+        polygon((-47,-24,-40,-24,-39,24,-46,24), "#272e52")
+        line((-44,-21,-43,21), "#6c79ab", 2)
+        polygon((-48,-25,-39,-25,-39,-22,-48,-22), "#151c2d")
+        polygon((-48,22,-39,22,-39,25,-48,25), "#151c2d")
     else:
         polygon((-36,-25,12,-25,28,-15,37,-6,37,10,-36,10), "#c7cecf")
         polygon((-33,-23,10,-23,10,6,-33,6), "#f3f3ed")
