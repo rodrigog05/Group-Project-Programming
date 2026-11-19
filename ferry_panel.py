@@ -18,6 +18,33 @@ WATER_Y = 250
 LEFT_PIER_X, RIGHT_PIER_X = 120, 520
 
 
+LEFT_QUAY_X, RIGHT_QUAY_X = 215, 505  # Where each bank's quay wall meets the river
+LISBON_RIDGE = ((-20, 132), (40, 140), (90, 160), (140, 188), (180, 214), (205, 232), (LEFT_QUAY_X, 236))
+ALMADA_RIDGE = ((RIGHT_QUAY_X, 236), (520, 228), (545, 202), (572, 168), (600, 148), (630, 138), (660, 134))
+DECK_Y = 172
+
+
+def ridge_y(ridge, x):
+    """Height of a bank's skyline at x, by straight segments between its points."""
+    for (x1, y1), (x2, y2) in zip(ridge, ridge[1:]):
+        if x1 <= x <= x2:
+            return y1+(y2-y1)*(x-x1)/(x2-x1)
+    return ridge[0][1] if x < ridge[0][0] else ridge[-1][1]
+
+
+def draw_bank(p, ridge, left, right, fill):
+    """A landmass running off the screen edge, standing on a stone quay wall at the river."""
+    points = [value for point in ridge for value in point]
+    p.poly(points+[right, WATER_Y+12, left, WATER_Y+12], fill)
+    p.rect(left, 236, right, WATER_Y+12, "#b9b2a0")
+    for y in range(240, WATER_Y+12, 8):
+        p.line((left, y, right, y), "#a39c8a")
+    for row, y in enumerate(range(240, WATER_Y+12, 8)):
+        for x in range(int(left)+(0 if row % 2 else 9), int(right), 18):
+            p.line((x, y, x, y+8), "#a39c8a")
+    p.rect(left, 233, right, 237, "#e8dcc0")
+
+
 def draw_backdrop(p):
     """Looking along the Tejo: Lisboa on the left bank, Almada and Cristo Rei on the right."""
     for band in range(12):
@@ -29,54 +56,72 @@ def draw_backdrop(p):
     for x, y in ((90, 50), (300, 30), (520, 70)):
         p.oval(x, y, x+70, y+20, "#fbf6ea")
         p.oval(x+22, y-10, x+60, y+16, "#fbf6ea")
-    # Ponte 25 de Abril on the horizon, joining the two banks.
-    deck_y = 168
-    p.rect(150, deck_y, 490, deck_y+6, "#b8432f")
-    for tower_x in (235, 405):
-        p.rect(tower_x-4, 96, tower_x+4, WATER_Y, "#b8432f")
-        p.rect(tower_x-7, 108, tower_x+7, 112, "#b8432f")
-    points = []
-    for step in range(41):
-        x = 150+step*340/40
-        if x <= 235:
-            y = deck_y-(x-150)/85*70
-        elif x >= 405:
-            y = deck_y-(490-x)/85*70
-        else:
-            y = 160-((x-320)/85)**2*62  # The main cable sags towards the deck mid-span.
-        points += [x, y]
-    p.line(points, "#8e2d20", 2)
-    for x in range(160, 485, 12):
-        top = points[1+2*min(40, max(0, round((x-150)/8.5)))]
-        p.line((x, top, x, deck_y), "#c6584a", 1)
-    # Lisbon hills and houses on the left bank.
-    p.poly((0, WATER_Y, 0, 150, 60, 130, 130, 160, 190, 200, 230, WATER_Y), "#d8cfa8", smooth=True)
+    # Distant hills where the river bends out of sight, between the two banks.
+    far = [(-10, WATER_Y)]+[(x, 222+8*math.sin(x/37)+5*math.sin(x/13)) for x in range(-10, 660, 20)]+[(660, WATER_Y)]
+    p.poly([value for point in far for value in point], "#a9c2b6")
+    # Ponte 25 de Abril runs from the Lisbon hillside to the Almada cliff; the banks cover its ends.
+    left_end, right_end, towers, top = 10, 630, (232, 408), 92
+    for tower_x in towers:
+        p.rect(tower_x-9, WATER_Y-6, tower_x+9, WATER_Y+8, "#bdb5a2")
+        for leg in (-5, 3):
+            p.rect(tower_x+leg, top, tower_x+leg+3, WATER_Y-4, "#b8432f")
+        for beam_y in (top+4, top+40, top+70, DECK_Y+16):
+            p.rect(tower_x-6, beam_y, tower_x+6, beam_y+4, "#b8432f")
+    p.rect(left_end, DECK_Y-3, right_end, DECK_Y+3, "#5e6b70")
+    p.rect(left_end, DECK_Y+3, right_end, DECK_Y+14, "#b8432f")
+    for x in range(left_end, right_end, 12):
+        p.line((x, DECK_Y+3, x+6, DECK_Y+14, x+12, DECK_Y+3), "#8e2d20", 1)
+
+    def cable_y(x):
+        if x <= towers[0]:
+            return DECK_Y-(DECK_Y-top)*(x-left_end)/(towers[0]-left_end)
+        if x >= towers[1]:
+            return DECK_Y-(DECK_Y-top)*(right_end-x)/(right_end-towers[1])
+        middle, half = (towers[0]+towers[1])/2, (towers[1]-towers[0])/2
+        return DECK_Y-8-(DECK_Y-8-top)*((x-middle)/half)**2  # The main cable sags towards the deck.
+
+    p.line([value for x in range(left_end, right_end+1, 6) for value in (x, cable_y(x))], "#8e2d20", 2)
+    for x in range(left_end+12, right_end, 12):
+        if all(abs(x-tower) > 4 for tower in towers):
+            p.line((x, cable_y(x), x, DECK_Y-3), "#c6584a", 1)
+    # Lisbon: houses climb the hill from the quay.
+    draw_bank(p, LISBON_RIDGE, -20, LEFT_QUAY_X, "#d8cfa8")
     rng = random.Random(3)
-    for column in range(7):
-        x = 6+column*30
-        for row in range(4):
-            y = WATER_Y-14-row*22-max(0, column-3)*4
-            if y < 150+column*8:
-                continue
-            p.rect(x, y-20, x+26, y, rng.choice(("#f2e3c6", "#e9c4b6", "#c9dbe0", "#f1d58e", "#e8b7a0")))
-            p.poly((x-2, y-20, x+13, y-29, x+28, y-20), rng.choice(("#c8693f", "#b85a36")))
-            p.rect(x+6, y-14, x+11, y-7, "#2f4b5a")
-            p.rect(x+16, y-14, x+21, y-7, "#2f4b5a")
-    p.text(60, 120, "LISBOA", 10, "#3c5d61", True)
-    # Almada's cliff with Cristo Rei on the right bank.
-    p.poly((SCENE_W, WATER_Y, SCENE_W, 140, 590, 150, 545, 190, 500, WATER_Y), "#b7c08a", smooth=True)
-    p.poly((585, 150, 605, 150, 600, 112, 590, 112), "#e9e3d3")
-    p.rect(593, 82, 597, 112, "#f1ece0")
-    p.rect(583, 88, 607, 92, "#f1ece0")
-    p.oval(591, 74, 599, 83, "#f1ece0")
-    p.text(590, 210, "ALMADA", 10, "#4f6a3e", True)
-    # The river, and the two piers.
+    houses = []
+    for x in range(-14, LEFT_QUAY_X-24, 25):
+        y = 233
+        while y-22 > ridge_y(LISBON_RIDGE, x+12)+4:
+            houses.append((y, x))
+            y -= 19
+    for y, x in sorted(houses):
+        p.rect(x, y-20, x+24, y, rng.choice(("#f2e3c6", "#e9c4b6", "#c9dbe0", "#f1d58e", "#e8b7a0", "#f5efe2")))
+        p.poly((x-2, y-20, x+12, y-28, x+26, y-20), rng.choice(("#c8693f", "#b85a36", "#d47a4e")))
+        p.rect(x+5, y-14, x+10, y-7, "#2f4b5a")
+        p.rect(x+14, y-14, x+19, y-7, "#2f4b5a")
+    for x in range(10, LEFT_QUAY_X, 46):
+        p.oval(x-7, 220, x+7, 234, "#6f9f7a")
+    p.text(70, 118, "LISBOA", 10, "#3c5d61", True)
+    # Almada: the cliff with Cristo Rei above the river.
+    draw_bank(p, ALMADA_RIDGE, RIGHT_QUAY_X, 660, "#b7c08a")
+    for x, y in ((532, 222), (556, 214), (586, 190), (620, 176)):
+        p.oval(x-9, y-9, x+9, y+7, "#6f9f7a")
+    for x in (522, 548):
+        p.rect(x, 212, x+20, 233, "#f2e3c6")
+        p.poly((x-2, 212, x+10, 204, x+22, 212), "#c8693f")
+    base = ridge_y(ALMADA_RIDGE, 600)
+    p.poly((590, base, 610, base, 605, base-38, 595, base-38), "#e9e3d3")
+    p.rect(598, base-68, 602, base-38, "#f1ece0")
+    p.rect(588, base-62, 612, base-58, "#f1ece0")
+    p.oval(596, base-76, 604, base-67, "#f1ece0")
+    p.text(590, 228, "ALMADA", 10, "#4f6a3e", True)
+    # The river, and the two ferry piers built out from the quays.
     for band in range(6):
-        top = WATER_Y+band*(SCENE_H-WATER_Y)/6
+        top_y = WATER_Y+12+band*(SCENE_H-WATER_Y-12)/6
         color = ("#6fb3c2", "#62a7b8", "#579dae", "#4d92a4", "#45889a", "#3d7f91")[band]
-        p.rect(0, top, SCENE_W, top+(SCENE_H-WATER_Y)/6+1, color)
+        p.rect(0, top_y, SCENE_W, top_y+(SCENE_H-WATER_Y-12)/6+1, color)
+    p.rect(0, WATER_Y, SCENE_W, WATER_Y+12, "#7fbcc8")
     for x, side in ((LEFT_PIER_X, -1), (RIGHT_PIER_X, 1)):
-        left, right = (0, x+30) if side < 0 else (x-30, SCENE_W)
+        left, right = (-20, x+30) if side < 0 else (x-30, 660)
         p.rect(left, WATER_Y+18, right, WATER_Y+28, "#9b7651")
         for post in range(int(left)+10, int(right), 26):
             p.rect(post, WATER_Y+28, post+5, WATER_Y+52, "#5e4630")

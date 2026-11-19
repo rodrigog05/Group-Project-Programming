@@ -35,6 +35,17 @@ class FerryTest(unittest.TestCase):
             self.assertTrue(town.can_walk(*pier.position), pier.name)
             self.assertIs(nearby_pier(*pier.position), pier)
 
+    def test_each_pier_has_a_ticket_kiosk_beside_its_boarding_point(self):
+        for pier in FERRY_PIERS:
+            left, top, right, bottom = pier.kiosk
+            with self.subTest(pier=pier.name):
+                # The kiosk stands on the jetty over the water, so it never blocks the quay.
+                self.assertTrue(RIVER_TOP <= top and bottom <= RIVER_BOTTOM)
+                self.assertFalse(left <= pier.x <= right and top <= pier.y <= bottom)
+                # Close enough that the yellow outline appears exactly where E works.
+                nearest_x, nearest_y = min(max(pier.x, left), right), min(max(pier.y, top), bottom)
+                self.assertLess(math.dist(pier.position, (nearest_x, nearest_y)), 25)
+
     def test_crossing_charges_the_fare_and_keeps_cargo(self):
         town = Town()
         town.x, town.y = FERRY_PIERS[0].position
