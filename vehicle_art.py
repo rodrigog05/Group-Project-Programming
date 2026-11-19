@@ -61,46 +61,30 @@ def draw_player_vehicle(canvas, kind, facing, profile, body_colors, costumes):
         polygon((-29,-11,-18,-12,-17,-9,-30,-8), "#252f34")
         wheel_positions = (-23, 24)
     elif kind == "f1":
-        # Overhead three-quarter silhouette follows the blueprint's long
-        # wheelbase, broad rear body and narrow nose between exposed wheels.
-        oval((-48, -23, 49, 25), "#34433f")
-        polygon((-40,-13,-40,13,-29,16,-6,14,4,8,39,4,39,-4,4,-8,-6,-14,-29,-16), "#20264b")
-        polygon((-32,-10,-15,-12,-3,-7,-3,7,-15,12,-32,10), "#343f7c")
-        polygon((-30,-5,-19,-7,-4,-4,-4,4,-19,7,-30,5), "#ca303d")
-        # Engine cover tapers toward the rear wing, behind the central cockpit.
-        polygon((-33,-3,-12,-6,-8,-3,-8,3,-12,6,-33,3), "#30376a")
-        polygon((-30,-2,-12,-3,-12,0,-30,1), "#e9b829")
-        # Suspension arms connect each wheel to the chassis.
-        for axle in (-30, 27):
-            for side in (-1, 1):
-                line((axle-7,side*4,axle,side*18,axle+6,side*4), "#a0a7ac", 1)
-        # Four wide slick tyres with yellow sidewall stripes.
-        for axle in (-30, 27):
-            for side in (-1, 1):
-                center_y = side * 18
-                polygon((axle-8,center_y-5,axle-6,center_y-7,
-                         axle+6,center_y-7,axle+8,center_y-5,
-                         axle+8,center_y+5,axle+6,center_y+7,
-                         axle-6,center_y+7,axle-8,center_y+5), "#151b22")
-                line((axle-5,center_y-5,axle+5,center_y-5), "#d1b83e", 1)
-                line((axle-5,center_y+5,axle+5,center_y+5), "#d1b83e", 1)
-        # Cockpit and halo sit between the sculpted sidepods.
-        oval((-11,-6,5,6), "#111b27")
-        oval((-8,-4,-1,4), "#d9c334")
-        polygon((-5,-3,-1,-2,-1,2,-5,3), "#526e86")
-        line((-10,-7,3,-7,6,0,3,7,-10,7), "#7d8797", 2)
-        line((6,0,14,0), "#7d8797", 2)
-        # Long yellow nose reaches a multi-element, swept front wing.
-        polygon((7,-5,20,-3,42,-2,44,2,20,3,7,5), "#ebbe2e")
-        polygon((37,-26,43,-26,44,-12,48,-5,48,5,44,12,43,26,
-                 37,26,39,10,43,3,43,-3,39,-10), "#242c50")
-        line((40,-24,41,-12,46,-4), "#6673a1")
-        line((46,4,41,12,40,24), "#6673a1")
-        # Tall rear wing and endplates span the rear tyre track.
-        polygon((-47,-24,-40,-24,-39,24,-46,24), "#272e52")
-        line((-44,-21,-43,21), "#6c79ab", 2)
-        polygon((-48,-25,-39,-25,-39,-22,-48,-22), "#151c2d")
-        polygon((-48,22,-39,22,-39,25,-48,25), "#151c2d")
+        # Side profile: low chassis, long nose, exposed slicks and elevated rear wing.
+        polygon((-49,5,49,5,48,10,-48,10), "#171c29")
+        line((-35,4,33,4), "#8c959c", 2)
+        polygon((-37,3,-33,-9,-23,-13,-16,-22,-9,-23,-2,-10,
+                 16,-5,42,-2,47,3,42,6,-35,6), "#242b58")
+        polygon((-33,-7,-20,-11,-5,-7,13,-2,5,4,-27,3), "#354783")
+        polygon((-30,-10,-23,-14,-13,-14,-7,-8,-17,-6), "#d93443")
+        polygon((-22,-14,-16,-22,-10,-22,-5,-13), "#dfb936")
+        polygon((7,-6,30,-2,43,0,44,3,28,4,12,0), "#efc32f")
+        # Broad rear-wing endplate/support, with the original slim wing above.
+        polygon((-44,-20,-37,-20,-35,3,-43,3), "#32394c")
+        line((-40,-18,-38,1), "#586378", 2)
+        polygon((-47,-24,-32,-24,-32,-20,-47,-20), "#252d51")
+        line((-46,-23,-33,-23), "#8491ba")
+        line((-4,-12,0,-21,12,-21,18,-8), "#75849a", 2)
+        oval((2,-20,11,-11), "#e2c938")
+        polygon((6,-18,11,-17,11,-14,6,-14), "#293f56")
+        polygon((38,3,49,3,49,7,37,7), "#272e4d")
+        line((39,1,48,1), "#7e89ad")
+        for axle in (-33, 31):
+            oval((axle-11,-3,axle+11,19), "#151b22")
+            oval((axle-8,-.0,axle+8,16), "#d6bc3f")
+            oval((axle-6,2,axle+6,14), "#303948")
+            oval((axle-2,6,axle+2,10), "#818a96")
     else:
         polygon((-36,-25,12,-25,28,-15,37,-6,37,10,-36,10), "#c7cecf")
         polygon((-33,-23,10,-23,10,6,-33,6), "#f3f3ed")
