@@ -155,6 +155,8 @@ class LivingWorld:
         proxy = SimpleNamespace(canvas=c, scale_x=self.zoom, display_scale=self.zoom, label=self.label)
         self.scene = LisbonScene(proxy, self.sites, draw=False)
         self.scene.create_tram()
+        from casino_art import CasinoLights
+        self.casino_lights = CasinoLights(c, self.sites, self.zoom)
         c.scale("tram", 0, 0, self.zoom, self.zoom)
         self.actors = []
         self.light_items = []
@@ -403,6 +405,7 @@ class LivingWorld:
                     self.labels[site.name] = (item_id, text, color, visible)
 
     def render(self, body_colors, hair_colors, costumes):
+        self.casino_lights.update(self.game.town.elapsed)
         now = time.perf_counter()
         dt, self.last_time = min(.15, now-self.last_time), now
         self.fps_frames += 1
