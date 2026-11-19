@@ -715,6 +715,10 @@ class LisbonScene:
         glow(door_x, door_y+7, 22, "#c6e4da")
 
     def building(self, site):
+        if site.role == "CASINO":
+            from casino_art import draw_casino
+            draw_casino(self, site)
+            return
         from wayfinding import site_guide
         guide = site_guide(site)
         if site.role == "EXCHANGE":
