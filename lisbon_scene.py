@@ -35,6 +35,36 @@ FOUNTAIN_BASIN = (58, 26, 118, 74)  # Inside the 176 x 104 plot
 SOUTH_PARK_BOUNDS = (60, south(1210), 550, south(1530))
 # A covered east-west roadway passes beneath the south-bank garden.
 SOUTH_PARK_TUNNEL = (45, 565, south(1370), 17)
+ORIENTE_PARK_BOUNDS = (1810, 520, 2010, 640)
+PARK_BOUNDS = (SOUTH_PARK_BOUNDS, ORIENTE_PARK_BOUNDS) + tuple(
+    (x, y, x+176, y+104) for (x, y), kind in SCENERY_PLOTS if kind == "park"
+)
+# A small low-tide foreshore meets the promenade beside the fixed tower.
+SAND_WEST, SAND_EAST = 55, 235
+SAND_BOTTOM = 855
+
+
+def sand_edge(x):
+    fraction = (x-SAND_WEST)/(SAND_EAST-SAND_WEST)
+    if not 0 <= fraction <= 1:
+        return RIVER_TOP
+    curve = math.sin(math.pi*fraction)**.55
+    scallops = 1 + .045*math.sin(fraction*math.tau*3)
+    return RIVER_TOP + (SAND_BOTTOM-RIVER_TOP)*curve*scallops
+
+
+def on_sand(x, y, radius=0):
+    """Keep the walking footprint inside the same tidal edge used for drawing."""
+    return (SAND_WEST+radius <= x <= SAND_EAST-radius and RIVER_TOP-3 <= y
+            and y+radius <= min(sand_edge(x-radius), sand_edge(x), sand_edge(x+radius)))
+
+
+def vehicle_park_blocked(x, y, radius=10):
+    left, right, center_y, half_width = SOUTH_PARK_TUNNEL
+    if left <= x <= right and abs(y-center_y) <= half_width-radius:
+        return False
+    return any(left-radius < x < right+radius and top-radius < y < bottom+radius
+               for left, top, right, bottom in PARK_BOUNDS)
 SCENERY_BLOCKS = tuple(
     (x, y, x+176, y+104) if kind == "flats"
     else (x+FOUNTAIN_BASIN[0], y+FOUNTAIN_BASIN[1], x+FOUNTAIN_BASIN[2], y+FOUNTAIN_BASIN[3])
@@ -56,6 +86,11 @@ def bridge_at(x, y, radius=10):
 def walkable_terrain(x, y, radius=10, on_foot=False):
     """The river is only crossable on a bridge, and the bridges only carry vehicles."""
     if RIVER_TOP - radius < y < RIVER_BOTTOM + radius:
+        if on_foot and on_sand(x, y, radius):
+            # The tower stays in its original position and remains solid.
+            if 90-radius < x < 190+radius and 735-radius < y < 850+radius:
+                return False
+            return True
         return not on_foot and bridge_at(x, y, radius) is not None
     return True
 
@@ -199,8 +234,9 @@ class LisbonScene:
             self.road((x, 140, x, 660), 29)
         self.text(1300, 122, "MARVILA", 19, "#6b7d6c", True)
         self.text(1810, 122, "PARQUE DAS NAÇÕES", 19, "#6b7d6c", True)
-        self.rect(1810, 520, 2010, 640, "#b7c5a0")
+        self.rect(*ORIENTE_PARK_BOUNDS, "#b7c5a0")
         self.line((1830, 610, 1910, 545, 1990, 610), "#ece3c7", 13, smooth=True)
+        self.text(1910, 635, "JARDIM", 7, "#5f7650", True, "center")
         for x, y in ((1830, 550), (1985, 550), (1910, 615), (2300, 215),
                      (1260, 575), (1740, 555), (2300, 565), (2310, 390)):
             self.tree(x, y, 20)
@@ -428,6 +464,27 @@ class LisbonScene:
         for _ in range(round(160*(RIVER_BOTTOM-RIVER_TOP)/182)):
             x, y = rng.randrange(0, WORLD_WIDTH), rng.randrange(RIVER_TOP+12, RIVER_BOTTOM-8)
             self.line((x, y, x+rng.randrange(8, 30), y), "#91c1c4", 1)
+        shoreline = [(x, sand_edge(x)) for x in range(SAND_WEST, SAND_EAST+1, 3)]
+        coast = tuple(value for point in shoreline for value in point)
+        # Broad pale sand backs onto the quay, with a damp, darker tidal fringe.
+        sand_polygon = (SAND_WEST, RIVER_TOP-3, SAND_EAST, RIVER_TOP-3) + tuple(
+            value for point in reversed(shoreline) for value in point)
+        self.poly(sand_polygon, "#c9bc98")
+        inner = [(x, max(RIVER_TOP, y-9)) for x, y in shoreline]
+        wet_band = coast + tuple(value for point in reversed(inner) for value in point)
+        self.poly(wet_band, "#9d9e83")
+        self.line(coast, "#b5ccc0", 2)
+        for x in range(SAND_WEST+10, SAND_EAST-10, 13):
+            for y in range(RIVER_TOP+12, SAND_BOTTOM-8, 12):
+                if on_sand(x, y, 8):
+                    self.line((x, y, x+3, y+1), "#b5a887", 1)
+        # Limestone quay and timber approach on the landward side of the tower.
+        self.line((SAND_WEST, RIVER_TOP-2, SAND_EAST, RIVER_TOP-2), "#dcd6bf", 5)
+        self.rect(133, RIVER_TOP-2, 145, 742, "#997e59")
+        for y in range(RIVER_TOP, 741, 4):
+            self.line((134, y, 144, y), "#c2a77f")
+        self.line((133, RIVER_TOP-2, 133, 741), "#695c47", 1)
+        self.line((145, RIVER_TOP-2, 145, 741), "#695c47", 1)
         # A small traditional sailing boat and a commuter ferry.
         self.poly((519, 807, 566, 807, 556, 818, 529, 818), "#f2e6c9")
         self.line((541, 770, 541, 807), "#735b46", 2)

@@ -816,6 +816,9 @@ class Town:
             self.bridge_journey = None
 
     def can_walk(self, x, y):
+        from lisbon_scene import vehicle_park_blocked
+        if self.vehicle and vehicle_park_blocked(x, y, PLAYER_RADIUS):
+            return False
         return (PLAYER_RADIUS <= x <= WORLD_WIDTH-PLAYER_RADIUS and MAP_TOP+PLAYER_RADIUS <= y <= WORLD_BOTTOM-PLAYER_RADIUS
                 and walkable_terrain(x, y, PLAYER_RADIUS, on_foot=self.vehicle is None)) and not any(
             left - PLAYER_RADIUS < x < right + PLAYER_RADIUS
