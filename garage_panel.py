@@ -9,8 +9,8 @@ import tkinter as tk
 from interiors import FONT, IS_MAC, INK, OPEN_GRACE_SECONDS, Painter, bubble, counter, vendor
 from vehicles import VEHICLES
 
-SCENE_W, SCENE_H = 640, 400
-SHOWROOM_X = (95, 255, 415)  # Turntable centres for the three vehicles
+SCENE_W, SCENE_H = 800, 400
+SHOWROOM_X = (85, 245, 405, 565)
 FLOOR_Y = 312
 SALES_LOOK = {"skin": "#c78d64", "hair": "#1f1b1a", "shirt": "#2f4b5a", "apron": None, "hat": "cap", "cap": "#86caff"}
 
@@ -88,8 +88,8 @@ def draw_showroom(p, town, site):
         p.oval(x-64, FLOOR_Y-10, x+64, FLOOR_Y+10, "#d6dadc")
         draw_vehicle(p.c, key, x, town)
         cards.append((price_card(p, x, ride, town, key, number), key))
-    vendor(p, 575, 330, SALES_LOOK)
-    counter(p, 510, 330, SCENE_W, ("#e9eef0", "#9aa6aa", "#5e6b70"))
+    vendor(p, 735, 330, SALES_LOOK)
+    counter(p, 670, 330, SCENE_W, ("#e9eef0", "#9aa6aa", "#5e6b70"))
     speech = bubble(p, 316, 10, 630, 80, 560, 206)
     return speech, cards
 
@@ -102,7 +102,7 @@ def greeting(town):
 
 
 def open_garage(game, site):
-    """Show the garage showroom. 1/2/3 or clicking a card buys that vehicle; Esc leaves."""
+    """Show the showroom. Number keys or card clicks buy a vehicle; Esc leaves."""
     if game.profile_window is not None:
         return
     town = game.town
@@ -195,7 +195,7 @@ def open_garage(game, site):
             state["held"].add(key)
             return
         state["held"].add(key)
-        if key in ("1", "2", "3"):
+        if key in ("1", "2", "3", "4"):
             buy(list(VEHICLES)[int(key)-1])
         elif key == "l":
             fleet()
