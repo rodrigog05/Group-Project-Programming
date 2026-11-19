@@ -12,6 +12,7 @@ from vehicles import VEHICLES
 SCENE_W, SCENE_H = 800, 400
 SHOWROOM_X = (85, 245, 405, 565)
 FLOOR_Y = 312
+SELLER_X, COUNTER_Y = 735, 330
 SALES_LOOK = {"skin": "#c78d64", "hair": "#1f1b1a", "shirt": "#2f4b5a", "apron": None, "hat": "cap", "cap": "#86caff"}
 
 
@@ -88,9 +89,9 @@ def draw_showroom(p, town, site):
         p.oval(x-64, FLOOR_Y-10, x+64, FLOOR_Y+10, "#d6dadc")
         draw_vehicle(p.c, key, x, town)
         cards.append((price_card(p, x, ride, town, key, number), key))
-    vendor(p, 735, 330, SALES_LOOK)
-    counter(p, 670, 330, SCENE_W, ("#e9eef0", "#9aa6aa", "#5e6b70"))
-    speech = bubble(p, 316, 10, 630, 80, 560, 206)
+    vendor(p, SELLER_X, COUNTER_Y, SALES_LOOK)
+    counter(p, SELLER_X-65, COUNTER_Y, SCENE_W, ("#e9eef0", "#9aa6aa", "#5e6b70"))
+    speech = bubble(p, 460, 10, SCENE_W-10, 80, SELLER_X, COUNTER_Y-124)
     return speech, cards
 
 
