@@ -2,7 +2,7 @@ import math
 import unittest
 
 from living_world import AmbientActor, Camera, LivingWorld, WORLD_TOP
-from lisbon_scene import WORLD_WIDTH, WORLD_BOTTOM, SCENERY_BLOCKS, bridge_center, south
+from lisbon_scene import WORLD_WIDTH, WORLD_BOTTOM, SCENERY_BLOCKS, SOUTH_PARK_BOUNDS, bridge_center, south
 from tycoon import SITES, Town, pack_save, unpack_save
 from vehicles import ROAD_EXCLUSIONS, WALK_SPEED, in_tunnel
 
@@ -129,6 +129,21 @@ class ExpandedWorldTest(unittest.TestCase):
             self.assertEqual(car.start[0], 15)
             self.assertTrue(in_tunnel(300, car.start[1]))
             self.assertGreater(car.end[0], 2000)
+
+    def test_cars_disappear_inside_the_park_tunnel_and_reappear_at_the_exit(self):
+        from living_world import underground
+        left, _, right, _ = SOUTH_PARK_BOUNDS
+        tunnel_car = next(car for car in self.collect_cars() if in_tunnel(300, car.start[1]))
+        y = tunnel_car.start[1]
+        self.assertFalse(underground(tunnel_car, left-30, y))   # Approaching the west portal
+        self.assertTrue(underground(tunnel_car, (left+right)/2, y))  # Under the garden
+        self.assertFalse(underground(tunnel_car, right+30, y))  # Out of the east portal
+        walker = AmbientActor("walker", (left-30, y), (right+30, y), 30, 0, "pedestrian")
+        self.assertFalse(underground(walker, (left+right)/2, y))
+        # It keeps driving while hidden, so it reappears after the time the tunnel takes.
+        seen = [not underground(tunnel_car, *tunnel_car.position(t/10)) for t in range(400)]
+        self.assertIn(False, seen)
+        self.assertIn(True, seen)
 
     def test_scenery_and_outer_world_edges_block_walking(self):
         town = Town()
