@@ -412,8 +412,9 @@ class LisbonScene:
         glow(149, south(930), 32, "#c5dde0")
         from ferry import FERRY_PIERS
         for pier in FERRY_PIERS:
-            glow(pier.x+35, pier.y+(-14 if pier.y < RIVER_TOP else 16), 20)
-            glow(pier.x, RIVER_TOP+60 if pier.y < RIVER_TOP else RIVER_BOTTOM-60, 14, "#ffe5a4")
+            left, top, right, bottom = pier.kiosk
+            glow(pier.x, (top+bottom)/2, 24)
+            glow(pier.x, RIVER_TOP+66 if pier.north else RIVER_BOTTOM-66, 14, "#ffe5a4")
         self.light_scenery(glow)
         light_landmarks(self)
 
@@ -535,29 +536,36 @@ class LisbonScene:
         self.text(bridge_center(label_y, True)+55, label_y+14, "DA GAMA", 8, "#e0efdf", True)
 
     def ferry_piers(self):
-        """Wooden jetties and ticket booths for the cacilheiro between Cais do Sodré and Cacilhas."""
+        """Wooden jetties with a ticket kiosk for the cacilheiro between Cais do Sodré and Cacilhas."""
         from ferry import FERRY_FARE, FERRY_PIERS
         for pier in FERRY_PIERS:
-            north = pier.y < RIVER_TOP
+            north = pier.north
             edge = RIVER_TOP if north else RIVER_BOTTOM
             reach = 70 if north else -70
             self.rect(pier.x-11, min(edge, edge+reach), pier.x+11, max(edge, edge+reach), "#9b7651")
             for plank in range(0, abs(reach), 8):
                 y = edge+plank*(1 if north else -1)
                 self.line((pier.x-11, y, pier.x+11, y), "#7e5d3e")
-            for post_y in (edge+reach*.5, edge+reach):
+            for post_y in (edge+reach*.6, edge+reach):
                 for side in (-14, 14):
                     self.c.create_oval(pier.x+side-3, post_y-3, pier.x+side+3, post_y+3,
                                        fill="#5e4630", outline="", tags="city")
-            # Ticket booth on the quay, beside the boarding point.
-            booth_y = pier.y-24 if north else pier.y+6
-            self.rect(pier.x+18, booth_y, pier.x+52, booth_y+20, "#f4e3b4")
-            self.rect(pier.x+16, booth_y-4, pier.x+54, booth_y+1, "#c9472f")
-            self.text(pier.x+35, booth_y+11, f"FERRY ${FERRY_FARE}", 6, "#3f4c4c", True, "center")
-            if north:
-                self.text(pier.x+58, booth_y+10, pier.name.upper(), 7, "#3c5d61", True, "w")
-            else:
-                self.text(pier.x+35, booth_y+32, pier.name.upper(), 7, "#3c5d61", True, "center")
+            # Ticket kiosk on a wider landing at the jetty's land end; its window faces the quay.
+            left, top, right, bottom = pier.kiosk
+            self.rect(left-4, top-2, right+4, bottom+2, "#8a6a48")
+            self.rect(left+3, top+5, right+3, bottom+3, "#7f9fa6")
+            self.rect(left, top, right, bottom, "#f4e3b4")
+            # The striped awning and service window face the quay, where the player stands.
+            stripes = top if north else bottom-9
+            for index, x in enumerate(range(int(left), int(right), 8)):
+                self.rect(x, stripes, min(right, x+8), stripes+9, "#c9472f" if index % 2 == 0 else "#f8f1e2")
+            window_y = top+11 if north else bottom-22
+            self.rect(left+8, window_y, right-8, window_y+10, "#2f4b5a")
+            counter_y = window_y-3 if north else window_y+10
+            self.rect(left+8, counter_y, right-8, counter_y+3, "#a37b52")
+            sign_y = bottom-8 if north else top+8
+            self.text(pier.x, sign_y, f"BILHETES  ${FERRY_FARE}", 6, "#3f4c4c", True, "center")
+            self.text(pier.x+30, pier.y-1, pier.name.upper(), 7, "#3c5d61", True, "w")
 
     def exchange_building(self, site, guide):
         """Stone banking hall, drawn once into the day/night background caches."""

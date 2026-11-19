@@ -26,6 +26,13 @@ class Pier:
     def north(self):
         return self.y < RIVER_TOP
 
+    @property
+    def kiosk(self):
+        """The ticket kiosk at the land end of the jetty, facing the boarding point."""
+        if self.north:
+            return self.x-30, RIVER_TOP+2, self.x+30, RIVER_TOP+38
+        return self.x-30, RIVER_BOTTOM-38, self.x+30, RIVER_BOTTOM-2
+
 
 # Boarding points on each quay, just clear of the water.
 FERRY_PIERS = (
