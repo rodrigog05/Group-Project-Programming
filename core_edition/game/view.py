@@ -12,8 +12,13 @@ from world import HEIGHT, RIVER_BOTTOM, RIVER_TOP, WIDTH
 from menu_scene import GOLD as MENU_GOLD
 from menu_scene import INK, MINT, WHITE, LisbonMenuScene
 
-W, H = 800, 540
-DARK = "#20383c"
+W, H = 1280, 720
+HEADER = 64
+FOOTER = 620
+MAP_VIEW = pygame.Rect(0, HEADER, W, FOOTER - HEADER)
+DARK = "#101f28"
+PANEL = "#16303a"
+EDGE = "#31515d"
 GOLD = "#ffda86"
 PAPER = "#fff3dc"
 
@@ -28,6 +33,12 @@ def image(name):
 @lru_cache(maxsize=8)
 def font(size):
     return pygame.font.Font(None, size)
+
+
+@lru_cache(maxsize=12)
+def shop_art(name):
+    art = image(name)
+    return pygame.transform.smoothscale_by(art, 1.3)
 
 
 def text(surface, message, x, y, size=22, color=PAPER, width=None):
@@ -49,92 +60,103 @@ class View:
         self.buttons = []
         self.menu_scene = LisbonMenuScene((W, H))
 
-    def button(self, x, y, w, title, key, *, fill="#426568", color=PAPER):
-        r = pygame.Rect(x, y, w, 32)
-        pygame.draw.rect(self.surface, fill, r, border_radius=5)
-        text(self.surface, title, x + 9, y + 7, 20, color)
+    def panel(self, rect, border=EDGE):
+        pygame.draw.rect(self.surface, PANEL, rect, border_radius=10)
+        pygame.draw.rect(self.surface, border, rect, width=2, border_radius=10)
+
+    def button(self, x, y, w, title, key, *, fill="#365b64", color=PAPER):
+        r = pygame.Rect(x, y, w, 48)
+        if key is not None and r.collidepoint(pygame.mouse.get_pos()):
+            fill = pygame.Color(fill).lerp(pygame.Color("#ffffff"), 0.14)
+        pygame.draw.rect(self.surface, fill, r, border_radius=7)
+        label = font(26).render(title, True, color)
+        self.surface.blit(label, label.get_rect(midleft=(x + 14, r.centery)))
         if key is not None:
             self.buttons.append((r, key))
 
     def menu(self, game):
         s = self.surface
         self.menu_scene.draw(s, game.menu_elapsed)
-        pygame.draw.rect(s, "#0a141b", (214, 15, 380, 62))
-        pygame.draw.rect(s, INK, (210, 11, 380, 62))
-        pygame.draw.rect(s, MENU_GOLD, (210, 11, 380, 62), 2)
+        pygame.draw.rect(s, "#0a141b", (398, 22, 492, 82), border_radius=10)
+        self.panel((394, 18, 492, 82), MENU_GOLD)
         for title, size, y, color in (
-            ("FOUNDRY TOWN", 33, 36, MENU_GOLD),
-            ("LISBOA  ·  Build your fortune along the Tejo", 17, 59, MINT),
+            ("FOUNDRY TOWN", 46, 46, MENU_GOLD),
+            ("LISBOA  ·  Build your fortune along the Tejo", 23, 77, MINT),
         ):
             label = font(size).render(title, True, color)
             s.blit(label, label.get_rect(center=(W // 2, y)))
 
         if game.screen == "rules":
-            pygame.draw.rect(s, "#16303a", (132, 247, 536, 278))
-            pygame.draw.rect(s, MENU_GOLD, (132, 247, 536, 278), 2)
-            text(s, "Rules & How to Play", 156, 265, 32, MENU_GOLD)
+            self.panel((255, 341, 770, 348), MENU_GOLD)
+            text(s, "Rules & How to Play", 287, 365, 40, MENU_GOLD)
             for y, line in (
                 (
-                    305,
+                    421,
                     "WASD or arrows to walk. E opens a shop and performs its action.",
                 ),
                 (
-                    342,
+                    468,
                     "Buy supplies with E or buy up to four with Q. Take them to a workshop, wait for your batch, collect it and sell it at the market.",
                 ),
                 (
-                    398,
+                    536,
                     "Press P for routes and inventory. Upgrade your bag at Foundry Warehouse for $100. Your progress saves in this browser.",
                 ),
             ):
-                text(s, line, 156, y, 20, WHITE, width=486)
-            self.button(156, 477, 140, "Esc   Back", "escape", fill="#2c4a55")
+                text(s, line, 287, y, 25, WHITE, width=706)
+            self.button(287, 615, 174, "Esc   Back", "escape")
         elif game.screen == "confirm_new":
-            pygame.draw.rect(s, "#16303a", (165, 337, 470, 172))
-            pygame.draw.rect(s, MENU_GOLD, (165, 337, 470, 172), 2)
-            text(s, "Start a new game?", 188, 357, 32, MENU_GOLD)
-            text(s, "This will replace your saved progress in this browser.", 188, 399)
-            self.button(
-                188, 453, 190, "Y   Replace save", "y", fill=MENU_GOLD, color=INK
+            self.panel((305, 475, 670, 204), MENU_GOLD)
+            text(s, "Start a new game?", 337, 499, 40, MENU_GOLD)
+            text(
+                s,
+                "This will replace your saved progress in this browser.",
+                337,
+                550,
+                26,
             )
-            self.button(398, 453, 205, "Esc   Keep my save", "escape", fill="#2c4a55")
+            self.button(
+                337, 603, 267, "Y   Replace save", "y", fill=MENU_GOLD, color=INK
+            )
+            self.button(625, 603, 318, "Esc   Keep my save", "escape")
         else:
-            pygame.draw.rect(s, "#16303a", (153, 330, 494, 188))
-            pygame.draw.rect(s, MENU_GOLD, (153, 330, 494, 188), 2)
-            pygame.draw.line(s, "#2c4a55", (378, 350), (378, 496), 2)
-            text(s, "CORE EDITION", 176, 357, 25, MENU_GOLD)
+            self.panel((280, 451, 720, 230), MENU_GOLD)
+            pygame.draw.line(s, EDGE, (615, 479), (615, 653), 2)
+            text(s, "CORE EDITION", 312, 492, 34, MENU_GOLD)
             if game.storage.notice:
                 status = game.storage.notice
             elif game.storage.has_save:
                 status = f"Saved in this browser · ${game.town.cash:,}"
             else:
                 status = "No saved game yet"
-            text(s, status, 176, 397, 19, MINT, width=183)
-            self.button(397, 351, 227, "New Game   [N]", "n", fill=MENU_GOLD, color=INK)
+            text(s, status, 312, 543, 25, MINT, width=269)
+            self.button(644, 477, 324, "New Game   [N]", "n", fill=MENU_GOLD, color=INK)
             if game.storage.has_save:
                 self.button(
-                    397, 397, 227, "Continue   [C]", "c", fill=MENU_GOLD, color=INK
+                    644, 541, 324, "Continue   [C]", "c", fill=MENU_GOLD, color=INK
                 )
             else:
                 self.button(
-                    397, 397, 227, "Continue", None, fill="#253e48", color="#a0b2b8"
+                    644, 541, 324, "Continue", None, fill="#253e48", color="#a0b2b8"
                 )
-            self.button(397, 443, 227, "Rules & How to Play   [R]", "r", fill="#2c4a55")
+            self.button(644, 605, 324, "Rules & How to Play   [R]", "r")
 
     def street(self, g):
         t = g.town
         x = max(0, min(WIDTH - W, round(t.x - W / 2)))
-        y = max(104, min(HEIGHT - 390, round(t.y - 195)))
+        y = max(104, min(HEIGHT - MAP_VIEW.height, round(t.y - MAP_VIEW.height / 2)))
         s = self.surface
-        s.blit(image("world_100_day.png"), (0, 42), (x, y, W, 390))
-        s.set_clip((0, 42, W, 390))
+        s.blit(image("world_100_day.png"), MAP_VIEW.topleft, (x, y, *MAP_VIEW.size))
+        s.set_clip(MAP_VIEW)
         target = g.target()
-        pygame.draw.ellipse(s, GOLD, (target.x - x - 13, target.y - y + 46, 26, 10), 3)
+        pygame.draw.ellipse(
+            s, GOLD, (target.x - x - 13, target.y - y + HEADER + 4, 26, 10), 3
+        )
         frame = 1 + int(g.elapsed * 16) % 8 if g.moving else 0
         player = image("builder.png").subsurface((frame * 32, 0, 32, 50))
         if g.facing < 0:
             player = pygame.transform.flip(player, True, False)
-        s.blit(player, (round(t.x) - x - 16, round(t.y) - y + 10))
+        s.blit(player, (round(t.x) - x - 16, round(t.y) - y + HEADER - 32))
         s.set_clip(None)
         dest = target.name
         tx, ty = target.x, target.y + 16
@@ -154,30 +176,35 @@ class View:
         text(
             s,
             f"{dest}   ·   {compass}   {round(math.hypot(dx, dy))} m",
-            16,
-            443,
-            24,
+            476,
+            658,
+            28,
             GOLD,
         )
         place = entrance(t.x, t.y)
         if place:
             i, role = place
             shop = WAREHOUSE if role == "warehouse" else getattr(ROUTES[i], role)
-            self.button(16, 484, 306, "E   Enter " + shop.name, "e")
+            self.button(24, 644, 420, "E   Enter " + shop.name, "e")
         else:
-            text(s, "Walk with WASD or arrow keys", 16, 491, 21)
-        self.button(472, 484, 310, "P   Routes, inventory and upgrade", "p")
+            text(s, "Walk with WASD or arrow keys", 24, 657, 26)
+        self.button(930, 644, 326, "P   Routes and inventory", "p")
 
     def shop(self, g):
         s, t = self.surface, g.town
         i, role = entrance(t.x, t.y)
         if role == "warehouse":
-            text(s, WAREHOUSE.name, 68, 110, 40, GOLD)
-            text(s, "Upgrade your bag", 68, 180, 29)
+            self.panel((24, 88, 1232, 504))
+            text(s, WAREHOUSE.name, 60, 132, 47, GOLD)
+            text(s, "Upgrade your bag", 60, 226, 38)
             text(
-                s, f"12 extra slots · ${UPGRADE_PRICE} · one purchase per game", 68, 227
+                s,
+                f"12 extra slots · ${UPGRADE_PRICE} · one purchase per game",
+                60,
+                284,
+                28,
             )
-            text(s, g.message or f"Current capacity: {t.capacity}", 68, 296)
+            text(s, g.message or f"Current capacity: {t.capacity}", 60, 363, 26)
             action = "E   Upgrade bag"
         else:
             r = ROUTES[i]
@@ -186,10 +213,10 @@ class View:
                 "workshop": "FACTORY",
                 "market": "PUBLIC_SHOP",
             }[role]
-            s.blit(image(f"{art}_{i}.png"), (80, 42))
+            s.blit(shop_art(f"{art}_{i}.png"), (24, 80))
             status = {
                 "supplier": f"{r.material} · ${r.cost} each",
-                "workshop": f"{r.material} → {r.product}",
+                "workshop": f"{r.material} to {r.product}",
                 "market": f"{r.product} · ${r.price} each",
             }[role]
             order = t.orders[i]
@@ -204,55 +231,61 @@ class View:
                 "workshop": f"Bring me {r.material}. I'll make {r.product} in {r.seconds} seconds.",
                 "market": f"I buy {r.product} for ${r.price} each.",
             }[role]
-            text(s, g.message or greeting, 344, 76, 21, DARK, 194)
-            text(s, status, 423, 399, 17, PAPER, 154)
-            text(s, getattr(r, role).name, 16, 450, 24, GOLD)
-            text(
-                s,
-                f"{r.material}: {t.materials[i]}     {r.product}: {t.goods[i]}",
-                375,
-                450,
-            )
+            text(s, greeting, 369, 123, 24, DARK, 240)
+            text(s, status, 467, 535, 22, PAPER, 193)
+            self.panel((880, 80, 376, 520))
+            text(s, getattr(r, role).name, 906, 111, 39, GOLD, 324)
+            text(s, status, 906, 205, 29, MINT, 324)
+            pygame.draw.line(s, EDGE, (906, 259), (1230, 259), 2)
+            text(s, f"{r.material} in bag: {t.materials[i]}", 906, 290, 27)
+            text(s, f"{r.product} in bag: {t.goods[i]}", 906, 333, 27)
+            if g.message:
+                text(s, g.message, 906, 431, 26, GOLD, 324)
             action = {
                 "supplier": "E   Buy one",
                 "workshop": "E   Drop off / collect",
                 "market": "E   Sell goods",
             }[role]
             if role == "supplier":
-                self.button(224, 484, 155, "Q   Buy up to 4", "q")
-        self.button(16, 484, 194, action, "e")
-        self.button(621, 484, 163, "Esc   Outside", "escape")
+                self.button(300, 644, 230, "Q   Buy up to 4", "q")
+        self.button(24, 644, 254, action, "e")
+        self.button(1036, 644, 220, "Esc   Outside", "escape")
 
     def guide(self, g):
         s, t = self.surface, g.town
-        text(s, "Trading routes", 20, 62, 34, GOLD)
+        text(s, "Trading routes", 24, 88, 44, GOLD)
         text(
             s,
             "Choose a route to see your stock, then choose a doorstep to mark on the map.",
-            20,
-            105,
+            24,
+            139,
+            26,
         )
         for i, r in enumerate(ROUTES):
-            x = 20 + i * 192
-            self.button(x, 148, 180, f"{i + 1}   {r.product}", str(i + 1))
-            text(s, f"{r.material}: {t.materials[i]}", x, 192)
-            text(s, f"{r.product}: {t.goods[i]}", x, 220)
+            x = 24 + i * 312
+            selected = i == g.route
+            self.panel((x, 184, 296, 172), GOLD if selected else EDGE)
+            self.button(x + 12, 196, 272, f"{i + 1}   {r.product}", str(i + 1))
+            text(s, f"{r.material}: {t.materials[i]}", x + 16, 263, 25)
+            text(s, f"{r.product}: {t.goods[i]}", x + 16, 304, 25)
         r = ROUTES[g.route]
-        text(s, f"{r.material} → {r.product}", 20, 282, 32, GOLD)
+        self.panel((24, 382, 1232, 208))
+        text(s, f"{r.material} to {r.product}", 42, 401, 36, GOLD)
         for i, (prefix, shop) in enumerate(
             zip(("Buy", "Make", "Sell"), (r.supplier, r.workshop, r.market))
         ):
             self.button(
-                20 + i * 254, 337, 246, f"{'ABC'[i]}  {prefix}: {shop.name}", "abc"[i]
+                42 + i * 402, 453, 384, f"{'ABC'[i]}   {prefix} · {shop.name}", "abc"[i]
             )
         text(
             s,
             f"Bag {t.carried}/{t.capacity}   ·   {t.reserved} slots reserved by production",
-            20,
-            405,
+            42,
+            536,
+            26,
         )
-        self.button(20, 484, 310, "U   Mark Foundry Warehouse", "u")
-        self.button(621, 484, 163, "Esc   Outside", "escape")
+        self.button(24, 644, 344, "U   Mark Foundry Warehouse", "u")
+        self.button(1036, 644, 220, "Esc   Outside", "escape")
 
     def draw(self, g):
         self.buttons.clear()
@@ -262,14 +295,16 @@ class View:
             return
         self.surface.fill(DARK)
         {"street": self.street, "shop": self.shop, "guide": self.guide}[g.screen](g)
-        text(self.surface, "Foundry Town   /   Core Edition", 15, 11, 26, GOLD)
+        text(self.surface, "Foundry Town   /   Core Edition", 24, 20, 32, GOLD)
         text(
             self.surface,
-            f"${g.town.cash}      Bag  {g.town.carried}/{g.town.capacity}",
-            565,
-            12,
+            f"Cash  ${g.town.cash:,}",
+            620,
             23,
+            27,
+            GOLD,
         )
+        text(self.surface, f"Bag  {g.town.carried}/{g.town.capacity}", 880, 23, 27)
         if g.storage.notice:
-            text(self.surface, g.storage.notice, 16, 521, 16, GOLD)
+            text(self.surface, g.storage.notice, 24, 699, 19, GOLD)
         pygame.display.flip()

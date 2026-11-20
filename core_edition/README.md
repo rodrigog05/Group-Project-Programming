@@ -2,7 +2,7 @@
 
 The public Core Edition shows a Lisbon splash while the runtime downloads and then opens the animated start menu automatically. [Play Core Edition](https://rodrigog05.github.io/Group-Project-Programming/core-menu/)
 
-The browser build on this branch fits the game to the window while keeping the 800 × 540 aspect ratio. Use **Fullscreen** in the top-right corner to enter browser fullscreen. Use **Exit Fullscreen** or press **Esc** to return to the window.
+The browser build on this branch uses a 1280 × 720 layout and fits the game to the window at 16:9. Use **Fullscreen** in the top-right corner to enter browser fullscreen. Use **Exit Fullscreen** or press **Esc** to return to the window.
 
 Start outside Goldenfield Farm with $60 and a 12-slot bag. Buy wheat, walk east to Sunrise Bakery, make bread, then walk west to Daily Bread Market to sell it. Four units of wheat cost $16. Four loaves sell for $56. Completing that trip gives you exactly $100, enough for the warehouse bag upgrade.
 

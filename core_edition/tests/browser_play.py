@@ -39,19 +39,20 @@ def exercise(page, url):
     def check_canvas():
         bounds = canvas.bounding_box()
         assert bounds is not None
-        assert abs(bounds["width"] / bounds["height"] - 800 / 540) < 0.005, bounds
-        assert canvas.evaluate("c => c.width === 800 && c.height === 540")
+        assert abs(bounds["width"] / bounds["height"] - 16 / 9) < 0.005, bounds
+        assert canvas.evaluate("c => c.width === 1280 && c.height === 720")
         viewport = page.evaluate("() => [innerWidth, innerHeight]")
-        toolbar = 44 if viewport[0] / viewport[1] <= 7 / 4 else 0
-        expected = min(viewport[0], (viewport[1] - toolbar) * 800 / 540)
+        expected = min(viewport[0], viewport[1] * 16 / 9)
         assert abs(bounds["width"] - expected) < 2, (bounds, viewport)
+        assert abs(bounds["x"] * 2 + bounds["width"] - viewport[0]) < 2, bounds
+        assert abs(bounds["y"] * 2 + bounds["height"] - viewport[1]) < 2, bounds
         return bounds
 
     def click_game(x, y):
         bounds = check_canvas()
         page.mouse.click(
-            bounds["x"] + bounds["width"] * x / 800,
-            bounds["y"] + bounds["height"] * y / 540,
+            bounds["x"] + bounds["width"] * x / 1280,
+            bounds["y"] + bounds["height"] * y / 720,
         )
         page.wait_for_timeout(120)
 
@@ -86,35 +87,43 @@ def exercise(page, url):
     print("PASS branded splash hands off without a startup click", flush=True)
     tap("c")
     assert snapshot() is None
-    click_game(500, 459)
+    assert check_canvas()["width"] > 1364
+    click_game(800, 629)
     tap("n")
     assert snapshot() is None
-    click_game(224, 491)
+    click_game(372, 639)
     page.set_viewport_size({"width": 1920, "height": 1080})
+    assert check_canvas()["width"] == 1920
     fullscreen.click()
     page.wait_for_function("document.fullscreenElement === document.documentElement")
     expect(fullscreen).to_have_text("Exit Fullscreen")
-    click_game(500, 367)
+    click_game(800, 501)
     assert state()["cash"] == 60
     fullscreen.click()
     page.wait_for_function("!document.fullscreenElement")
     expect(fullscreen).to_have_text("Fullscreen")
     page.set_viewport_size({"width": 720, "height": 500})
-    click_game(145, 500)
-    click_game(90, 500)
+    click_game(155, 668)
+    click_game(135, 668)
     assert state()["cash"] == 56 and state()["materials"][3] == 1
-    assert check_canvas()["width"] > 600
-    click_game(700, 500)
+    assert check_canvas()["width"] == 720
+    click_game(1130, 668)
     boot(start=False)
-    click_game(500, 413)
+    click_game(800, 565)
     assert state()["cash"] == 56
     page.set_viewport_size({"width": 1366, "height": 768})
     check_canvas()
-    print("PASS 1366x768, 1920x1080, 720x500, fullscreen toggle, mouse and saved game", flush=True)
+    print(
+        "PASS 1366x768, 1920x1080, 720x500, fullscreen toggle, mouse and saved game",
+        flush=True,
+    )
     # Whole bread route on foot; use the guide and interact through actual key events.
-    tap("p")
-    tap("4")
-    tap("a")
+    click_game(1080, 668)
+    tap("e")
+    tap("q")
+    assert state()["cash"] == 56  # The guide blocks street and shop actions.
+    click_game(1100, 220)
+    click_game(200, 477)
     tap("e")
     tap("q")
     assert state()["cash"] == 40 and state()["materials"][3] == 5
@@ -184,7 +193,10 @@ def exercise(page, url):
     assert snapshot() == original
     tap("y")
     assert state()["cash"] == 60 and not state()["upgraded"]
-    print("PASS rules, disabled Continue, cancel, Continue, and confirmed replacement", flush=True)
+    print(
+        "PASS rules, disabled Continue, cancel, Continue, and confirmed replacement",
+        flush=True,
+    )
 
 
 if __name__ == "__main__":

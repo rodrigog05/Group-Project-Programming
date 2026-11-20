@@ -10,22 +10,23 @@ import pygame
 GAME = Path(__file__).resolve().parents[1] / "game"
 sys.path.insert(0, str(GAME))
 
+from view import H, W
+
 from menu_scene import LisbonMenuScene
 
 STYLE = """
 <style>
   body {
-    --toolbar-height: 0px;
-    --game-width: min(100vw, calc((100dvh - var(--toolbar-height)) * 800 / 540));
+    --game-width: min(100vw, calc(100dvh * GAME_WIDTH / GAME_HEIGHT));
     overflow: hidden;
     background: #101f28 !important;
   }
   #canvas {
     position: fixed;
-    inset: var(--toolbar-height) 0 0;
+    inset: 0;
     margin: auto;
     width: var(--game-width);
-    height: calc(var(--game-width) * 540 / 800);
+    height: calc(var(--game-width) * GAME_HEIGHT / GAME_WIDTH);
     outline: none;
   }
   #core-fullscreen {
@@ -41,9 +42,6 @@ STYLE = """
     background: #16303a;
     font: 600 14px system-ui, sans-serif;
     cursor: pointer;
-  }
-  @media (max-aspect-ratio: 7/4) {
-    body:has(#core-fullscreen:not([hidden])) { --toolbar-height: 44px; }
   }
   #transfer, #infobox { visibility: hidden; }
   #core-splash {
@@ -117,17 +115,20 @@ def brand_build():
     if "</head>" not in html or "<body>" not in html:
         raise ValueError("Expected the Pygbag HTML page")
     if "ume_block : 0," not in html:
-        raise ValueError("Build with --ume_block 0 so the silent game starts automatically")
+        raise ValueError(
+            "Build with --ume_block 0 so the silent game starts automatically"
+        )
     # SDL keeps its framebuffer size. CSS owns only the display size and position.
     if "user_canvas_managed : 0," not in html:
         raise ValueError("Expected Pygbag's default canvas configuration")
     html = html.replace("user_canvas_managed : 0,", "user_canvas_managed : 1,", 1)
-    scene = pygame.Surface((800, 540))
+    scene = pygame.Surface((W, H))
     LisbonMenuScene(scene.get_size()).draw(scene, 0)
     image = io.BytesIO()
     pygame.image.save(scene, image, "splash.png")
     data = base64.b64encode(image.getvalue()).decode("ascii")
-    html = html.replace("</head>", STYLE.replace("SCENE", data) + "</head>", 1)
+    style = STYLE.replace("GAME_WIDTH", str(W)).replace("GAME_HEIGHT", str(H))
+    html = html.replace("</head>", style.replace("SCENE", data) + "</head>", 1)
     path.write_text(html.replace("<body>", "<body>" + SPLASH, 1), encoding="utf-8")
 
 
