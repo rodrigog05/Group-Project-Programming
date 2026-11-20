@@ -2,6 +2,8 @@
 
 The public Core Edition shows a Lisbon splash while the runtime downloads and then opens the animated start menu automatically. [Play Core Edition](https://rodrigog05.github.io/Group-Project-Programming/core-menu/)
 
+The browser build on this branch fits the game to the window while keeping the 800 × 540 aspect ratio. Use **Fullscreen** in the top-right corner to enter browser fullscreen. Use **Exit Fullscreen** or press **Esc** to return to the window.
+
 Start outside Goldenfield Farm with $60 and a 12-slot bag. Buy wheat, walk east to Sunrise Bakery, make bread, then walk west to Daily Bread Market to sell it. Four units of wheat cost $16. Four loaves sell for $56. Completing that trip gives you exactly $100, enough for the warehouse bag upgrade.
 
 ## Open the tested browser build
@@ -87,6 +89,7 @@ The three unit-test modules cover trading, movement, and saves. The browser test
 ## Review checklist
 
 - [x] Chromium rendered the Lisbon menu in daylight and at night. Browser and unit tests covered the menu's save and confirmation behavior.
+- [x] Chromium fit the canvas at 1366 × 768, 1920 × 1080, and 720 × 500. Tests covered scaled mouse clicks, fullscreen entry and exit, keyboard movement, and save reload. A separate headed Chromium check verified native Escape from fullscreen.
 
 - [x] Chromium played the wheat-to-bread route on foot, reloaded mid-batch, collected bread and sold it.
 - [x] Chromium bought, produced, collected and sold tools, furniture and pottery using the store UI. The test placed the player at each doorway for these three routes.

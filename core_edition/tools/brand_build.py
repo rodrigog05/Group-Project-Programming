@@ -1,4 +1,4 @@
-"""Add the Foundry Town splash to a generated Pygbag page."""
+"""Add the splash, responsive canvas and fullscreen control to Pygbag's page."""
 
 import base64
 import io
@@ -14,6 +14,37 @@ from menu_scene import LisbonMenuScene
 
 STYLE = """
 <style>
+  body {
+    --toolbar-height: 0px;
+    --game-width: min(100vw, calc((100dvh - var(--toolbar-height)) * 800 / 540));
+    overflow: hidden;
+    background: #101f28 !important;
+  }
+  #canvas {
+    position: fixed;
+    inset: var(--toolbar-height) 0 0;
+    margin: auto;
+    width: var(--game-width);
+    height: calc(var(--game-width) * 540 / 800);
+    outline: none;
+  }
+  #core-fullscreen {
+    position: fixed;
+    top: 6px;
+    right: 8px;
+    z-index: 6;
+    min-height: 32px;
+    padding: 4px 10px;
+    border: 1px solid #ffc66c;
+    border-radius: 4px;
+    color: #ffc66c;
+    background: #16303a;
+    font: 600 14px system-ui, sans-serif;
+    cursor: pointer;
+  }
+  @media (max-aspect-ratio: 7/4) {
+    body:has(#core-fullscreen:not([hidden])) { --toolbar-height: 44px; }
+  }
   #transfer, #infobox { visibility: hidden; }
   #core-splash {
     position: fixed;
@@ -51,6 +82,30 @@ SPLASH = """
     <p role="status">Loading Core Edition…</p>
   </section>
 </div>
+<button id="core-fullscreen" type="button" hidden>Fullscreen</button>
+<script>
+  const fullscreenButton = document.getElementById("core-fullscreen");
+  function updateFullscreenButton() {
+    fullscreenButton.textContent = document.fullscreenElement
+      ? "Exit Fullscreen" : "Fullscreen";
+  }
+  if (document.fullscreenEnabled && document.documentElement.requestFullscreen) {
+    fullscreenButton.hidden = false;
+    document.addEventListener("fullscreenchange", updateFullscreenButton);
+    fullscreenButton.addEventListener("click", async () => {
+      try {
+        if (document.fullscreenElement) {
+          await document.exitFullscreen();
+        } else {
+          await document.documentElement.requestFullscreen();
+        }
+        document.getElementById("canvas").focus({preventScroll: true});
+      } catch (error) {
+        console.warn("Foundry Town fullscreen unavailable", error);
+      }
+    });
+  }
+</script>
 """
 
 
@@ -63,6 +118,10 @@ def brand_build():
         raise ValueError("Expected the Pygbag HTML page")
     if "ume_block : 0," not in html:
         raise ValueError("Build with --ume_block 0 so the silent game starts automatically")
+    # SDL keeps its framebuffer size. CSS owns only the display size and position.
+    if "user_canvas_managed : 0," not in html:
+        raise ValueError("Expected Pygbag's default canvas configuration")
+    html = html.replace("user_canvas_managed : 0,", "user_canvas_managed : 1,", 1)
     scene = pygame.Surface((800, 540))
     LisbonMenuScene(scene.get_size()).draw(scene, 0)
     image = io.BytesIO()
