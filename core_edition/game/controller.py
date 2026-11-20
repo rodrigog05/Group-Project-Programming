@@ -1,6 +1,6 @@
 """Interpret player actions. The view only reads this state."""
 
-from catalog import entrance, ROUTES, WAREHOUSE
+from catalog import ROUTES, WAREHOUSE, entrance
 from world import move
 
 

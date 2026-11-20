@@ -1,6 +1,7 @@
 """Map collision and time-based walking. Both Lisbon bridges carry pedestrians in Core."""
 
 import math
+
 from catalog import ROUTES
 
 WIDTH, HEIGHT = 2400, 1780

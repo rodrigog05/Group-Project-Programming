@@ -2,10 +2,11 @@
 
 import asyncio
 import time
+
 import pygame
 from controller import Session
 from storage import Storage
-from view import View, W, H
+from view import H, View, W
 
 
 async def main():

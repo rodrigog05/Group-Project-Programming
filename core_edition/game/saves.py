@@ -1,8 +1,9 @@
 """Bounded, validated JSON; dedicated storage key, separate from other editions."""
 
-from dataclasses import asdict
 import json
 import math
+from dataclasses import asdict
+
 from catalog import ROUTES
 from economy import Order, Town
 from world import walkable

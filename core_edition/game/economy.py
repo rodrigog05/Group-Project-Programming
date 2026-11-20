@@ -1,6 +1,7 @@
 """All transactions operate on one local town. Production time is active play time."""
 
 from dataclasses import dataclass, field
+
 from catalog import ROUTES, entrance
 
 UPGRADE_PRICE = 100

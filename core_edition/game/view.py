@@ -1,12 +1,13 @@
 """Pygame draws the original map, character frames, and illustrated store interiors."""
 
+import math
 from functools import lru_cache
 from pathlib import Path
-import math
+
 import pygame
 from catalog import ROUTES, WAREHOUSE, entrance
 from economy import UPGRADE_PRICE
-from world import WIDTH, HEIGHT, RIVER_TOP, RIVER_BOTTOM
+from world import HEIGHT, RIVER_BOTTOM, RIVER_TOP, WIDTH
 
 W, H = 800, 540
 DARK = "#20383c"
