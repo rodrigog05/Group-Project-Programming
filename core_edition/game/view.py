@@ -211,7 +211,12 @@ class View:
             self.button(24, 644, 430, f"E   Ferry to {other}  ·  ${FERRY_FARE}", "e")
         elif place:
             i, role = place
-            shop = {"warehouse": WAREHOUSE, "garage": GARAGES[i or 0]}.get(role) or getattr(ROUTES[i], role)
+            if role == "warehouse":
+                shop = WAREHOUSE
+            elif role == "garage":
+                shop = GARAGES[i]
+            else:
+                shop = getattr(ROUTES[i], role)
             self.button(24, 644, 420, "E   Enter " + shop.name, "e")
         elif g.message:
             text(s, g.message, 24, 648, 22, GOLD, width=440)
