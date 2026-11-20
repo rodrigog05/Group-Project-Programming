@@ -9,8 +9,9 @@ KEY = "foundry-town.core.v1"
 
 
 def exercise(page, url):
-    page.add_init_script("""const f = sessionStorage.getItem('next-core-test');
-        if (f) { localStorage.setItem('foundry-town.core.v1', f); sessionStorage.removeItem('next-core-test'); }""")
+    page.add_init_script("""if (window === window.top && location.protocol.startsWith('http')) {
+        const f = sessionStorage.getItem('next-core-test');
+        if (f) { localStorage.setItem('foundry-town.core.v1', f); sessionStorage.removeItem('next-core-test'); } }""")
 
     def tap(key):
         page.keyboard.press(key, delay=65)

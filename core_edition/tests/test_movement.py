@@ -1,11 +1,12 @@
 import math
 import sys
 import unittest
+from collections import deque
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "game"))
 
-from catalog import ROUTES, entrance
+from catalog import ROUTES, WAREHOUSE, entrance
 from controller import Session
 from storage import Storage
 from world import move, walkable
@@ -39,6 +40,30 @@ class Streets(unittest.TestCase):
                 pos = (shop.x, shop.y + 16)
                 self.assertTrue(walkable(*pos))
                 self.assertEqual(entrance(*pos), (i, role))
+
+    def test_walkable_paths_connect_spawn_to_every_shop(self):
+        town = Session(Storage()).town
+        spawn = (town.x, town.y)
+        frontier = deque([spawn])
+        visited = {spawn}
+        shops = {
+            shop
+            for route in ROUTES
+            for shop in (route.supplier, route.workshop, route.market)
+        } | {WAREHOUSE}
+        while frontier and shops:
+            x, y = frontier.popleft()
+            shops = {shop for shop in shops if not shop.nearby(x, y)}
+            for dx, dy in ((8, 0), (-8, 0), (0, 8), (0, -8)):
+                dest = (x + dx, y + dy)
+                if (
+                    dest not in visited
+                    and walkable(*dest)
+                    and walkable(x + dx / 2, y + dy / 2)
+                ):
+                    visited.add(dest)
+                    frontier.append(dest)
+        self.assertFalse(shops, f"Unreachable shops: {shops}")
 
     def test_diagonal_speed_and_key_release(self):
         x, y = move(1368, 650, 1, 1, 0.05)
