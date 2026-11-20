@@ -27,6 +27,11 @@ async def main():
     while True:
         now = time.monotonic()
         for event in pygame.event.get():
+            if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN) and not game.focus:
+                # Some browsers (Safari) never report focus coming back after a blur.
+                # A key press or click means the player is here, so resume.
+                game.focus = True
+                last = now
             if event.type == pygame.QUIT:
                 game.save()
                 pygame.quit()
