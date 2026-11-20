@@ -2,7 +2,10 @@
 
 from dataclasses import dataclass, field
 
-from catalog import FERRY_FARE, PIERS, ROUTES, VEHICLE_BY_KEY, VEHICLES, entrance
+from catalog import (
+    FERRY_FARE, PIERS, ROULETTE_PAYOUTS, ROUTES, VEHICLE_BY_KEY, VEHICLES, entrance,
+    roulette_color,
+)
 from world import SPEED, on_road, walkable
 
 UPGRADE_PRICE = 100
@@ -70,6 +73,16 @@ class Town:
         self.x, self.y = destination.x, destination.y
         return True, f"Arrived at {destination.name}. Ticket -${FERRY_FARE}."
 
+    def bet_roulette(self, choice, stake, number):
+        """Take a stake on red, black or green and return the payout if the ball lands on `number`.
+
+        The stake leaves your cash now; the payout is added when the wheel stops. None = can't afford.
+        """
+        if not 0 < stake <= self.cash:
+            return None
+        self.cash -= stake
+        return stake * ROULETTE_PAYOUTS[choice] if roulette_color(number) == choice else 0
+
     @property
     def carried(self):
         return sum(self.materials) + sum(self.goods)
@@ -85,7 +98,7 @@ class Town:
 
     def trade(self, bulk=False):
         location = entrance(self.x, self.y)
-        if location is None or location[1] in ("garage", "ferry"):
+        if location is None or location[1] in ("garage", "ferry", "casino"):
             return "Walk to a marked doorstep first."
         i, role = location
         if role == "warehouse":

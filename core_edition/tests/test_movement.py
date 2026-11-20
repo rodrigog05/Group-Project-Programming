@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "game"))
 
-from catalog import GARAGES, PIERS, ROUTES, WAREHOUSE, entrance
+from catalog import CASINO, GARAGES, PIERS, ROUTES, WAREHOUSE, entrance
 from controller import Session
 from storage import Storage
 from world import move, walkable
@@ -58,7 +58,7 @@ class Streets(unittest.TestCase):
             shop
             for route in ROUTES
             for shop in (route.supplier, route.workshop, route.market)
-        } | {WAREHOUSE} | set(GARAGES) | set(PIERS)
+        } | {WAREHOUSE, CASINO} | set(GARAGES) | set(PIERS)
         while frontier and shops:
             x, y = frontier.popleft()
             shops = {shop for shop in shops if not shop.nearby(x, y)}

@@ -21,6 +21,7 @@ Open **http://localhost:8000/** in Chrome or Edge. When the menu appears, choose
 
 - **WASD or arrows** walk or drive. The bridges carry **vehicles only**. On foot, press **E** at the Cais do Sodré or Cacilhas pier to take the ferry for **$2**; the crossing plays as an animation (**Esc** skips).
 - **E** at Motorworks Garage or Cacilhas Garage opens the showroom. Press **1–4** to buy the motorcycle ($120), car ($240), delivery van ($360) or F1 car ($480). The trunk adds to your bag, and vehicles drive faster on paved roads. A new vehicle replaces your current one.
+- **E** at the Lisbon Casino (south of Foundry Warehouse, between Ember Kiln and the fountain square) opens European roulette, as in the desktop game. Pick a chip with **1–5** or **A/D** ($5 to $100), then bet with **R** (red, pays 2×), **B** (black, 2×) or **G** (green 0, 36×), or click. The stake leaves your cash at once and a win arrives when the ball lands. **E** or **Esc** leaves.
 - **E** opens a nearby store. Press it again for the action shown. At a supplier, **Q** buys up to four units, limited by cash and space.
 - At a workshop, **E** starts a batch with all matching materials. Press **E** when the timer finishes to collect it. Walk to that route's market and press **E** inside to sell your finished goods.
 - **P or I** opens the route guide and inventory. Select route **1–4**, then **A**, **B** or **C** to track its supplier, workshop or market. **U** tracks the warehouse. **Esc** leaves a store or closes the guide. On-screen buttons also operate the menus.
@@ -41,11 +42,11 @@ The playable source lives in `core_edition/game/`. Pygbag starts `main.py`. The 
 | File under game/ | Responsibility |
 |---|---|
 | main.py | Start pygame-ce, read events, handle focus and give the browser time between frames. |
-| controller.py | Turn input into walking, entering a shop, selecting a destination or trading. Schedule saves. |
-| catalog.py | Define store names, coordinates, prices, batch times, vehicles, garages, ferry piers and which door the player can enter. |
+| controller.py | Turn input into walking, entering a shop, selecting a destination, trading or a roulette spin. Schedule saves. |
+| catalog.py | Define store names, coordinates, prices, batch times, vehicles, garages, ferry piers, the casino's roulette wheel and which door the player can enter. |
 | world.py | Apply movement speed, paved roads, solid building outlines, river boundaries and the vehicle-only bridges. |
-| economy.py | Own the player's cash, inventory, orders, upgrade and vehicle, and the ferry fare. Validate each transaction. |
-| view.py | Draw the scrolling map, animated builder, illustrated stores, money, route guide and buttons. |
+| economy.py | Own the player's cash, inventory, orders, upgrade and vehicle, the ferry fare and roulette stakes. Validate each transaction. |
+| view.py | Draw the scrolling map, animated builder, illustrated stores, the casino and its spinning wheel, money, route guide and buttons. |
 | menu_scene.py | Draw the desktop menu's Lisbon backdrop with Pygame shapes and animate its traffic, boats and lighting. |
 | saves.py | Encode and validate versioned JSON, including position, money, capacity and active orders. |
 | storage.py | Read and write the Core save through the browser's localStorage and report failures in game. |

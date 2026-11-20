@@ -1,4 +1,4 @@
-"""The four desktop supply chains, garages and ferry. A location is a doorstep in world pixels."""
+"""The four desktop supply chains, garages, ferry and casino. A location is a doorstep in world pixels."""
 
 from dataclasses import dataclass
 from math import dist
@@ -93,6 +93,21 @@ GARAGES = (Shop("Motorworks Garage", 1076, 634), Shop("Cacilhas Garage", 1628, 1
 # The bridges carry vehicles only. Walkers cross the Tejo on the ferry between these piers.
 PIERS = (Shop("Cais do Sodré", 660, 702), Shop("Cacilhas", 1290, 1098))
 FERRY_FARE = 2
+CASINO = Shop("Lisbon Casino", 1092, 446)
+# A European roulette wheel: the 37 pockets in their real order, clockwise from 0.
+ROULETTE_POCKETS = (
+    0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10,
+    5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26,
+)
+RED_NUMBERS = frozenset((1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36))
+ROULETTE_PAYOUTS = {"red": 2, "black": 2, "green": 36}  # Returned per $1 staked on a win
+CHIPS = (5, 10, 25, 50, 100)
+
+
+def roulette_color(number):
+    if number == 0:
+        return "green"
+    return "red" if number in RED_NUMBERS else "black"
 
 
 def entrance(x, y):
@@ -103,6 +118,8 @@ def entrance(x, y):
                 return i, role
     if WAREHOUSE.nearby(x, y):
         return None, "warehouse"
+    if CASINO.nearby(x, y):
+        return None, "casino"
     for i, place in enumerate(GARAGES):
         if place.nearby(x, y):
             return i, "garage"
