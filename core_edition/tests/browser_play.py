@@ -187,9 +187,16 @@ def exercise(page, url):
         tap("e")
         assert state()["cash"] == before - cost + price and state()["goods"][i] == 0
         print("PASS route", i, flush=True)
+    # On foot the bridges are closed, so cross the Tejo on the ferry instead.
     arrive(300, 700)
     walk(1100, "y")
-    assert state()["y"] >= 1090
+    assert state()["y"] < 718
+    arrive(660, 702)
+    fare_before = state()["cash"]
+    tap("e")
+    page.wait_for_timeout(5600)
+    assert (state()["x"], state()["y"]) == (1290, 1098) and state()["cash"] == fare_before - 2
+    print("PASS walkers blocked on the bridge, ferry to Cacilhas", flush=True)
     arrive(1076, 280)
     before = state()["cash"]
     tap("e")
@@ -198,7 +205,7 @@ def exercise(page, url):
     assert state()["cash"] == before - 100 and state()["upgraded"]
     boot()
     assert state()["upgraded"] and state()["cash"] == before - 100
-    print("PASS west bridge, one-time upgrade and persisted balance", flush=True)
+    print("PASS one-time upgrade and persisted balance", flush=True)
     boot(start=False)
     original = snapshot()
     tap("n")

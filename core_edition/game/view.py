@@ -5,7 +5,8 @@ from functools import lru_cache
 from pathlib import Path
 
 import pygame
-from catalog import ROUTES, WAREHOUSE, entrance
+from catalog import FERRY_FARE, GARAGES, PIERS, ROUTES, VEHICLES, WAREHOUSE, entrance
+from controller import FERRY_SECONDS
 from economy import UPGRADE_PRICE
 from world import HEIGHT, RIVER_BOTTOM, RIVER_TOP, WIDTH
 
@@ -33,6 +34,18 @@ def image(name):
 @lru_cache(maxsize=8)
 def font(size):
     return pygame.font.Font(None, size)
+
+
+VEHICLE_FRAME = (104, 79, 52, 56)  # Width, height and the vehicle's anchor in vehicles.png
+
+
+@lru_cache(maxsize=16)
+def vehicle_art(index, scale=1.0, flip=False):
+    width, height, _, _ = VEHICLE_FRAME
+    art = image("vehicles.png").subsurface((index * width, 0, width, height))
+    if scale != 1:
+        art = pygame.transform.smoothscale_by(art, scale)
+    return pygame.transform.flip(art, True, False) if flip else art
 
 
 @lru_cache(maxsize=12)
@@ -152,11 +165,17 @@ class View:
         pygame.draw.ellipse(
             s, GOLD, (target.x - x - 13, target.y - y + HEADER + 4, 26, 10), 3
         )
-        frame = 1 + int(g.elapsed * 16) % 8 if g.moving else 0
-        player = image("builder.png").subsurface((frame * 32, 0, 32, 50))
-        if g.facing < 0:
-            player = pygame.transform.flip(player, True, False)
-        s.blit(player, (round(t.x) - x - 16, round(t.y) - y + HEADER - 32))
+        if t.ride:
+            _, _, anchor_x, anchor_y = VEHICLE_FRAME
+            index = next(i for i, v in enumerate(VEHICLES) if v.key == t.vehicle)
+            art = vehicle_art(index, 1.0, g.facing < 0)
+            s.blit(art, (round(t.x) - x - anchor_x, round(t.y) - y + HEADER - anchor_y))
+        else:
+            frame = 1 + int(g.elapsed * 16) % 8 if g.moving else 0
+            player = image("builder.png").subsurface((frame * 32, 0, 32, 50))
+            if g.facing < 0:
+                player = pygame.transform.flip(player, True, False)
+            s.blit(player, (round(t.x) - x - 16, round(t.y) - y + HEADER - 32))
         s.set_clip(None)
         dest = target.name
         tx, ty = target.x, target.y + 16
@@ -164,12 +183,17 @@ class View:
             t.y > RIVER_BOTTOM and ty < RIVER_TOP
         ):
             north = t.y < RIVER_TOP
-            ty = RIVER_TOP - 12 if north else RIVER_BOTTOM + 12
-            tx = min(
-                (300, 2035 - 0.32 * (ty - RIVER_TOP)),
-                key=lambda bx: abs(t.x - bx) + abs(target.x - bx),
-            )
-            dest += " via bridge"
+            if t.ride:
+                ty = RIVER_TOP - 12 if north else RIVER_BOTTOM + 12
+                tx = min(
+                    (300, 2035 - 0.32 * (ty - RIVER_TOP)),
+                    key=lambda bx: abs(t.x - bx) + abs(target.x - bx),
+                )
+                dest += " via bridge"
+            else:
+                pier = PIERS[0 if north else 1]  # On foot, head for the ferry on this bank.
+                tx, ty = pier.x, pier.y
+                dest += " via ferry"
         dx, dy = tx - t.x, ty - t.y
         directions = ("E", "SE", "S", "SW", "W", "NW", "N", "NE")
         compass = directions[round(math.atan2(dy, dx) * 4 / math.pi) % 8]
@@ -182,17 +206,85 @@ class View:
             GOLD,
         )
         place = entrance(t.x, t.y)
-        if place:
+        if place and place[1] == "ferry":
+            other = PIERS[1 - place[0]].name
+            self.button(24, 644, 430, f"E   Ferry to {other}  ·  ${FERRY_FARE}", "e")
+        elif place:
             i, role = place
-            shop = WAREHOUSE if role == "warehouse" else getattr(ROUTES[i], role)
+            shop = {"warehouse": WAREHOUSE, "garage": GARAGES[i or 0]}.get(role) or getattr(ROUTES[i], role)
             self.button(24, 644, 420, "E   Enter " + shop.name, "e")
+        elif g.message:
+            text(s, g.message, 24, 648, 22, GOLD, width=440)
         else:
             text(s, "Walk with WASD or arrow keys", 24, 657, 26)
         self.button(930, 644, 326, "P   Routes and inventory", "p")
 
+    def garage(self, g, index):
+        """Showroom: the four vehicles with price, trunk and speeds. Keys 1-4 buy."""
+        s, t = self.surface, g.town
+        text(s, GARAGES[index].name, 24, 84, 44, GOLD)
+        text(s, g.message or "The bridges carry vehicles only. Pick a ride and drive across the Tejo.",
+             24, 128, 26, MINT if not g.message else GOLD, width=1220)
+        for i, ride in enumerate(VEHICLES):
+            x, current = 24 + i * 312, t.vehicle == ride.key
+            self.panel((x, 166, 296, 438), GOLD if current else EDGE)
+            art = vehicle_art(i, 2.0)
+            s.blit(art, art.get_rect(midbottom=(x + 148, 352)))
+            pygame.draw.ellipse(s, "#2c4a55", (x + 48, 344, 200, 18), 2)
+            text(s, ride.label, x + 18, 372, 34, GOLD)
+            if current:
+                text(s, "YOUR RIDE", x + 18, 410, 30, MINT)
+            else:
+                text(s, f"${ride.price}", x + 18, 410, 34, PAPER)
+            room = 12 * (2 if t.upgraded else 1) + ride.trunk
+            text(s, f"Trunk +{ride.trunk}  ·  {room} cargo slots", x + 18, 452, 23)
+            text(s, f"Road {ride.road_speed}  ·  Off-road {ride.offroad_speed}", x + 18, 482, 23)
+            if not current:
+                self.button(x + 18, 530, 260, f"{i + 1}   Buy", str(i + 1), fill=GOLD, color=DARK)
+        self.button(1036, 644, 220, "Esc   Outside", "escape")
+
+    def ferry(self, g):
+        """The cacilheiro crossing the Tejo, over the animated Lisbon river scene."""
+        s, t = self.surface, g.town
+        self.menu_scene.draw(s, g.ferry_elapsed)
+        progress = min(1, g.ferry_elapsed / (FERRY_SECONDS - 0.6))
+        eased = progress * progress * (3 - 2 * progress)
+        # Lisbon is on the right of this view and Almada on the left.
+        start, end = (930, 330) if g.ferry_heading > 0 else (330, 930)
+        bx = start + (end - start) * eased
+        by = 540 + math.sin(g.ferry_elapsed * 2.4) * 3
+        bow = -1 if end < start else 1
+        pygame.draw.rect(s, "#f5efe2", (bx - 60, by - 54, 104, 40))
+        for w in range(5):
+            pygame.draw.rect(s, "#2f4b5a", (bx - 52 + w * 18, by - 46, 12, 12))
+        pygame.draw.rect(s, "#2f3d45", (bx - 10, by - 78, 18, 24))
+        pygame.draw.rect(s, "#d33a35", (bx - 10, by - 78, 18, 7))
+        # The player stands at the bow; the hull, drawn next, hides their legs.
+        player = image("builder.png").subsurface((0, 0, 32, 50))
+        if bow < 0:
+            player = pygame.transform.flip(player, True, False)
+        s.blit(player, (bx + bow * 66 - 16, by - 50))
+        hull = [(bx - 92, by - 8), (bx + 92, by - 8), (bx + 92 + bow * 18, by - 24),
+                (bx + 72, by + 24), (bx - 72, by + 24)]
+        if bow < 0:
+            hull = [(2 * bx - px, py) for px, py in hull]
+        pygame.draw.polygon(s, "#e07a2e", hull)
+        pygame.draw.rect(s, "#f5efe2", (bx - 88, by - 14, 176, 7))
+        for trail in range(1, 5):
+            tx = bx - bow * (100 + trail * 22)
+            pygame.draw.line(s, "#eaf6f4", (tx, by + 12 + trail * 3), (tx - bow * 26, by + 16 + trail * 4), 2)
+        pygame.draw.rect(s, DARK, (0, 0, W, HEADER))
+        names = (PIERS[0].name, PIERS[1].name)[:: 1 if g.ferry_heading > 0 else -1]
+        self.panel((330, 600, 620, 44), GOLD)
+        text(s, f"Ferry  ·  {names[0]}  to  {names[1]}", 352, 611, 28, GOLD)
+        self.button(1036, 644, 220, "Esc   Skip", "escape")
+
     def shop(self, g):
         s, t = self.surface, g.town
         i, role = entrance(t.x, t.y)
+        if role == "garage":
+            self.garage(g, i)
+            return
         if role == "warehouse":
             self.panel((24, 88, 1232, 504))
             text(s, WAREHOUSE.name, 60, 132, 47, GOLD)
@@ -294,7 +386,7 @@ class View:
             pygame.display.flip()
             return
         self.surface.fill(DARK)
-        {"street": self.street, "shop": self.shop, "guide": self.guide}[g.screen](g)
+        {"street": self.street, "shop": self.shop, "guide": self.guide, "ferry": self.ferry}[g.screen](g)
         text(self.surface, "Foundry Town   /   Core Edition", 24, 20, 32, GOLD)
         text(
             self.surface,
@@ -305,6 +397,7 @@ class View:
             GOLD,
         )
         text(self.surface, f"Bag  {g.town.carried}/{g.town.capacity}", 880, 23, 27)
+        text(self.surface, g.town.ride.label if g.town.ride else "On foot", 1080, 23, 27, MINT)
         if g.storage.notice:
             text(self.surface, g.storage.notice, 24, 699, 19, GOLD)
         pygame.display.flip()

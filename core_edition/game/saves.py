@@ -4,7 +4,7 @@ import json
 import math
 from dataclasses import asdict
 
-from catalog import ROUTES
+from catalog import ROUTES, VEHICLE_BY_KEY
 from economy import Order, Town
 from world import walkable
 
@@ -12,9 +12,12 @@ KEY = "foundry-town.core.v1"
 MAX_SIZE = 4096
 
 
+VERSION = 2  # Version 2 adds the vehicle. Version 1 saves load as on foot.
+
+
 def dump(town):
     return json.dumps(
-        {"version": 1, "town": asdict(town)}, allow_nan=False, separators=(",", ":")
+        {"version": VERSION, "town": asdict(town)}, allow_nan=False, separators=(",", ":")
     )
 
 
@@ -35,16 +38,21 @@ def load(raw):
             type(data) is not dict
             or set(data) != {"version", "town"}
             or type(data["version"]) is not int
-            or data["version"] != 1
+            or data["version"] not in (1, VERSION)
         ):
             raise ValueError("Unknown save format")
         values = data["town"]
+        if type(values) is dict and data["version"] == 1:
+            values = {**values, "vehicle": None}
         if type(values) is not dict or set(values) != set(Town.__dataclass_fields__):
             raise ValueError("Invalid fields")
         t = Town(**values)
         if not whole(t.cash, 2**53 - 1) or type(t.upgraded) is not bool:
             raise ValueError("Invalid balance or upgrade")
-        if not finite(t.x, 2400) or not finite(t.y, 1780) or not walkable(t.x, t.y):
+        if t.vehicle is not None and t.vehicle not in VEHICLE_BY_KEY:
+            raise ValueError("Invalid vehicle")
+        driving = t.vehicle is not None
+        if not finite(t.x, 2400) or not finite(t.y, 1780) or not walkable(t.x, t.y, driving):
             raise ValueError("Invalid position")
         for slots in (t.materials, t.goods, t.orders):
             if type(slots) is not list or len(slots) != len(ROUTES):
