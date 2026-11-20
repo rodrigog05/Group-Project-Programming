@@ -111,3 +111,38 @@ class Transport(unittest.TestCase):
         self.assertIn("ticket", message)
         self.assertEqual((t.cash, t.x), (FERRY_FARE - 1, PIERS[0].x))
 
+
+class Screens(unittest.TestCase):
+    """Draw every screen headlessly, so a drawing error fails here instead of in the browser."""
+
+    def test_every_screen_draws_from_new_game_and_at_every_doorway(self):
+        import os
+
+        os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+        import pygame
+
+        from controller import Session
+        from storage import Storage
+        from view import H, View, W
+
+        pygame.display.init()
+        pygame.font.init()
+        view = View(pygame.display.set_mode((W, H)))
+        g = Session(Storage())
+        view.draw(g)  # Start menu
+        g.key("n")
+        view.draw(g)  # New game: the first street frame
+        doors = [getattr(r, role) for r in ROUTES for role in ("supplier", "workshop", "market")]
+        for place in doors + [WAREHOUSE, *GARAGES, *PIERS]:
+            with self.subTest(place=place.name):
+                g.screen, g.keys = "street", set()
+                visit(g.town, place)
+                view.draw(g)
+                g.key("e")  # Opens the shop, or starts the ferry at a pier
+                view.draw(g)
+                g.keys.clear()
+                g.key("escape")
+                g.keys.clear()
+        g.key("p")
+        view.draw(g)  # Route guide
+
