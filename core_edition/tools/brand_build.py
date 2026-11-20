@@ -125,7 +125,9 @@ def brand_build():
     html = html.replace("user_canvas_managed : 0,", "user_canvas_managed : 1,", 1)
     # Core uses localStorage. This unused legacy script blocks parsing the
     # splash markup below it until the CDN request finishes.
-    html = re.sub(r'<script src="[^"]*/browserfs\.min\.js"></script>\s*', "", html)
+    html = re.sub(
+        r'(?m)^[ \t]*<script src="[^"]*/browserfs\.min\.js"></script>[ \t]*\n', "", html
+    )
     scene = pygame.Surface((W, H))
     LisbonMenuScene(scene.get_size()).draw(scene, 0)
     image = io.BytesIO()
