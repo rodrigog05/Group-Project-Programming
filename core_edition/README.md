@@ -1,6 +1,6 @@
 # Foundry Town Core Edition
 
-The public Core Edition opens on the animated Lisbon start menu. Its address ends in `/core/`. [Play Core Edition](https://rodrigog05.github.io/Group-Project-Programming/core/)
+The public Core Edition shows a Lisbon splash while the runtime downloads and then opens the animated start menu automatically. [Play Core Edition](https://rodrigog05.github.io/Group-Project-Programming/core-menu/)
 
 Start outside Goldenfield Farm with $60 and a 12-slot bag. Buy wheat, walk east to Sunrise Bakery, make bread, then walk west to Daily Bread Market to sell it. Four units of wheat cost $16. Four loaves sell for $56. Completing that trip gives you exactly $100, enough for the warehouse bag upgrade.
 
@@ -13,7 +13,7 @@ Expand-Archive .\foundry-town-core-web.zip -DestinationPath .\foundry-core-previ
 py -m http.server 8000 --bind 127.0.0.1 --directory .\foundry-core-preview
 ```
 
-Open **http://localhost:8000/** in Chrome or Edge and click the game to give it keyboard focus. Choose **New Game** to start, **Continue** to resume a save, or **Rules & How to Play** for the controls. Starting a new game asks for confirmation when a save exists. Keep PowerShell open while playing. The browser downloads the Python WebAssembly runtime from Pygbag on first load. Use the same browser and address each time to keep your save.
+Open **http://localhost:8000/** in Chrome or Edge. When the menu appears, choose **New Game** to start, **Continue** to resume a save, or **Rules & How to Play** for the controls. Starting a new game asks for confirmation when a save exists. Keep PowerShell open while playing. The browser downloads the Python WebAssembly runtime from Pygbag on first load. Use the same browser and address each time to keep your save.
 
 ## Controls and routes
 
@@ -67,7 +67,8 @@ py -3.12 -m venv core_edition/.venv
 python -m pip install -r core_edition/requirements.txt
 python -m unittest discover -s core_edition/tests
 python -m unittest browser_game.test_town
-python -m pygbag --build --no_opt core_edition/game
+python -m pygbag --build --no_opt --ume_block 0 --title "Foundry Town Core Edition" core_edition/game
+python core_edition/tools/brand_build.py
 python core_edition/tools/check_build.py
 python -m http.server 8000 --bind 127.0.0.1 --directory core_edition/game/build/web
 ```

@@ -1,6 +1,7 @@
 """Pygbag entry point. All gameplay is local to this browser."""
 
 import asyncio
+import sys
 import time
 
 import pygame
@@ -15,6 +16,13 @@ async def main():
     view = View(pygame.display.set_mode((W, H)))
     pygame.display.set_caption("Foundry Town · Core Edition")
     game = Session(Storage.for_browser())
+    view.draw(game)
+    if sys.platform == "emscripten":
+        import platform
+
+        splash = platform.window.document.getElementById("core-splash")
+        if splash:
+            splash.hidden = True
     last = time.monotonic()
     while True:
         now = time.monotonic()

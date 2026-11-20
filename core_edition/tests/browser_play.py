@@ -19,14 +19,10 @@ def exercise(page, url):
 
     def boot(*, start=True):
         page.goto(url, wait_until="domcontentloaded")
-        for _ in range(90):
-            page.wait_for_timeout(500)
-            page.mouse.click(5, 5)
-            if page.locator("#infobox").evaluate("e=>e.style.display==='none'"):
-                break
-        else:
-            raise AssertionError("Pygbag loader timed out")
-        page.wait_for_timeout(600)
+        splash = page.locator("#core-splash")
+        assert splash.get_by_role("status").text_content() == "Loading Core Edition…"
+        splash.wait_for(state="hidden", timeout=45000)
+        page.locator("#infobox").wait_for(state="hidden")
         if start:
             tap("c" if snapshot() is not None else "n")
             page.wait_for_function("(k)=>!!localStorage.getItem(k)", arg=KEY)
@@ -64,6 +60,7 @@ def exercise(page, url):
         raise AssertionError((target, axis, state()))
 
     boot(start=False)
+    print("PASS branded splash hands off without a startup click", flush=True)
     tap("c")
     assert snapshot() is None
     tap("r")
