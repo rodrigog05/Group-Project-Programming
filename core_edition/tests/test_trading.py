@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "game"))
 
-from catalog import ROUTES, WAREHOUSE
+from catalog import FERRY_FARE, GARAGES, PIERS, ROUTES, VEHICLES, WAREHOUSE
 from economy import Town
 
 
@@ -68,3 +68,46 @@ class Trades(unittest.TestCase):
         t.trade()
         t.trade()
         self.assertEqual((t.cash, t.capacity), (50, 24))
+
+class Transport(unittest.TestCase):
+    def test_vehicles_match_the_desktop_garage(self):
+        self.assertEqual([(v.label, v.price, v.trunk, v.road_speed) for v in VEHICLES],
+                         [("Motorcycle", 120, 6, 520), ("Car", 240, 48, 690),
+                          ("Delivery van", 360, 108, 620), ("F1 car", 480, 0, 900)])
+
+    def test_buying_a_vehicle_adds_its_trunk_and_road_speed(self):
+        t = Town(cash=300)
+        visit(t, GARAGES[0])
+        self.assertIn("Bought", t.buy_vehicle(1))
+        self.assertEqual((t.cash, t.vehicle, t.capacity), (60, "car", 12 + 48))
+        self.assertIn("already", t.buy_vehicle(1))
+        t.x, t.y = 480, 301  # A paved road
+        self.assertEqual(t.speed, 690)
+        t.x, t.y = 1368, 560 - 30  # Off-road, between buildings
+        self.assertEqual(t.speed, 510)
+
+    def test_cannot_switch_to_a_smaller_trunk_or_buy_without_cash(self):
+        t = Town(cash=1000, vehicle="van")
+        t.materials[0] = 40
+        self.assertIn("Unload", t.buy_vehicle(3))  # The F1 car has no trunk
+        self.assertEqual((t.vehicle, t.cash), ("van", 1000))
+        self.assertIn("more cash", Town(cash=100).buy_vehicle(0))
+
+    def test_ferry_charges_the_fare_and_crosses_both_ways(self):
+        t = Town()
+        t.x, t.y = PIERS[0].x, PIERS[0].y
+        t.goods[0] = 3
+        self.assertEqual(t.take_ferry()[0], True)
+        self.assertEqual((t.x, t.y, t.cash, t.goods[0]), (PIERS[1].x, PIERS[1].y, 60 - FERRY_FARE, 3))
+        self.assertEqual(t.take_ferry()[0], True)
+        self.assertEqual((t.x, t.y), (PIERS[0].x, PIERS[0].y))
+
+    def test_failed_ferry_trips_cost_nothing(self):
+        t = Town(cash=FERRY_FARE - 1)
+        self.assertFalse(t.take_ferry()[0])  # Not at a pier
+        t.x, t.y = PIERS[0].x, PIERS[0].y
+        crossed, message = t.take_ferry()
+        self.assertFalse(crossed)
+        self.assertIn("ticket", message)
+        self.assertEqual((t.cash, t.x), (FERRY_FARE - 1, PIERS[0].x))
+

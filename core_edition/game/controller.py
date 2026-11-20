@@ -1,8 +1,10 @@
 """Interpret player actions. The view only reads this state."""
 
-from catalog import ROUTES, WAREHOUSE, entrance
+from catalog import FERRY_FARE, ROUTES, VEHICLES, WAREHOUSE, entrance
 from economy import Town
-from world import move
+from world import move, walkable
+
+FERRY_SECONDS = 4.5
 
 
 class Session:
@@ -22,6 +24,8 @@ class Session:
         self.elapsed = 0
         self.menu_elapsed = 0
         self.save_age = 0
+        self.ferry_elapsed = 0
+        self.ferry_heading = 1  # 1 = Lisbon to Almada, -1 = Almada to Lisbon
 
     def save(self):
         if self.screen in self.MENU_SCREENS:
@@ -66,6 +70,8 @@ class Session:
             self.screen = "street"
             self.message = ""
             self.save()
+        elif self.screen == "ferry":
+            return
         elif key in ("p", "i") and self.screen in ("street", "guide"):
             self.screen = "guide" if self.screen == "street" else "street"
         elif self.screen == "guide":
@@ -79,12 +85,23 @@ class Session:
                 self.stop = 3
                 self.screen = "street"
         elif key == "e" and self.screen == "street":
-            if entrance(self.town.x, self.town.y):
+            place = entrance(self.town.x, self.town.y)
+            if place and place[1] == "ferry":
+                crossed, self.message = self.town.take_ferry()
+                if crossed:
+                    self.screen, self.ferry_elapsed = "ferry", 0
+                    self.ferry_heading = 1 if place[0] == 0 else -1
+                    self.save()
+            elif place:
                 self.screen = "shop"
                 self.message = ""
+        elif self.screen == "shop" and key in ("1", "2", "3", "4")[: len(VEHICLES)]:
+            if entrance(self.town.x, self.town.y)[1] == "garage":
+                self.message = self.town.buy_vehicle(int(key) - 1)
+                self.save()
         elif self.screen == "shop" and key in ("e", "q"):
             i, role = entrance(self.town.x, self.town.y)
-            if key == "q" and role != "supplier":
+            if role == "garage" or (key == "q" and role != "supplier"):
                 return
             self.message = self.town.trade(key == "q")
             if i is not None:
@@ -108,6 +125,10 @@ class Session:
         self.save_age += dt
         t = self.town
         t.advance(dt)
+        if self.screen == "ferry":
+            self.ferry_elapsed += dt
+            if self.ferry_elapsed >= FERRY_SECONDS:
+                self.screen = "street"
         if self.screen == "street":
             dx = int(bool(self.keys & {"right", "d"})) - int(
                 bool(self.keys & {"left", "a"})
@@ -116,8 +137,15 @@ class Session:
                 bool(self.keys & {"up", "w"})
             )
             before = t.x, t.y
-            t.x, t.y = move(t.x, t.y, dx, dy, dt)
+            driving = t.vehicle is not None
+            t.x, t.y = move(t.x, t.y, dx, dy, dt, t.speed, driving)
             self.moving = before != (t.x, t.y)
+            if self.moving:
+                self.message = ""  # Street messages last until the player walks on.
+            ahead = t.x + dx * 12, t.y + dy * 12
+            if (dx or dy) and not driving and walkable(*ahead, True) and not walkable(*ahead):
+                self.message = (f"The bridges are for vehicles only. Take the ferry (${FERRY_FARE}) "
+                                "or buy a ride at a garage.")
             if dx:
                 self.facing = 1 if dx > 0 else -1
         if self.save_age >= 5:

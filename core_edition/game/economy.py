@@ -2,7 +2,8 @@
 
 from dataclasses import dataclass, field
 
-from catalog import ROUTES, entrance
+from catalog import FERRY_FARE, PIERS, ROUTES, VEHICLE_BY_KEY, VEHICLES, entrance
+from world import SPEED, on_road, walkable
 
 UPGRADE_PRICE = 100
 BASE_CAPACITY = 12
@@ -23,10 +24,51 @@ class Town:
     materials: list = field(default_factory=lambda: [0] * len(ROUTES))
     goods: list = field(default_factory=lambda: [0] * len(ROUTES))
     orders: list = field(default_factory=lambda: [None] * len(ROUTES))
+    vehicle: str = None  # A key in VEHICLE_BY_KEY, or None on foot
+
+    @property
+    def ride(self):
+        return VEHICLE_BY_KEY.get(self.vehicle)
 
     @property
     def capacity(self):
-        return BASE_CAPACITY * (2 if self.upgraded else 1)
+        """Bag slots plus the trunk of the vehicle you drive."""
+        trunk = self.ride.trunk if self.ride else 0
+        return BASE_CAPACITY * (2 if self.upgraded else 1) + trunk
+
+    @property
+    def speed(self):
+        if self.ride is None:
+            return SPEED
+        return self.ride.road_speed if on_road(self.x, self.y) else self.ride.offroad_speed
+
+    def buy_vehicle(self, index):
+        """Buy one of the garage's vehicles. Buying a different one replaces your current ride."""
+        ride = VEHICLES[index]
+        if self.vehicle == ride.key:
+            return f"You already drive the {ride.label.lower()}."
+        room = BASE_CAPACITY * (2 if self.upgraded else 1) + ride.trunk
+        if self.carried + self.reserved > room:
+            return f"The {ride.label.lower()} carries {room} items. Unload first."
+        if self.cash < ride.price:
+            return f"The {ride.label.lower()} costs ${ride.price}. You need more cash."
+        self.cash -= ride.price
+        self.vehicle = ride.key
+        return f"Bought the {ride.label.lower()} for ${ride.price}. Capacity {self.capacity}."
+
+    def take_ferry(self):
+        """Pay the fare and land at the other pier. Returns (crossed, message)."""
+        location = entrance(self.x, self.y)
+        if location is None or location[1] != "ferry":
+            return False, "Walk to a ferry pier first."
+        destination = PIERS[1 - location[0]]
+        if not walkable(destination.x, destination.y):
+            return False, "The ferry can't dock right now. No fare was charged."
+        if self.cash < FERRY_FARE:
+            return False, f"A ferry ticket costs ${FERRY_FARE}. You need more cash."
+        self.cash -= FERRY_FARE
+        self.x, self.y = destination.x, destination.y
+        return True, f"Arrived at {destination.name}. Ticket -${FERRY_FARE}."
 
     @property
     def carried(self):
@@ -43,7 +85,7 @@ class Town:
 
     def trade(self, bulk=False):
         location = entrance(self.x, self.y)
-        if location is None:
+        if location is None or location[1] in ("garage", "ferry"):
             return "Walk to a marked doorstep first."
         i, role = location
         if role == "warehouse":

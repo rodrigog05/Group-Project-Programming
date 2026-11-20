@@ -19,7 +19,8 @@ Open **http://localhost:8000/** in Chrome or Edge. When the menu appears, choose
 
 ## Controls and routes
 
-- **WASD or arrows** walk. Both bridges have pedestrian crossings.
+- **WASD or arrows** walk or drive. The bridges carry **vehicles only**. On foot, press **E** at the Cais do Sodré or Cacilhas pier to take the ferry for **$2**; the crossing plays as an animation (**Esc** skips).
+- **E** at Motorworks Garage or Cacilhas Garage opens the showroom. Press **1–4** to buy the motorcycle ($120), car ($240), delivery van ($360) or F1 car ($480). The trunk adds to your bag, and vehicles drive faster on paved roads. A new vehicle replaces your current one.
 - **E** opens a nearby store. Press it again for the action shown. At a supplier, **Q** buys up to four units, limited by cash and space.
 - At a workshop, **E** starts a batch with all matching materials. Press **E** when the timer finishes to collect it. Walk to that route's market and press **E** inside to sell your finished goods.
 - **P or I** opens the route guide and inventory. Select route **1–4**, then **A**, **B** or **C** to track its supplier, workshop or market. **U** tracks the warehouse. **Esc** leaves a store or closes the guide. On-screen buttons also operate the menus.
@@ -41,9 +42,9 @@ The playable source lives in `core_edition/game/`. Pygbag starts `main.py`. The 
 |---|---|
 | main.py | Start pygame-ce, read events, handle focus and give the browser time between frames. |
 | controller.py | Turn input into walking, entering a shop, selecting a destination or trading. Schedule saves. |
-| catalog.py | Define store names, coordinates, prices, batch times and which door the player can enter. |
-| world.py | Apply movement speed, solid building outlines, river boundaries and both bridge paths. |
-| economy.py | Own the player's cash, inventory, orders and upgrade. Validate each transaction. |
+| catalog.py | Define store names, coordinates, prices, batch times, vehicles, garages, ferry piers and which door the player can enter. |
+| world.py | Apply movement speed, paved roads, solid building outlines, river boundaries and the vehicle-only bridges. |
+| economy.py | Own the player's cash, inventory, orders, upgrade and vehicle, and the ferry fare. Validate each transaction. |
 | view.py | Draw the scrolling map, animated builder, illustrated stores, money, route guide and buttons. |
 | menu_scene.py | Draw the desktop menu's Lisbon backdrop with Pygame shapes and animate its traffic, boats and lighting. |
 | saves.py | Encode and validate versioned JSON, including position, money, capacity and active orders. |
@@ -94,8 +95,8 @@ The three unit-test modules cover trading, movement, and saves. The browser test
 
 - [x] Chromium played the wheat-to-bread route on foot, reloaded mid-batch, collected bread and sold it.
 - [x] Chromium bought, produced, collected and sold tools, furniture and pottery using the store UI. The test placed the player at each doorway for these three routes.
-- [x] Chromium walked across the west bridge and confirmed that a second upgrade purchase costs nothing and the first purchase survives reload.
-- [x] Unit tests crossed both bridges in both directions and found walkable paths from spawn to all 13 doorways. They also checked doorway approaches, inventory limits, invalid saves, and unavailable storage.
+- [x] A manual browser play-test confirmed the ferry to Cacilhas ($2) and buying a car in the Cacilhas showroom, saved as version 2. `browser_play.py` now expects walkers to stop at the bridge and take the ferry; rerun it with Playwright. Earlier Chromium runs confirmed that a second upgrade purchase costs nothing and the first purchase survives reload.
+- [x] Unit tests drove across both bridges in both directions, blocked walkers on them, and found paths on foot (with the ferry) from spawn to every doorway, garage and pier. Version 1 saves load as on foot. They also checked doorway approaches, inventory limits, invalid saves, and unavailable storage.
 - [x] Bandit reported zero findings in the Core runtime. PyPI listed zero advisories for the pinned Pygbag and pygame-ce versions and for the pygame-ce wheel used by WebAssembly at test time. Both game archives matched their source and asset files.
 - [ ] Direct access to Pygbag's usual CDN from this environment was restricted. Browser testing used a mirror of the upstream runtime files.
 - [ ] Safari, Firefox, touch-only controls and live GitHub Pages hosting have not been verified. Playing requires a keyboard.

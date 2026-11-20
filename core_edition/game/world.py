@@ -1,4 +1,4 @@
-"""Map collision and time-based walking. Both Lisbon bridges carry pedestrians in Core."""
+"""Map collision and time-based movement. The bridges carry vehicles only; walkers take the ferry."""
 
 import math
 
@@ -44,12 +44,44 @@ WALLS = SCENERY + tuple(
 )
 
 
-def walkable(x, y):
+# Paved lanes from the desktop map: (x1, y1, x2, y2, half width). Vehicles drive faster on them.
+ROADS = (
+    (238, 140, 238, 653, 15), (478, 140, 478, 653, 15), (718, 140, 718, 653, 15),
+    (958, 140, 958, 653, 15), (0, 301, 2400, 301, 19.5), (0, 486, 2400, 486, 19.5),
+    (0, 660, 2400, 660, 17.5), (1225, 140, 1225, 660, 14.5), (1495, 140, 1495, 660, 14.5),
+    (1775, 140, 1775, 660, 14.5), (2035, 140, 2035, 660, 14.5), (2350, 140, 2350, 660, 14.5),
+    (0, 1290, 2400, 1290, 17), (0, 1550, 2400, 1550, 17), (0, 1750, 2400, 1750, 17),
+    (620, 1240, 620, 1760, 15), (1190, 1240, 1190, 1760, 15), (1495, 1240, 1495, 1760, 15),
+    (1775, 1240, 1775, 1760, 15), (2035, 1240, 2035, 1760, 15), (2350, 1240, 2350, 1760, 15),
+    (0, 1238, 2400, 1238, 12), (300, 1082, 300, 1238, 16), (1919, 1082, 2035, 1238, 16),
+    (300, 695, 300, 1115, 27), (2041, 698, 1913, 1099, 22.5), (2035, 660, 2041, 698, 16),
+)
+# The Almada garden (only its tunnel lane at y=1550 is road) and a Parque das Nações plaza.
+NO_ROAD = ((60, 1390, 550, 1710), (1810, 520, 2010, 640))
+
+
+def on_bridge(x, y):
+    east = 2035 - 0.32 * (y - RIVER_TOP)
+    return abs(x - 300) <= 31 - RADIUS or abs(x - east) <= 27 - RADIUS
+
+
+def on_road(x, y):
+    if any(l < x < r and t < y < b and abs(y - 1550) > 17 for l, t, r, b in NO_ROAD):
+        return False
+    for x1, y1, x2, y2, half in ROADS:
+        dx, dy = x2 - x1, y2 - y1
+        f = min(1, max(0, ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy)))
+        if (x - x1 - f * dx) ** 2 + (y - y1 - f * dy) ** 2 <= half * half:
+            return True
+    return False
+
+
+def walkable(x, y, driving=False):
+    """Whether the player can stand here. Only vehicles may use the bridges."""
     if not (RADIUS <= x <= WIDTH - RADIUS and 104 + RADIUS <= y <= HEIGHT - RADIUS):
         return False
     if RIVER_TOP - RADIUS < y < RIVER_BOTTOM + RADIUS:
-        east = 2035 - 0.32 * (y - RIVER_TOP)
-        if abs(x - 300) > 31 - RADIUS and abs(x - east) > 27 - RADIUS:
+        if not driving or not on_bridge(x, y):
             return False
     return not any(
         l - RADIUS < x < r + RADIUS and top - RADIUS < y < b + RADIUS
@@ -57,17 +89,17 @@ def walkable(x, y):
     )
 
 
-def move(x, y, dx, dy, seconds):
+def move(x, y, dx, dy, seconds, speed=SPEED, driving=False):
     length = math.hypot(dx, dy)
     if not length:
         return x, y
-    distance = SPEED * min(max(seconds, 0), 0.25) / length
+    distance = speed * min(max(seconds, 0), 0.25) / length
     steps = max(1, math.ceil(distance * length / 6))
     for _ in range(steps):
         nx = x + dx * distance / steps
-        if walkable(nx, y):
+        if walkable(nx, y, driving):
             x = nx
         ny = y + dy * distance / steps
-        if walkable(x, ny):
+        if walkable(x, ny, driving):
             y = ny
     return x, y

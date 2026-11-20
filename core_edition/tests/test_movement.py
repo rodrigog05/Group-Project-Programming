@@ -6,14 +6,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "game"))
 
-from catalog import ROUTES, WAREHOUSE, entrance
+from catalog import GARAGES, PIERS, ROUTES, WAREHOUSE, entrance
 from controller import Session
 from storage import Storage
 from world import move, walkable
 
 
 class Streets(unittest.TestCase):
-    def test_both_bridges_are_crossable_in_both_directions(self):
+    def test_both_bridges_are_crossable_by_vehicle_in_both_directions(self):
         for east in (False, True):
             x, y = (2035, 700) if east else (300, 700)
             for direction in (1, -1):
@@ -22,8 +22,15 @@ class Streets(unittest.TestCase):
                     if (target - y) * direction <= 0:
                         break
                     dx = -0.32 * direction if east else 0
-                    x, y = move(x, y, dx, direction, 0.02)
+                    x, y = move(x, y, dx, direction, 0.02, driving=True)
                 self.assertLessEqual((target - y) * direction, 0)
+
+    def test_walkers_cannot_use_the_bridges(self):
+        for east in (False, True):
+            x, y = (2035, 700) if east else (300, 700)
+            for _ in range(100):
+                x, y = move(x, y, -0.32 if east else 0, 1, 0.02)
+            self.assertLess(y, 718)
 
     def test_no_water_wall_or_map_tunnelling(self):
         for point in ((500, 800), (1368, 560), (-3, 520), (400, 1800)):
@@ -42,15 +49,16 @@ class Streets(unittest.TestCase):
                 self.assertEqual(entrance(*pos), (i, role))
 
     def test_walkable_paths_connect_spawn_to_every_shop(self):
+        # On foot, the ferry links the two banks: search from the spawn and from the far pier.
         town = Session(Storage()).town
         spawn = (town.x, town.y)
-        frontier = deque([spawn])
-        visited = {spawn}
+        frontier = deque([spawn, (PIERS[1].x, PIERS[1].y)])
+        visited = set(frontier)
         shops = {
             shop
             for route in ROUTES
             for shop in (route.supplier, route.workshop, route.market)
-        } | {WAREHOUSE}
+        } | {WAREHOUSE} | set(GARAGES) | set(PIERS)
         while frontier and shops:
             x, y = frontier.popleft()
             shops = {shop for shop in shops if not shop.nearby(x, y)}

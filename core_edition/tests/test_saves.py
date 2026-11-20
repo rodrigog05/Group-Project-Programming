@@ -87,6 +87,21 @@ class Saves(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 load(json.dumps(d))
 
+    def test_version_1_saves_load_on_foot_and_vehicles_round_trip(self):
+        old = json.loads(dump(Town(cash=93)))
+        old["version"] = 1
+        del old["town"]["vehicle"]
+        town = load(json.dumps(old))
+        self.assertEqual((town.cash, town.vehicle), (93, None))
+        self.assertEqual(load(dump(Town(vehicle="van"))).vehicle, "van")
+
+    def test_reject_unknown_vehicles_and_walkers_saved_on_a_bridge(self):
+        with self.assertRaises(ValueError):
+            load(dump(Town(vehicle="rocket")))
+        with self.assertRaises(ValueError):
+            load(dump(Town(x=300, y=900)))
+        self.assertEqual(load(dump(Town(x=300, y=900, vehicle="car"))).y, 900)
+
     def test_corrupt_or_unknown_save_is_preserved(self):
         for raw in ("[]", "{", " " * 5000, '{"version":2,"town":{}}'):
             backend = Backend(raw)
