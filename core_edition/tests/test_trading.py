@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "game"))
 
-from catalog import FERRY_FARE, GARAGES, PIERS, ROUTES, VEHICLES, WAREHOUSE
+from catalog import CASINO, CHIPS, FERRY_FARE, GARAGES, PIERS, ROUTES, VEHICLES, WAREHOUSE
 from economy import Town
 
 
@@ -133,7 +133,7 @@ class Screens(unittest.TestCase):
         g.key("n")
         view.draw(g)  # New game: the first street frame
         doors = [getattr(r, role) for r in ROUTES for role in ("supplier", "workshop", "market")]
-        for place in doors + [WAREHOUSE, *GARAGES, *PIERS]:
+        for place in doors + [WAREHOUSE, *GARAGES, *PIERS, CASINO]:
             with self.subTest(place=place.name):
                 g.screen, g.keys = "street", set()
                 visit(g.town, place)
@@ -145,4 +145,67 @@ class Screens(unittest.TestCase):
                 g.keys.clear()
         g.key("p")
         view.draw(g)  # Route guide
+        g.key("escape")
+        visit(g.town, CASINO)
+        g.keys.clear()
+        g.key("e")
+        g.keys.clear()
+        g.key("g")
+        for _ in range(30):  # Every frame of a spin, then the settled wheel
+            g.tick(0.2)
+            view.draw(g)
+
+
+class Roulette(unittest.TestCase):
+    def play(self, cash=100):
+        from controller import Session
+        from storage import Storage
+        from test_saves import Backend
+
+        g = Session(Storage(Backend()))
+        g.key("n")
+        g.town.cash = cash
+        visit(g.town, CASINO)
+        g.keys.clear()
+        g.key("e")
+        g.keys.clear()
+        return g
+
+    def test_red_pays_double_and_the_win_arrives_when_the_ball_lands(self):
+        g = self.play()
+        g.spin_wheel("red", 32)  # Default chip is $10
+        self.assertEqual(g.town.cash, 90)
+        g.spin_wheel("black", 26)  # No new bets while the wheel turns
+        self.assertEqual(g.town.cash, 90)
+        g.tick(0.25)
+        self.assertEqual(g.town.cash, 90)
+        for _ in range(20):
+            g.tick(0.25)
+        self.assertEqual((g.town.cash, g.history, g.spin), (110, [32], None))
+
+    def test_losing_green_and_chip_choice(self):
+        g = self.play()
+        g.key("5")
+        g.key("a")
+        self.assertEqual(CHIPS[g.chip], 50)
+        g.spin_wheel("green", 26)
+        g.settle_spin()
+        self.assertEqual(g.town.cash, 50)
+        g.spin_wheel("green", 0)
+        g.settle_spin()
+        self.assertEqual(g.town.cash, 50 + 50 * 35)
+
+    def test_cannot_bet_more_than_your_cash(self):
+        g = self.play(cash=4)
+        g.key("g")
+        self.assertEqual((g.town.cash, g.spin), (4, None))
+        self.assertIn("need", g.message)
+
+    def test_leaving_or_saving_mid_spin_keeps_the_win(self):
+        g = self.play()
+        g.spin_wheel("black", 26)
+        g.save()
+        self.assertEqual(g.storage.restore().cash, 110)
+        g.key("escape")
+        self.assertEqual((g.screen, g.town.cash), ("street", 110))
 

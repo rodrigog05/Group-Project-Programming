@@ -5,8 +5,11 @@ from functools import lru_cache
 from pathlib import Path
 
 import pygame
-from catalog import FERRY_FARE, GARAGES, PIERS, ROUTES, VEHICLES, WAREHOUSE, entrance
-from controller import FERRY_SECONDS
+from catalog import (
+    CASINO, CHIPS, FERRY_FARE, GARAGES, PIERS, ROULETTE_POCKETS, ROUTES, VEHICLES, WAREHOUSE,
+    entrance, roulette_color,
+)
+from controller import FERRY_SECONDS, SPIN_SECONDS
 from economy import UPGRADE_PRICE
 from world import HEIGHT, RIVER_BOTTOM, RIVER_TOP, WIDTH
 
@@ -52,6 +55,39 @@ def vehicle_art(index, scale=1.0, flip=False):
 def shop_art(name):
     art = image(name)
     return pygame.transform.smoothscale_by(art, 1.3)
+
+
+POCKET = {"red": "#c8313c", "black": "#1b1d22", "green": "#1f8a4c"}
+POCKET_DARK = {"red": "#8e1f2a", "black": "#0c0d10", "green": "#13633a"}
+WHEEL = (330, 345)  # Centre of the roulette wheel on the casino screen
+TRACK, POCKET_RING = 172, 122  # The ball circles at TRACK, then drops to POCKET_RING
+
+
+def label(surface, message, center, size, color=PAPER):
+    art = font(size).render(message, True, color)
+    surface.blit(art, art.get_rect(center=center))
+
+
+@lru_cache(maxsize=1)
+def casino_room():
+    """The desktop casino interior: coves, columns and carpet, drawn once."""
+    room = pygame.Surface((W, H - HEADER))
+    room.fill("#20172e")
+    horizon = 230
+    for band in range(12):
+        shade = pygame.Color("#482d3c").lerp(pygame.Color("#693d45"), band / 11)
+        top = horizon + (H - HEADER - horizon) * band / 12
+        pygame.draw.rect(room, shade, (0, top, W, 40))
+    for x in range(-W, 2 * W, 160):
+        pygame.draw.line(room, "#8d4960", (W / 2, horizon), (x, H - HEADER))
+    for inset, y, color in ((0, 14, "#36439c"), (15, 25, "#4aaaff"), (45, 48, "#1d2761"), (50, 53, "#aa7fda")):
+        pygame.draw.lines(room, color, False, ((inset, y + 70), (W * .26, y), (W * .74, y), (W - inset, y + 70)), 7)
+    for x in (40, W - 40):
+        for offset, color in ((-20, "#443445"), (-15, "#75505d"), (-9, "#ae7c6d"), (-3, "#c6987c"),
+                              (3, "#9d6d60"), (9, "#6d4a55"), (15, "#493646")):
+            pygame.draw.rect(room, color, (x + offset, 70, 6, horizon + 30))
+        pygame.draw.rect(room, "#e7b84d", (x - 20, 90, 40, 6))
+    return room
 
 
 def text(surface, message, x, y, size=22, color=PAPER, width=None):
@@ -113,7 +149,7 @@ class View:
                 ),
                 (
                     536,
-                    "Press P for routes and inventory. Upgrade your bag at Foundry Warehouse for $100. Your progress saves in this browser.",
+                    "Press P for routes and inventory. Upgrade your bag at Foundry Warehouse for $100, or try roulette at the Lisbon Casino. Progress saves in this browser.",
                 ),
             ):
                 text(s, line, 287, y, 25, WHITE, width=706)
@@ -215,6 +251,8 @@ class View:
                 shop = WAREHOUSE
             elif role == "garage":
                 shop = GARAGES[i]
+            elif role == "casino":
+                shop = CASINO
             else:
                 shop = getattr(ROUTES[i], role)
             self.button(24, 644, 420, "E   Enter " + shop.name, "e")
@@ -283,6 +321,105 @@ class View:
         self.panel((330, 600, 620, 44), GOLD)
         text(s, f"Ferry  ·  {names[0]}  to  {names[1]}", 352, 611, 28, GOLD)
         self.button(1036, 644, 220, "Esc   Skip", "escape")
+
+    def wheel_state(self, g):
+        """(wheel angle, ball as (angle, radius) or None) at this moment of the spin."""
+        seg = math.tau / len(ROULETTE_POCKETS)
+        spin = g.spin
+        if spin is None:
+            if g.ball_pocket is None:
+                return g.wheel_angle, None
+            return g.wheel_angle, (g.wheel_angle + g.ball_pocket * seg, POCKET_RING)
+        progress = min(1, spin["elapsed"] / SPIN_SECONDS)
+        # The wheel slows to a stop; the ball runs the other way and drops into its pocket.
+        wheel = spin["from"] + (spin["to"] - spin["from"]) * (1 - (1 - progress) ** 2)
+        pocket = ROULETTE_POCKETS.index(spin["number"])
+        ball = spin["to"] + pocket * seg + math.tau * 6 * (1 - progress) ** 2
+        drop = min(1, max(0, (progress - .6) / .3))
+        drop = drop * drop * (3 - 2 * drop)
+        bounce = 6 * abs(math.sin(progress * 38)) * (1 - progress) if .6 < progress < .95 else 0
+        return wheel, (ball, TRACK - (TRACK - POCKET_RING) * drop + bounce)
+
+    def casino(self, g):
+        """European roulette, as in the desktop casino: bet a chip on red, black or green 0."""
+        s, t = self.surface, g.town
+        s.blit(casino_room(), (0, HEADER))
+        cx, cy = WHEEL
+
+        def point(angle, radius):
+            return cx + radius * math.sin(angle), cy - radius * math.cos(angle)
+
+        pygame.draw.rect(s, GOLD, (100, 78, 1080, 534), border_radius=14)
+        pygame.draw.rect(s, "#15452f", (104, 82, 1072, 526), border_radius=12)
+        wheel, ball = self.wheel_state(g)
+        seg = math.tau / len(ROULETTE_POCKETS)
+        for radius, color in ((194, "#4a2614"), (186, "#7a4424"), (182, "#2a1a10"), (163, GOLD)):
+            pygame.draw.circle(s, color, WHEEL, radius)
+        for i, number in enumerate(ROULETTE_POCKETS):
+            color = roulette_color(number)
+            a, b = wheel + (i - .5) * seg, wheel + (i + .5) * seg
+            pygame.draw.polygon(s, POCKET[color], (point(a, 161), point(b, 161), point(b, 133), point(a, 133)))
+            pygame.draw.polygon(s, POCKET_DARK[color], (point(a, 133), point(b, 133), point(b, 111), point(a, 111)))
+            pygame.draw.line(s, "#c9a24a", point(a, 111), point(a, 161))
+            label(s, str(number), point(wheel + i * seg, 147), 17)
+        if g.spin is None and g.ball_pocket is not None:
+            a = wheel + (g.ball_pocket - .5) * seg
+            pygame.draw.polygon(s, GOLD, (point(a, 161), point(a + seg, 161), point(a + seg, 133), point(a, 133)), 2)
+        pygame.draw.circle(s, "#6b3d22", WHEEL, 111)
+        pygame.draw.circle(s, "#c9a24a", WHEEL, 111, 1)
+        pygame.draw.circle(s, "#8a5a33", WHEEL, 84)
+        pygame.draw.circle(s, "#b07a45", WHEEL, 46)
+        for arm in range(4):
+            angle = wheel + arm * math.tau / 4 + seg / 2
+            pygame.draw.line(s, GOLD, point(angle, 8), point(angle, 58), 3)
+            pygame.draw.circle(s, GOLD, point(angle, 60), 5)
+        pygame.draw.circle(s, GOLD, WHEEL, 13)
+        if ball:
+            pygame.draw.circle(s, "#f7f7f2", point(*ball), 6)
+            pygame.draw.circle(s, "#9aa3a6", point(*ball), 6, 1)
+
+        label(s, "LISBON CASINO", (860, 124), 50, GOLD)
+        label(s, "EUROPEAN ROULETTE  ·  37 POCKETS", (860, 160), 22, MINT)
+        if g.message:
+            won, lost = "win" in g.message, "lose" in g.message or "need" in g.message
+            label(s, g.message, (860, 210), 30, MINT if won else "#ff8a8a" if lost else PAPER)
+        label(s, "CHIP   ·   1-5  or  A / D", (860, 254), 20, GOLD)
+        chip_colors = ("#e6e9df", "#d65655", "#3f8fd2", "#2f9e5e", "#1b1d22")
+        for i, value in enumerate(CHIPS):
+            x, affordable = 732 + i * 64, value <= t.cash
+            if i == g.chip:
+                pygame.draw.circle(s, GOLD, (x, 300), 29, 3)
+            pygame.draw.circle(s, chip_colors[i] if affordable else "#4a5559", (x, 300), 23)
+            pygame.draw.circle(s, "#f2f7f6", (x, 300), 23, 2)
+            pygame.draw.circle(s, "#f2f7f6" if i else INK, (x, 300), 16, 1)
+            label(s, f"${value}", (x, 300), 20, (INK if i == 0 else PAPER) if affordable else "#a0b2b8")
+            self.buttons.append((pygame.Rect(x - 24, 276, 48, 48), str(i + 1)))
+        for i, (choice, title, detail) in enumerate((
+            ("red", "RED   R", "Pays 2×  ·  18 numbers"),
+            ("black", "BLACK   B", "Pays 2×  ·  18 numbers"),
+            ("green", "GREEN 0   G", "Pays 36×  ·  1 number"),
+        )):
+            rect = pygame.Rect(600 + i * 178, 352, 166, 68)
+            pygame.draw.rect(s, "#3a4044" if g.spin else POCKET[choice], rect, border_radius=6)
+            pygame.draw.rect(s, GOLD, rect, 2, border_radius=6)
+            label(s, title, (rect.centerx, 376), 28)
+            label(s, detail, (rect.centerx, 404), 19, "#e9dccb")
+            self.buttons.append((rect, choice[0]))
+        text(s, "LAST SPINS", 600, 462, 20, "#a0b2b8")
+        if not g.history:
+            text(s, "No spins yet", 712, 462, 22, "#a0b2b8")
+        for i, number in enumerate(g.history):
+            x = 724 + i * 40
+            pygame.draw.circle(s, POCKET[roulette_color(number)], (x, 469), 16)
+            if i == 0:
+                pygame.draw.circle(s, GOLD, (x, 469), 16, 2)
+            label(s, str(number), (x, 469), 20)
+        text(s, "Red and black return double your chip. Green 0 returns 36 times your chip.",
+             600, 520, 22, PAPER, width=540)
+        pygame.draw.rect(s, DARK, (0, 0, W, HEADER))
+        pygame.draw.rect(s, DARK, (0, FOOTER, W, H - FOOTER))
+        text(s, "Click a color or press R, B or G   ·   E or Esc to leave", 24, 658, 26)
+        self.button(1036, 644, 220, "Esc   Outside", "escape")
 
     def shop(self, g):
         s, t = self.surface, g.town
@@ -391,7 +528,8 @@ class View:
             pygame.display.flip()
             return
         self.surface.fill(DARK)
-        {"street": self.street, "shop": self.shop, "guide": self.guide, "ferry": self.ferry}[g.screen](g)
+        {"street": self.street, "shop": self.shop, "guide": self.guide, "ferry": self.ferry,
+         "casino": self.casino}[g.screen](g)
         text(self.surface, "Foundry Town   /   Core Edition", 24, 20, 32, GOLD)
         text(
             self.surface,
