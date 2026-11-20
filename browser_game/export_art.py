@@ -1,4 +1,5 @@
 """Optional desktop art refresh. Run on an unobscured desktop or a private Xvfb display."""
+
 from pathlib import Path
 import sys
 import tkinter as tk
@@ -11,18 +12,25 @@ import garage_panel
 import prayer_panel
 from tycoon import Town, SITES, BODY_COLORS, HAIR_COLORS, COSTUMES
 
+
 def main():
     town = Town()
     root = tk.Tk()
     root.overrideredirect(True)
-    canvas = tk.Canvas(root, width=800, height=400, highlightthickness=0, bg=interiors.INK)
+    canvas = tk.Canvas(
+        root, width=800, height=400, highlightthickness=0, bg=interiors.INK
+    )
     canvas.pack()
     root.update()
     out = HERE / "game/assets/interiors"
+
     def capture(name, width=640):
         root.update()
         x, y = canvas.winfo_rootx(), canvas.winfo_rooty()
-        ImageGrab.grab((x, y, x+width, y+400)).convert("RGB").save(out / (name+".png"))
+        ImageGrab.grab((x, y, x + width, y + 400)).convert("RGB").save(
+            out / (name + ".png")
+        )
+
     for site in SITES:
         canvas.delete("all")
         painter = interiors.Painter(canvas)
@@ -36,6 +44,7 @@ def main():
     prayer_panel.draw_prayer(canvas, town.profile, BODY_COLORS, HAIR_COLORS, COSTUMES)
     capture("monastery")
     root.destroy()
+
 
 if __name__ == "__main__":
     main()
