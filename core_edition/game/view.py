@@ -9,6 +9,9 @@ from catalog import ROUTES, WAREHOUSE, entrance
 from economy import UPGRADE_PRICE
 from world import HEIGHT, RIVER_BOTTOM, RIVER_TOP, WIDTH
 
+from menu_scene import GOLD as MENU_GOLD
+from menu_scene import INK, MINT, WHITE, LisbonMenuScene
+
 W, H = 800, 540
 DARK = "#20383c"
 GOLD = "#ffda86"
@@ -44,12 +47,79 @@ class View:
     def __init__(self, surface):
         self.surface = surface
         self.buttons = []
+        self.menu_scene = LisbonMenuScene((W, H))
 
-    def button(self, x, y, w, title, key):
+    def button(self, x, y, w, title, key, *, fill="#426568", color=PAPER):
         r = pygame.Rect(x, y, w, 32)
-        pygame.draw.rect(self.surface, "#426568", r, border_radius=5)
-        text(self.surface, title, x + 9, y + 7, 20)
-        self.buttons.append((r, key))
+        pygame.draw.rect(self.surface, fill, r, border_radius=5)
+        text(self.surface, title, x + 9, y + 7, 20, color)
+        if key is not None:
+            self.buttons.append((r, key))
+
+    def menu(self, game):
+        s = self.surface
+        self.menu_scene.draw(s, game.menu_elapsed)
+        pygame.draw.rect(s, "#0a141b", (214, 15, 380, 62))
+        pygame.draw.rect(s, INK, (210, 11, 380, 62))
+        pygame.draw.rect(s, MENU_GOLD, (210, 11, 380, 62), 2)
+        for title, size, y, color in (
+            ("FOUNDRY TOWN", 33, 36, MENU_GOLD),
+            ("LISBOA  ·  Build your fortune along the Tejo", 17, 59, MINT),
+        ):
+            label = font(size).render(title, True, color)
+            s.blit(label, label.get_rect(center=(W // 2, y)))
+
+        if game.screen == "rules":
+            pygame.draw.rect(s, "#16303a", (132, 247, 536, 278))
+            pygame.draw.rect(s, MENU_GOLD, (132, 247, 536, 278), 2)
+            text(s, "Rules & How to Play", 156, 265, 32, MENU_GOLD)
+            for y, line in (
+                (
+                    305,
+                    "WASD or arrows to walk. E opens a shop and performs its action.",
+                ),
+                (
+                    342,
+                    "Buy supplies with E or buy up to four with Q. Take them to a workshop, wait for your batch, collect it and sell it at the market.",
+                ),
+                (
+                    398,
+                    "Press P for routes and inventory. Upgrade your bag at Foundry Warehouse for $100. Your progress saves in this browser.",
+                ),
+            ):
+                text(s, line, 156, y, 20, WHITE, width=486)
+            self.button(156, 477, 140, "Esc   Back", "escape", fill="#2c4a55")
+        elif game.screen == "confirm_new":
+            pygame.draw.rect(s, "#16303a", (165, 337, 470, 172))
+            pygame.draw.rect(s, MENU_GOLD, (165, 337, 470, 172), 2)
+            text(s, "Start a new game?", 188, 357, 32, MENU_GOLD)
+            text(s, "This will replace your saved progress in this browser.", 188, 399)
+            self.button(
+                188, 453, 190, "Y   Replace save", "y", fill=MENU_GOLD, color=INK
+            )
+            self.button(398, 453, 205, "Esc   Keep my save", "escape", fill="#2c4a55")
+        else:
+            pygame.draw.rect(s, "#16303a", (153, 330, 494, 188))
+            pygame.draw.rect(s, MENU_GOLD, (153, 330, 494, 188), 2)
+            pygame.draw.line(s, "#2c4a55", (378, 350), (378, 496), 2)
+            text(s, "CORE EDITION", 176, 357, 25, MENU_GOLD)
+            if game.storage.notice:
+                status = game.storage.notice
+            elif game.storage.has_save:
+                status = f"Saved in this browser · ${game.town.cash:,}"
+            else:
+                status = "No saved game yet"
+            text(s, status, 176, 397, 19, MINT, width=183)
+            self.button(397, 351, 227, "New Game   [N]", "n", fill=MENU_GOLD, color=INK)
+            if game.storage.has_save:
+                self.button(
+                    397, 397, 227, "Continue   [C]", "c", fill=MENU_GOLD, color=INK
+                )
+            else:
+                self.button(
+                    397, 397, 227, "Continue", None, fill="#253e48", color="#a0b2b8"
+                )
+            self.button(397, 443, 227, "Rules & How to Play   [R]", "r", fill="#2c4a55")
 
     def street(self, g):
         t = g.town
@@ -186,6 +256,10 @@ class View:
 
     def draw(self, g):
         self.buttons.clear()
+        if g.screen in g.MENU_SCREENS:
+            self.menu(g)
+            pygame.display.flip()
+            return
         self.surface.fill(DARK)
         {"street": self.street, "shop": self.shop, "guide": self.guide}[g.screen](g)
         text(self.surface, "Foundry Town   /   Core Edition", 15, 11, 26, GOLD)

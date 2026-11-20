@@ -1,14 +1,17 @@
 """Interpret player actions. The view only reads this state."""
 
 from catalog import ROUTES, WAREHOUSE, entrance
+from economy import Town
 from world import move
 
 
 class Session:
+    MENU_SCREENS = ("menu", "rules", "confirm_new")
+
     def __init__(self, storage):
         self.storage = storage
         self.town = storage.restore()
-        self.screen = "street"
+        self.screen = "menu"
         self.message = ""
         self.route = 3
         self.stop = 0
@@ -17,16 +20,48 @@ class Session:
         self.facing = 1
         self.moving = False
         self.elapsed = 0
+        self.menu_elapsed = 0
         self.save_age = 0
 
     def save(self):
+        if self.screen in self.MENU_SCREENS:
+            return
         self.storage.write(self.town)
         self.save_age = 0
+
+    def menu_key(self, key):
+        if self.screen == "rules":
+            if key == "escape":
+                self.screen = "menu"
+            return
+        if self.screen == "confirm_new":
+            if key == "escape":
+                self.screen = "menu"
+            elif key == "y":
+                self.start_new()
+            return
+        if key == "n":
+            if self.storage.has_save:
+                self.screen = "confirm_new"
+            else:
+                self.start_new()
+        elif key == "c" and self.storage.has_save:
+            self.screen = "street"
+        elif key == "r":
+            self.screen = "rules"
+
+    def start_new(self):
+        self.town = Town()
+        self.screen = "street"
+        self.save()
 
     def key(self, key):
         if key in self.keys:
             return
         self.keys.add(key)
+        if self.screen in self.MENU_SCREENS:
+            self.menu_key(key)
+            return
         if key == "escape":
             self.screen = "street"
             self.message = ""
@@ -66,6 +101,9 @@ class Session:
         if not self.focus:
             return
         dt = min(0.25, max(dt, 0))
+        if self.screen in self.MENU_SCREENS:
+            self.menu_elapsed += dt
+            return
         self.elapsed += dt
         self.save_age += dt
         t = self.town

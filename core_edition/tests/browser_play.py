@@ -17,7 +17,7 @@ def exercise(page, url):
         page.keyboard.press(key, delay=65)
         page.wait_for_timeout(120)
 
-    def boot():
+    def boot(*, start=True):
         page.goto(url, wait_until="domcontentloaded")
         for _ in range(90):
             page.wait_for_timeout(500)
@@ -27,8 +27,9 @@ def exercise(page, url):
         else:
             raise AssertionError("Pygbag loader timed out")
         page.wait_for_timeout(600)
-        tap("Escape")
-        page.wait_for_function("(k)=>!!localStorage.getItem(k)", arg=KEY)
+        if start:
+            tap("c" if snapshot() is not None else "n")
+            page.wait_for_function("(k)=>!!localStorage.getItem(k)", arg=KEY)
 
     def snapshot():
         return page.evaluate("k=>JSON.parse(localStorage.getItem(k))", KEY)
@@ -62,7 +63,14 @@ def exercise(page, url):
             page.wait_for_timeout(150)
         raise AssertionError((target, axis, state()))
 
-    boot()
+    boot(start=False)
+    tap("c")
+    assert snapshot() is None
+    tap("r")
+    tap("n")
+    assert snapshot() is None
+    tap("Escape")
+    tap("n")
     assert state()["cash"] == 60
     # Whole bread route on foot; use the guide and interact through actual key events.
     tap("p")
@@ -125,6 +133,19 @@ def exercise(page, url):
     boot()
     assert state()["upgraded"] and state()["cash"] == before - 100
     print("PASS west bridge, one-time upgrade and persisted balance", flush=True)
+    boot(start=False)
+    original = snapshot()
+    tap("n")
+    assert snapshot() == original
+    tap("Escape")
+    tap("c")
+    assert state()["upgraded"]
+    boot(start=False)
+    tap("n")
+    assert snapshot() == original
+    tap("y")
+    assert state()["cash"] == 60 and not state()["upgraded"]
+    print("PASS rules, disabled Continue, cancel, Continue, and confirmed replacement", flush=True)
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ class Storage:
         self.backend = backend
         self.notice = ""
         self.blocked = False
+        self.has_save = False
 
     @classmethod
     def for_browser(cls):
@@ -32,7 +33,9 @@ class Storage:
             try:
                 raw = self.backend.getItem(saves.KEY)
                 if raw is not None:
-                    return saves.load(str(raw))
+                    town = saves.load(str(raw))
+                    self.has_save = True
+                    return town
             except Exception:  # noqa: BLE001 - handle browser storage errors at the boundary
                 self.blocked = True
                 self.notice = "Could not read the save. Playing without overwriting it."
@@ -42,6 +45,7 @@ class Storage:
         if self.backend is not None and not self.blocked:
             try:
                 self.backend.setItem(saves.KEY, saves.dump(town))
+                self.has_save = True
                 self.notice = ""
             except Exception:  # noqa: BLE001 - handle browser storage errors at the boundary
                 self.notice = "Could not save. Check browser storage permissions."

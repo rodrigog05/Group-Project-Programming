@@ -6,7 +6,7 @@ import zipfile
 from pathlib import Path
 
 GAME = Path(__file__).resolve().parents[1] / "game"
-MODULES = ["catalog", "controller", "economy", "main", "saves", "storage", "view", "world"]
+MODULES = ["catalog", "controller", "economy", "main", "menu_scene", "saves", "storage", "view", "world"]
 IMAGES = ["world_100_day.png", "builder.png"] + [
     f"{role}_{i}.png"
     for role in ("SUPPLIER", "FACTORY", "PUBLIC_SHOP")
@@ -14,7 +14,7 @@ IMAGES = ["world_100_day.png", "builder.png"] + [
 ]
 ALLOWED_IMPORTS = set(
     MODULES
-    + ["asyncio", "dataclasses", "functools", "json", "math", "pathlib", "platform", "pygame", "sys", "time"]
+    + ["asyncio", "dataclasses", "functools", "itertools", "json", "math", "pathlib", "platform", "pygame", "random", "sys", "time"]
 )
 
 

@@ -69,6 +69,7 @@ class Streets(unittest.TestCase):
         x, y = move(1368, 650, 1, 1, 0.05)
         self.assertAlmostEqual(math.hypot(x - 1368, y - 650), 228 * 0.05)
         g = Session(Storage())
+        g.key("n")
         g.key("d")
         g.tick(0.1)
         g.keys.clear()
@@ -78,6 +79,7 @@ class Streets(unittest.TestCase):
 
     def test_held_e_opens_without_purchasing_and_focus_pauses_production(self):
         g = Session(Storage())
+        g.key("n")
         g.key("e")
         g.key("e")
         self.assertEqual((g.screen, g.town.cash), ("shop", 60))

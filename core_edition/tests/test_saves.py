@@ -5,6 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "game"))
 
+from controller import Session
 from economy import Order, Town
 from storage import Storage
 
@@ -23,6 +24,42 @@ class Backend:
 
 
 class Saves(unittest.TestCase):
+    def test_start_menu_never_saves_or_advances_until_play_begins(self):
+        backend = Backend(dump(Town(cash=93, orders=[Order(1, 4), None, None, None])))
+        original = backend.data
+        game = Session(Storage(backend))
+        game.key("r")
+        self.assertEqual(game.screen, "rules")
+        for _ in range(40):
+            game.tick(0.25)
+        game.save()
+        self.assertEqual(backend.data, original)
+        self.assertEqual(game.town.orders[0].remaining, 4)
+        game.key("escape")
+        game.keys.clear()
+        game.key("n")
+        self.assertEqual(game.screen, "confirm_new")
+        game.save()
+        self.assertEqual(backend.data, original)
+        game.key("escape")
+        game.key("c")
+        self.assertEqual((game.screen, game.town.cash), ("street", 93))
+
+    def test_new_game_requires_confirmation_only_when_save_exists(self):
+        backend = Backend()
+        game = Session(Storage(backend))
+        game.key("c")
+        self.assertIsNone(backend.data)
+        self.assertEqual(game.screen, "menu")
+        game.key("n")
+        self.assertEqual(load(backend.data), Town())
+        backend.data = dump(Town(cash=93))
+        game = Session(Storage(backend))
+        game.key("n")
+        self.assertEqual(load(backend.data).cash, 93)
+        game.key("y")
+        self.assertEqual((game.screen, load(backend.data)), ("street", Town()))
+
     def test_roundtrip_preserves_partial_order_and_no_offline_production(self):
         t = Town(cash=53, orders=[None, Order(1, 3.25), None, None], upgraded=True)
         self.assertEqual(load(dump(t)), t)

@@ -11,7 +11,7 @@ Expand-Archive .\foundry-town-core-web.zip -DestinationPath .\foundry-core-previ
 py -m http.server 8000 --bind 127.0.0.1 --directory .\foundry-core-preview
 ```
 
-Open **http://localhost:8000/** in Chrome or Edge and click the game to give it keyboard focus. Keep PowerShell open while playing. The browser downloads the Python WebAssembly runtime from Pygbag on first load. Use the same browser and address each time to keep your save. The public Pages site still serves its previous edition.
+Open **http://localhost:8000/** in Chrome or Edge and click the game to give it keyboard focus. Choose **New Game** to start, **Continue** to resume a save, or **Rules & How to Play** for the controls. Starting a new game asks for confirmation when a save exists. Keep PowerShell open while playing. The browser downloads the Python WebAssembly runtime from Pygbag on first load. Use the same browser and address each time to keep your save.
 
 ## Controls and routes
 
@@ -31,7 +31,7 @@ Each workshop holds one batch. A batch reserves room in the bag until collected.
 
 ## Team architecture guide
 
-The playable source lives in `core_edition/game/`. Pygbag starts `main.py`. The eight runtime modules work without importing the desktop game or the earlier prototype.
+The playable source lives in `core_edition/game/`. Pygbag starts `main.py`. The runtime modules work without importing the desktop game or the earlier prototype.
 
 | File under game/ | Responsibility |
 |---|---|
@@ -41,6 +41,7 @@ The playable source lives in `core_edition/game/`. Pygbag starts `main.py`. The 
 | world.py | Apply movement speed, solid building outlines, river boundaries and both bridge paths. |
 | economy.py | Own the player's cash, inventory, orders and upgrade. Validate each transaction. |
 | view.py | Draw the scrolling map, animated builder, illustrated stores, money, route guide and buttons. |
+| menu_scene.py | Draw the desktop menu's Lisbon backdrop with Pygame shapes and animate its traffic, boats and lighting. |
 | saves.py | Encode and validate versioned JSON, including position, money, capacity and active orders. |
 | storage.py | Read and write the Core save through the browser's localStorage and report failures in game. |
 
@@ -81,6 +82,8 @@ python -m bandit -qr core_edition/game
 The three unit-test modules cover trading, movement, and saves. The browser test opens a fresh profile and drives the packaged game with real key events. The release checker compares every member of both generated game archives to the reviewed source and images and checks the runtime import list.
 
 ## Review checklist
+
+- [x] Chromium rendered the Lisbon menu in daylight and at night. Browser and unit tests covered the menu's save and confirmation behavior.
 
 - [x] Chromium played the wheat-to-bread route on foot, reloaded mid-batch, collected bread and sold it.
 - [x] Chromium bought, produced, collected and sold tools, furniture and pottery using the store UI. The test placed the player at each doorway for these three routes.
