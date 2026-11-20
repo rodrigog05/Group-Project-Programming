@@ -2,6 +2,7 @@
 
 import base64
 import io
+import re
 import sys
 from pathlib import Path
 
@@ -122,6 +123,9 @@ def brand_build():
     if "user_canvas_managed : 0," not in html:
         raise ValueError("Expected Pygbag's default canvas configuration")
     html = html.replace("user_canvas_managed : 0,", "user_canvas_managed : 1,", 1)
+    # Core uses localStorage. This unused legacy script blocks parsing the
+    # splash markup below it until the CDN request finishes.
+    html = re.sub(r'<script src="[^"]*/browserfs\.min\.js"></script>\s*', "", html)
     scene = pygame.Surface((W, H))
     LisbonMenuScene(scene.get_size()).draw(scene, 0)
     image = io.BytesIO()

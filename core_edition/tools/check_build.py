@@ -63,6 +63,8 @@ def check():
         raise ValueError("Web entry point missing its relative game bundle or icon")
     if 'id="core-splash"' not in index or "ume_block : 0," not in index:
         raise ValueError("Web entry point needs the Core splash and automatic startup")
+    if "browserfs.min.js" in index:
+        raise ValueError("An unused BrowserFS script can delay the splash")
     if 'id="core-fullscreen"' not in index or "user_canvas_managed : 1," not in index:
         raise ValueError("Web entry point needs the fullscreen button and managed canvas")
     print(

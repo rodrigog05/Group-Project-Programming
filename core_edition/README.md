@@ -89,6 +89,7 @@ The three unit-test modules cover trading, movement, and saves. The browser test
 ## Review checklist
 
 - [x] Chromium rendered the Lisbon menu in daylight and at night. Browser and unit tests covered the menu's save and confirmation behavior.
+- [x] Chromium displayed the illustrated splash with the Pygbag runtime request blocked, then started the game automatically on a normal load.
 - [x] Chromium fit the canvas at 1366 × 768, 1920 × 1080, and 720 × 500. Tests covered scaled mouse clicks, fullscreen entry and exit, keyboard movement, and save reload. A separate headed Chromium check verified native Escape from fullscreen.
 
 - [x] Chromium played the wheat-to-bread route on foot, reloaded mid-batch, collected bread and sold it.
@@ -96,7 +97,7 @@ The three unit-test modules cover trading, movement, and saves. The browser test
 - [x] Chromium walked across the west bridge and confirmed that a second upgrade purchase costs nothing and the first purchase survives reload.
 - [x] Unit tests crossed both bridges in both directions and found walkable paths from spawn to all 13 doorways. They also checked doorway approaches, inventory limits, invalid saves, and unavailable storage.
 - [x] Bandit reported zero findings in the Core runtime. PyPI listed zero advisories for the pinned Pygbag and pygame-ce versions and for the pygame-ce wheel used by WebAssembly at test time. Both game archives matched their source and asset files.
-- [ ] Direct access to Pygbag's usual CDN from this environment was restricted. Browser testing used a mirror of the upstream runtime files. The loader's optional BrowserFS request failed. Core saving uses localStorage.
+- [ ] Direct access to Pygbag's usual CDN from this environment was restricted. Browser testing used a mirror of the upstream runtime files.
 - [ ] Safari, Firefox, touch-only controls and live GitHub Pages hosting have not been verified. Playing requires a keyboard.
 
 ## Publishing after team approval

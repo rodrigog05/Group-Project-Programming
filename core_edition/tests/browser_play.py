@@ -83,6 +83,24 @@ def exercise(page, url):
         raise AssertionError((target, axis, state()))
 
     page.set_viewport_size({"width": 1366, "height": 768})
+    # The first paint must include the illustration even before Pygbag starts.
+    runtime = "**/pythons.js"
+    page.route(runtime, lambda route: route.abort())
+    try:
+        page.goto(url, wait_until="domcontentloaded")
+        splash = page.locator("#core-splash")
+        expect(splash).to_be_visible()
+        assert splash.evaluate("""async el => {
+            const source = getComputedStyle(el).backgroundImage.slice(5, -2);
+            const image = new Image();
+            image.src = source;
+            await image.decode();
+            return image.naturalWidth === 1280 && image.naturalHeight === 720;
+        }""")
+    finally:
+        page.unroute(runtime)
+    print("PASS Lisbon splash image renders before Pygbag loads", flush=True)
+
     boot(start=False)
     print("PASS branded splash hands off without a startup click", flush=True)
     tap("c")
