@@ -1,5 +1,7 @@
 # Foundry Town Core Edition
 
+The public Core Edition opens on the animated Lisbon start menu. Its address ends in `/core/`. [Play Core Edition](https://rodrigog05.github.io/Group-Project-Programming/core/)
+
 Start outside Goldenfield Farm with $60 and a 12-slot bag. Buy wheat, walk east to Sunrise Bakery, make bread, then walk west to Daily Bread Market to sell it. Four units of wheat cost $16. Four loaves sell for $56. Completing that trip gives you exactly $100, enough for the warehouse bag upgrade.
 
 ## Open the tested browser build
