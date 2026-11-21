@@ -2,6 +2,18 @@
 
 Foundry Town is a browser business tycoon set in Lisboa and Almada. Buy materials, make products, and sell them to reach $500. Keep growing through research, contracts, investments, business ownership, and automated deliveries.
 
+**Play online:** _Streamlit Community Cloud URL to be added after deployment_
+
+## Team
+
+| Name | Student number |
+|---|---|
+| Tomás Barata | 62591 |
+| Rodrigo Gonçalves | 62589 |
+| Martim Palhares Almeida | 62588 |
+
+## Stack
+
 This port uses Python 3.12 and Streamlit. The desktop project's Python simulation supplies the economy and rules. Streamlit supplies the browser interface, and SQLite provides an optional single-user local save. The separate desktop checkout can still run independently.
 
 ## Run locally
