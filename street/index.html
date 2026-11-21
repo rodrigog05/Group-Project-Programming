@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Foundry Town street view</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #fff7e6; background: #17343b; font: 14px system-ui, sans-serif; }
+    canvas { display: block; width: 100%; height: clamp(240px, 47vw, 450px); background: #315860; }
+    canvas:focus-visible, button:focus-visible { outline: 3px solid #f8cb76; outline-offset: -3px; }
+    .status { padding: 8px 12px; line-height: 1.4; min-height: 54px; }
+    #hint { font-weight: 700; }
+    #feedback { color: #f9d399; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; }
+    .controls p { margin: 0; }
+    button { background: #254b53; color: inherit; border: 1px solid #71929a; border-radius: 6px;
+             min-height: 44px; min-width: 44px; padding: 4px 9px; touch-action: none; font: inherit; }
+    button:active { background: #49737b; }
+    .pad { display: flex; gap: 4px; }
+  </style>
+</head>
+<body>
+  <canvas id="map" tabindex="0" aria-label="Foundry Town map. Move with WASD or arrows. Press E to interact."></canvas>
+  <div class="status">
+    <div id="hint"></div>
+    <div id="feedback" role="status"></div>
+  </div>
+  <div class="controls">
+    <div class="pad" aria-label="Movement controls">
+      <button data-direction="left" aria-label="Walk left">←</button>
+      <button data-direction="up" aria-label="Walk up">↑</button>
+      <button data-direction="down" aria-label="Walk down">↓</button>
+      <button data-direction="right" aria-label="Walk right">→</button>
+    </div>
+    <button data-action="interact">Interact · E</button>
+    <button data-action="bulk">Bulk buy · Q</button>
+    <button data-action="egg">Egg · F</button>
+    <button data-action="eggs">Bulk eggs · R</button>
+    <p>Focus the map to walk with WASD or arrows.</p>
+  </div>
+  <script src="street.js"></script>
+</body>
+</html>
