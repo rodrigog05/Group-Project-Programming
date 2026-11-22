@@ -3,11 +3,13 @@ from contextlib import closing
 import json
 import math
 from pathlib import Path
+import random
 import sqlite3
 
 from exchange import advance_city
 from ferry import FERRY_FARE, FERRY_PIERS, nearby_pier, ride_ferry
 import lisbon_scene as scene
+from vehicles import CAR_SPEED_RANGE, ROAD_EXCLUSIONS, tunnel_covers_y
 from tycoon import (BRIDGE_TOLL, COLLISION_BOUNDS, MAP_TOP, PLAYER_RADIUS, RIVER_BOTTOM, Town, pack_save,
                     unpack_save)
 
@@ -22,7 +24,44 @@ COLLISION_MAP = {
     "vasco": scene.VASCO_NORTH_X,
     "sand": [scene.SAND_WEST, scene.SAND_EAST, scene.SAND_BOTTOM],
     "tower": [90, 735, 190, 850],  # Belém Tower on the beach (left, top, right, bottom), as in walkable_terrain
+    "toll": BRIDGE_TOLL,
 }
+
+
+def street_life():
+    """Decorative pedestrians, cars and the waterfront tram, with the desktop game's routes."""
+    rng = random.Random(2815)
+    south = scene.south
+    walks = (((32, 280), (1160, 280)), ((40, 465), (1160, 465)), ((50, 647), (1150, 647)),
+             ((1260, 280), (scene.WORLD_WIDTH-70, 280)), ((1260, 465), (scene.WORLD_WIDTH-90, 465)),
+             ((1270, 645), (scene.WORLD_WIDTH-80, 645)), ((90, south(1090)), (scene.WORLD_WIDTH-120, south(1090))),
+             ((85, south(1395)), (scene.WORLD_WIDTH-130, south(1395))),
+             ((65, scene.WORLD_BOTTOM-55), (scene.WORLD_WIDTH-110, scene.WORLD_BOTTOM-55)))
+    people = []
+    for index in range(45):
+        (x1, y1), (x2, y2) = walks[index % len(walks)]
+        people.append([x1, y1, x2, y2, rng.uniform(20, 34), rng.random()*2,
+                       rng.choice(("#b37262", "#547d8b", "#81926f", "#ba9d61", "#8a7195"))])
+    cars = []
+    lanes = (291, 308, 476, 493, 650, 666, south(1101), south(1119), south(1362), south(1378),
+             scene.WORLD_BOTTOM-38, scene.WORLD_BOTTOM-22)
+    for index, y in enumerate(lanes):
+        # Lanes that would cross a park start beside it; the tunnel lane runs under the Almada park.
+        start = max([15] + [right+20 for left, top, right, bottom in ROAD_EXCLUSIONS
+                            if top < y < bottom and not (left == scene.SOUTH_PARK_BOUNDS[0] and tunnel_covers_y(y))])
+        # Paired lanes carry traffic in opposite directions.
+        phase = rng.random()
+        for extra in (0, .5):  # Two cars per lane, half a lap apart
+            cars.append([start, y, scene.WORLD_WIDTH-20, rng.uniform(*CAR_SPEED_RANGE), (phase+extra) % 1,
+                         -1 if index % 2 else 1,
+                         rng.choice(("#9b584e", "#c6c5b5", "#759ca5", "#b89b62", "#e8455a", "#86caff"))])
+    left, _, right, _ = scene.SOUTH_PARK_BOUNDS
+    _, _, tunnel_y, tunnel_half = scene.SOUTH_PARK_TUNNEL
+    return {"people": people, "cars": cars, "tunnel": [left, right, tunnel_y, tunnel_half],
+            "tram": [80, scene.WORLD_WIDTH-100, 40]}  # From x, to x, seconds for a round trip
+
+
+STREET_LIFE = street_life()
 
 
 def entrance(site):
@@ -37,6 +76,9 @@ def visit(town, position, label):
     charge = ""
     if south != destination_south:
         if town.vehicle:
+            if south and town.cash < BRIDGE_TOLL:
+                town.message = f"The portagem toward Lisboa costs ${BRIDGE_TOLL}. You need more cash."
+                return
             town.bridge_journey = {"origin": "south" if south else "north", "bridge": "25 de Abril"}
             old_y = town.y
             town.y = position[1]

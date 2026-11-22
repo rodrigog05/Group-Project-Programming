@@ -70,15 +70,23 @@ class BridgeTollTest(unittest.TestCase):
         travel(restored, 704, True)
         self.assertEqual(restored.tolls_paid_total, BRIDGE_TOLL)
 
-    def test_unaffordable_toll_is_still_charged_without_negative_purchase_exploit(self):
-        town = self.town_on_bank(cash=1)
-        travel(town, 700)
-        self.assertEqual(town.cash, 1-BRIDGE_TOLL)
-        mine = next(s for s in SITES if s.role == "SUPPLIER" and s.trade == 0)
-        town.x, town.y = mine.door[0], mine.door[1]+10
-        town.interact()
-        self.assertEqual(town.cash, 1-BRIDGE_TOLL)
-        self.assertEqual(town.supplies[0], 0)
+    def test_unaffordable_toll_blocks_both_bridges_toward_lisboa(self):
+        for eastern in (False, True):
+            town = self.town_on_bank(eastern=eastern, cash=BRIDGE_TOLL-1)
+            with self.assertRaises(AssertionError):
+                travel(town, 700, eastern)
+            self.assertGreaterEqual(town.y, RIVER_BOTTOM)
+            self.assertEqual((town.cash, town.tolls_paid_total), (BRIDGE_TOLL-1, 0))
+            self.assertIsNone(town.bridge_journey)
+            self.assertIn("portagem", town.message.lower())
+            town.cash = BRIDGE_TOLL
+            travel(town, 700, eastern)
+            self.assertEqual((town.cash, town.tolls_paid_total), (0, BRIDGE_TOLL))
+
+    def test_driving_south_needs_no_toll_money(self):
+        town = self.town_on_bank(south=False, cash=0)
+        travel(town, SOUTH_Y)
+        self.assertEqual((town.cash, town.y), (0, SOUTH_Y))
 
     def test_players_on_foot_cannot_walk_onto_either_bridge(self):
         for eastern in (False, True):

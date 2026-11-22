@@ -12,7 +12,7 @@ import contracts
 import exchange
 import innovation
 import logistics
-from browser_game import COLLISION_MAP, LocalSave, SaveConflict, advance_turn, entrance, street_input, visit
+from browser_game import COLLISION_MAP, STREET_LIFE, LocalSave, SaveConflict, advance_turn, entrance, street_input, visit
 from journal_market import market_snapshot
 from journal_recipes import RECIPE_BY_KEY
 from lisbon_landmarks import LANDMARKS
@@ -186,7 +186,8 @@ def play_street():
         key="street_map", on_change=play, x=town.x, y=town.y, ack=ack,
         night=town.market_elapsed % DAY_SECONDS >= 180, facing=town.facing,
         vehicle=town.vehicle, hint=hint, message=town.message,
-        speed=town.movement_speed, collision=COLLISION_MAP,
+        speed=town.movement_speed, collision=COLLISION_MAP, life=STREET_LIFE,
+        cash=town.cash, on_bridge=town.bridge_journey is not None,
         locations=[
             {"name": site.name, "x": site.door[0], "y": site.door[1], "color": site.color}
             for site in SITES

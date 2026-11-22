@@ -43,7 +43,7 @@ Click or tab into the street map. Walk with **WASD** or the **arrow keys**. Use 
 
 The market clock, production, deliveries, research, and contracts run while the map has focus. Click outside the map to pause street play. Use **Advance time** in the sidebar to move the clock from any screen. The market settles every 300 game seconds and the map switches to night after 180 seconds. Use **Visit** below the map for direct travel. On foot, the ferry costs $2. With a vehicle, bridges charge a $3 toll toward Lisboa.
 
-The street view includes the original map art and collision rules. Animated traffic, building interiors, soundtrack, and desktop save services are outside this port.
+The street view includes the original map art and collision rules, with the desktop game's traffic, pedestrians and waterfront tram as decoration (they never block you). Building interiors, soundtrack, and desktop save services are outside this port. Driving a vehicle back to Lisboa needs the $3 bridge toll in cash before you start across.
 
 Street movement and camera tracking render immediately in the browser. Movement is batched approximately every 200 ms, with one request in flight, and Python validates collisions before trading or saving. The browser reconciles each reply and replays unsent movement. Prediction buffers at most two seconds during a slow response. The compressed night map loads only when night is first shown.
 
@@ -91,7 +91,7 @@ The tests need no network, accounts or secrets.
 ## Known limits
 
 - Progress on the public site resets on reload or when the server restarts.
-- Animated traffic, building interiors and the soundtrack from the desktop version are not in the browser version.
+- Building interiors and the soundtrack from the desktop version are not in the browser version.
 - One local save slot per `FOUNDRY_LOCAL_DB` path, meant for one player.
 
 ## Project structure
