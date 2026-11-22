@@ -116,8 +116,9 @@ window.addEventListener("message", (event) => {
   state = next;
   updateTradeButtons();
   vehicleButton.hidden = !state.vehicle && !state.stowed_vehicle;
-  const vehicleLabel = state.vehicle ? "Leave vehicle · V" : "Bring back vehicle · V";
-  if (vehicleButton.textContent !== vehicleLabel) vehicleButton.textContent = vehicleLabel;
+  const vehicleLabel = state.vehicle ? "Leave vehicle" : "Bring back vehicle";
+  const labelText = vehicleButton.querySelector("span");
+  if (labelText.textContent !== vehicleLabel) labelText.textContent = vehicleLabel;
   if (next.ack === eventId) pending = false;
   if (!pending && Number.isInteger(next.ack)) eventId = Math.max(eventId, next.ack);
   // Replay only movement accumulated after the acknowledged batch.
