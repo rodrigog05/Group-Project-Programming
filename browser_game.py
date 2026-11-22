@@ -132,6 +132,45 @@ def building_at(town):
     return None
 
 
+def next_move(town):
+    """The player's next step on a trade route, as {"text", "target"} (target: a building name or None)."""
+    def place(role, trade):
+        return next(site.name for site in OPEN_SITES if site.role == role and site.trade == trade)
+
+    # Finished products first, then batches ready to collect, then materials to process.
+    for index, trade in enumerate(TRADES):
+        if town.goods[index]:
+            market = place("PUBLIC SHOP", index)
+            return {"text": f"Sell your {town.goods[index]} {trade.product} at {market}.", "target": market}
+    for index, trade in enumerate(TRADES):
+        order = town.orders[index]
+        if order is not None and town.elapsed >= order.ready_at:
+            factory = place("FACTORY", index)
+            return {"text": f"Your {trade.product} is ready. Collect it at {factory}.", "target": factory}
+    for index, trade in enumerate(TRADES):
+        if town.supplies[index]:
+            factory = place("FACTORY", index)
+            return {"text": f"Now you should go to {factory} to turn your {trade.supply} into {trade.product}.",
+                    "target": factory}
+    for index, trade in enumerate(TRADES):
+        order = town.orders[index]
+        if order is not None:
+            factory = place("FACTORY", index)
+            seconds = math.ceil(order.ready_at - town.elapsed)
+            return {"text": f"{trade.product} is being made at {factory}: ready in {seconds}s. Then collect it there.",
+                    "target": factory}
+    if town.won:
+        return {"text": "Goal reached! Try a bigger route, or take the ferry to Cacilhas Garage for a vehicle.",
+                "target": "Cacilhas Garage"}
+    # Nothing in hand: start with the bread route the Basics teach; later, the most profitable route
+    # the player can afford.
+    affordable = [index for index in range(len(TRADES)) if town.cash >= town.costs[index]]
+    index = 3 if town.cash < 150 or not affordable else max(affordable, key=lambda i: town.prices[i] - town.costs[i])
+    supplier = place("SUPPLIER", index)
+    return {"text": f"Go to {supplier} and buy {TRADES[index].supply} (${town.costs[index]} each).",
+            "target": supplier}
+
+
 def scene_for(town, site):
     """(image name, layout) for a building, or None when it has no illustrated scene."""
     if site == MONASTERY:
