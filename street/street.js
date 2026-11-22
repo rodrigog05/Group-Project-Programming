@@ -634,6 +634,7 @@ function drawInterior() {
   context.fillRect(8 * unit, 8 * unit, context.measureText(title).width + 16 * unit, 20 * unit);
   context.fillStyle = "#f6e7b4";
   context.fillText(title, 16 * unit, 22 * unit);
+  if (room.scene === "monastery") return;
   const hint = room.keys.map(([key, label]) => `${KEY_NAMES[key] || key.toUpperCase()} ${label}`).join("   ·   ");
   context.font = `600 ${8.5 * unit}px system-ui, sans-serif`;
   context.textAlign = "center";
