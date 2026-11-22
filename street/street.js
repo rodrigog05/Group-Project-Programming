@@ -4,27 +4,47 @@ const hint = document.querySelector("#hint");
 const route = document.querySelector("#route");
 const vehicleButton = document.querySelector('[data-action="vehicle"]');
 const controls = document.querySelector(".controls");
-const musicButton = document.querySelector("#music");
+const settingsButton = document.querySelector("#settings");
+const settingsPanel = document.querySelector("#settings-panel");
+const musicToggle = document.querySelector("#music");
 const soundtrack = document.querySelector("#soundtrack");
 soundtrack.volume = 0.4;
-function updateMusicButton() {
-  musicButton.textContent = soundtrack.paused ? "Play music" : "Pause music";
-  musicButton.setAttribute("aria-pressed", String(!soundtrack.paused));
+try {
+  musicToggle.checked = localStorage.getItem("foundry-music-enabled") !== "false";
+} catch {
+  // Private browsing may block storage; the default remains enabled.
 }
-musicButton.addEventListener("click", async () => {
-  if (soundtrack.paused) {
-    try {
-      await soundtrack.play();
-    } catch {
-      musicButton.textContent = "Music unavailable";
-    }
-  } else {
+function playMusic() {
+  if (musicToggle.checked && soundtrack.paused && !dialogOpen()) {
+    soundtrack.play().catch(() => {
+      // Browsers may require a click or key press before playback.
+    });
+  }
+}
+settingsButton.addEventListener("click", () => {
+  settingsPanel.hidden = !settingsPanel.hidden;
+  settingsButton.setAttribute("aria-expanded", String(!settingsPanel.hidden));
+});
+musicToggle.addEventListener("change", () => {
+  try {
+    localStorage.setItem("foundry-music-enabled", String(musicToggle.checked));
+  } catch {
+    // The setting still works for this page when storage is unavailable.
+  }
+  if (musicToggle.checked) playMusic();
+  else soundtrack.pause();
+});
+for (const page of [document, ...pageDocuments()]) {
+  page.addEventListener("pointerdown", playMusic, true);
+  page.addEventListener("keydown", playMusic, true);
+}
+playMusic();
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && musicToggle.checked) playMusic();
+  if (document.hidden) {
     soundtrack.pause();
   }
-  canvas.focus({ preventScroll: true });
 });
-soundtrack.addEventListener("play", updateMusicButton);
-soundtrack.addEventListener("pause", updateMusicButton);
 const day = new Image();
 const night = new Image();
 day.src = "world_100_day.webp";

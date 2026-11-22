@@ -17,6 +17,11 @@
     #route { color: #bde7ff; }
     .controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
     .controls p { margin: 0; }
+    .settings { position: relative; }
+    .settings-panel { position: absolute; right: 0; bottom: 100%; min-width: 170px; padding: 10px;
+                      background: #1b1f27; border: 1px solid #f8cb76; border-radius: 8px; z-index: 2; }
+    .settings-panel label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .settings-panel input { width: 18px; height: 18px; accent-color: #f8cb76; }
     /* Actions: dark buttons with their key drawn as a small keyboard key, like the buttons inside buildings */
     button { display: inline-flex; align-items: center; gap: 8px; background: #1b1f27; color: #fafafa;
              border: 1px solid #4b505a; border-radius: 8px; min-height: 44px; min-width: 44px; padding: 4px 12px;
@@ -53,7 +58,12 @@
       <button data-action="vehicle" hidden><span>Leave vehicle</span><kbd>V</kbd></button>
       <p>Focus the map to walk with WASD or arrows.</p>
     </div>
-    <button id="music" type="button" aria-pressed="false">Play music</button>
+    <div class="settings">
+      <button id="settings" type="button" aria-expanded="false" aria-controls="settings-panel">Settings</button>
+      <div id="settings-panel" class="settings-panel" hidden>
+        <label><input id="music" type="checkbox" checked> Music</label>
+      </div>
+    </div>
     <audio id="soundtrack" src="saudade_do_tejo.wav" preload="none" loop></audio>
   </div>
   <script src="street.js"></script>
