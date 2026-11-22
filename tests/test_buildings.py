@@ -259,7 +259,7 @@ def test_hints_say_where_to_go_then_go_in_then_which_key_to_press():
     assert next_move(town)["text"] == "Press E to go into Sunrise Bakery."
     assert next_move(town, "Sunrise Bakery")["text"] == "Press E to drop off your Wheat and make Bread."
     town.interact()
-    assert "ready in 4s" in next_move(town, "Sunrise Bakery")["text"]
+    assert next_move(town, "Sunrise Bakery")["text"] == "Press E to collect your Bread."
     town.elapsed += 5
     assert next_move(town, "Sunrise Bakery")["text"] == "Press E to collect your Bread."
     town.interact()
