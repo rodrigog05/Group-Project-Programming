@@ -7,6 +7,8 @@ const controls = document.querySelector(".controls");
 const day = new Image();
 const night = new Image();
 day.src = "world_100_day.webp";
+const stationArt = { day: new Image(), night: new Image() };
+stationArt.day.src = "oriente_day.svg";
 
 const directions = {
   arrowleft: "left", a: "left", arrowright: "right", d: "right",
@@ -78,6 +80,7 @@ window.addEventListener("message", (event) => {
   // Python's reply to the map's own movement, as opposed to a page update such as Visit or Leave.
   const ownReply = pending && next.ack === eventId;
   if (next.night && !night.getAttribute("src")) night.src = "world_100_night.webp";
+  if (next.night && !stationArt.night.getAttribute("src")) stationArt.night.src = "oriente_night.svg";
   // A new ferry id means Python just moved the player across the Tejo: play the crossing.
   // The first id this map sees is history (for example after leaving a building), so skip it.
   const ferryId = next.ferry ? next.ferry.id : 0;
@@ -335,6 +338,8 @@ function draw() {
   const top = Math.max(0, Math.min(day.naturalHeight - viewHeight, player.y - viewHeight / 2));
   context.setTransform(ratio * scale, 0, 0, ratio * scale, -left * ratio * scale, -top * ratio * scale);
   context.drawImage(state.night && night.naturalWidth ? night : day, 0, 0);
+  const station = state.night && night.naturalWidth ? stationArt.night : stationArt.day;
+  if (station.complete && station.naturalWidth) context.drawImage(station, 1780, 170, 250, 94);
 
   if (state.route?.points?.length > 1) {
     context.save();
