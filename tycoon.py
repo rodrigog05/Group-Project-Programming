@@ -237,6 +237,7 @@ class Town:
         self.last_day_summary = None
         self.bridge_journey = None
         self.vehicle = None
+        self.owned_vehicles = []
         self.stowed_vehicle = None
         self.market_event = None
         self.elapsed = 0.0
@@ -575,21 +576,55 @@ class Town:
         if ride is None:
             self.message = "Choose a motorcycle, car, delivery van or F1 car at the garage."
             return False
-        if vehicle in (self.vehicle, self.stowed_vehicle):
+        if self.vehicle == vehicle:
             self.message = f"You already own this {ride.label.lower()}."
             return False
         capacity = self.bag_size+ride.trunk
         if self.cargo+self.reserved > capacity:
             self.message = f"This ride carries {capacity} items. Unload cargo or finish reserved orders before switching."
             return False
-        if self.cash < ride.price:
+        owned = vehicle in self.owned_vehicles or vehicle == self.stowed_vehicle
+        if not owned and self.cash < ride.price:
             self.message = f"You need ${ride.price:,} for the {ride.label.lower()}."
             return False
-        self.cash -= ride.price
-        self.other_expenses_today += ride.price
+        if self.vehicle and self.vehicle not in self.owned_vehicles:
+            self.owned_vehicles.append(self.vehicle)
+        if self.stowed_vehicle and self.stowed_vehicle not in self.owned_vehicles:
+            self.owned_vehicles.append(self.stowed_vehicle)
+        if not owned:
+            self.cash -= ride.price
+            self.other_expenses_today += ride.price
+            self.owned_vehicles.append(vehicle)
         self.vehicle = vehicle
         self.stowed_vehicle = None
-        self.message = f"Bought {ride.label.lower()} for ${ride.price:,} · {self.carry_capacity} cargo slots · {ride.road_speed} road speed."
+        outcome = "Retrieved" if owned else "Bought"
+        cost = "for free" if owned else f"for ${ride.price:,}"
+        self.message = f"{outcome} {ride.label.lower()} {cost} · {self.carry_capacity} cargo slots · {ride.road_speed} road speed."
+        return True
+
+    def leave_vehicle(self):
+        """Store the ride for free collection at a garage without discarding cargo."""
+        if self.vehicle is None:
+            self.message = "You are already walking."
+            return False
+        if self.cargo + self.reserved > self.bag_size:
+            self.message = f"Unload cargo or finish reserved orders first. Your walking bag holds {self.bag_size} items."
+            return False
+        from vehicles import in_tunnel
+        if in_tunnel(self.x, self.y) or self.bridge_journey:
+            self.message = "Leave the bridge or tunnel before getting out."
+            return False
+        vehicle = self.vehicle
+        self.vehicle = None
+        if not self.can_walk(self.x, self.y):
+            self.vehicle = vehicle
+            self.message = "You cannot walk here. Drive off the bridge before leaving your vehicle."
+            return False
+        if vehicle not in self.owned_vehicles:
+            self.owned_vehicles.append(vehicle)
+        self.stowed_vehicle = vehicle
+        self.bridge_journey = None
+        self.message = "You are now walking. Collect your owned vehicle for free at any garage."
         return True
 
     def advance(self, seconds):
@@ -625,7 +660,7 @@ class Town:
             self.won = True
             self.message = f"Goal reached on Day {self.day}! Keep trading to grow your business."
 
-    def move(self, dx, dy, seconds):
+    def move(self, dx, dy, seconds, *, roads_only=False):
         old_y = self.y
         length = math.hypot(dx, dy)
         if not length:
@@ -636,12 +671,12 @@ class Town:
         distance = speed * seconds / length
         next_x = min(WORLD_WIDTH - 17, max(17, self.x + dx * distance))
         next_y = min(WORLD_BOTTOM - 15, max(MAP_TOP + 15, self.y + dy * distance))
-        if self.can_walk(next_x, self.y):
+        if self.can_walk(next_x, self.y, roads_only=roads_only):
             self.x = next_x
         if self.toll_blocks(next_y):
             self.message = (f"The portagem toward Lisboa costs ${BRIDGE_TOLL}. "
                             "You need more cash to cross the bridge.")
-        elif self.can_walk(self.x, next_y):
+        elif self.can_walk(self.x, next_y, roads_only=roads_only):
             self.y = next_y
         elif (self.vehicle is None and RIVER_TOP-PLAYER_RADIUS < next_y < RIVER_BOTTOM+PLAYER_RADIUS
               and bridge_at(self.x, next_y, PLAYER_RADIUS)):
@@ -684,9 +719,12 @@ class Town:
         elif self.y >= south:
             self.bridge_journey = None
 
-    def can_walk(self, x, y):
+    def can_walk(self, x, y, *, roads_only=False):
         from lisbon_scene import vehicle_park_blocked
-        if self.vehicle and vehicle_park_blocked(x, y, PLAYER_RADIUS):
+        if self.vehicle and (
+            vehicle_park_blocked(x, y, PLAYER_RADIUS)
+            or roads_only and not on_road(x, y)
+        ):
             return False
         return (PLAYER_RADIUS <= x <= WORLD_WIDTH-PLAYER_RADIUS and MAP_TOP+PLAYER_RADIUS <= y <= WORLD_BOTTOM-PLAYER_RADIUS
                 and walkable_terrain(x, y, PLAYER_RADIUS, on_foot=self.vehicle is None)) and not any(
@@ -1096,10 +1134,20 @@ def unpack_save(data):
     for name in ("sales_today", "revenue_today", "expenses_today", "total_sold"):
         state.setdefault(name, [0] * len(TRADES))
     state.setdefault("vehicle", None)
+    state.setdefault("owned_vehicles", [])
+    owned = state["owned_vehicles"]
+    if (not isinstance(owned, list) or any(not isinstance(key, str) or key not in VEHICLES for key in owned)
+            or len(set(owned)) != len(owned)
+            or state["vehicle"] is not None and (not isinstance(state["vehicle"], str) or state["vehicle"] not in VEHICLES)):
+        raise ValueError("Invalid owned vehicles in save")
+    if state["vehicle"] and state["vehicle"] not in owned:
+        state["owned_vehicles"] = [*owned, state["vehicle"]]
     state.setdefault("stowed_vehicle", None)
     stowed = state["stowed_vehicle"]
     if stowed is not None and (not isinstance(stowed, str) or stowed not in VEHICLES or state["vehicle"] is not None):
         raise ValueError("Invalid stowed vehicle in save")
+    if stowed and stowed not in state["owned_vehicles"]:
+        state["owned_vehicles"] = [*state["owned_vehicles"], stowed]
     state.setdefault("warehouse_level", 0)
     state.setdefault("tier2_order", None)
     state.setdefault("tier2_goods", 0)

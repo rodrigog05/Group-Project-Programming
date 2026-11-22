@@ -1,13 +1,42 @@
 import pytest
 
-from browser_game import COLLISION_MAP, LocalSave, entrance, street_input
+from browser_game import COLLISION_MAP, LocalSave, entrance, place_vehicle_on_road, street_input
 from ferry import FERRY_PIERS
 from lisbon_scene import SOUTH_PARK_TUNNEL
 from tycoon import COLLISION_BOUNDS, SITES, Town
+from vehicles import on_road
 
 
 def input_event(dx=0, dy=0, seconds=0, action=None):
     return {"dx": dx, "dy": dy, "seconds": seconds, "action": action}
+
+
+def test_driving_stays_on_streets_but_players_can_walk_onto_sidewalks():
+    town = Town()
+    town.vehicle = "car"
+    town.x, town.y = 360, 301
+    assert street_input(town, input_event(dy=-1, seconds=0.25))
+    curb = town.y
+    assert 281.5 <= curb < 301 and on_road(town.x, curb)
+    assert street_input(town, input_event(dy=-1, seconds=0.25))
+    assert town.y == curb
+    assert street_input(town, input_event(dx=1, seconds=0.125))
+    assert town.x > 360 and on_road(town.x, town.y)
+    assert street_input(town, input_event(action="vehicle"))
+    assert street_input(town, input_event(dy=-1, seconds=0.05))
+    assert town.y < 281.5 and not on_road(town.x, town.y)
+    assert street_input(town, input_event(action="vehicle"))
+    assert town.vehicle is None and town.stowed_vehicle == "car"
+
+
+def test_driving_from_garage_starts_on_the_street():
+    town = Town()
+    town.vehicle = "car"
+    garage = next(site for site in SITES if site.name == "Motorworks Garage")
+    town.x, town.y = garage.door
+    place_vehicle_on_road(town)
+    assert town.can_walk(town.x, town.y, roads_only=True)
+    assert abs(town.x - garage.door[0]) < 40 and abs(town.y - garage.door[1]) < 40
 
 
 def test_drive_through_tunnel_and_put_away_vehicle_without_losing_it(tmp_path):

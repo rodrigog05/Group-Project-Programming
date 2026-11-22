@@ -4,6 +4,7 @@ from copy import deepcopy
 import os
 from pathlib import Path
 import sqlite3
+from time import monotonic
 
 import streamlit as st
 from streamlit.components.v1 import declare_component
@@ -14,7 +15,7 @@ import exchange
 import innovation
 import logistics
 from browser_game import (COLLISION_MAP, MONASTERY, STREET_LIFE, LocalSave, building_at, greeting, scene_for,
-                          SaveConflict, entrance, street_event, street_input, visit)
+                          SaveConflict, entrance, place_vehicle_on_road, street_event, street_input, visit)
 from journal_market import market_snapshot
 from journal_recipes import RECIPE_BY_KEY
 from lisbon_landmarks import LANDMARKS
@@ -172,6 +173,7 @@ def district_exchange():
 
 
 def play_street(site_inside=None):
+    place_vehicle_on_road(town)
     nearby = town.nearby()
     pier = nearby_pier(town.x, town.y)
     hint = "Follow the marked entrances to buy, make, and sell."
@@ -251,8 +253,9 @@ def leave_building():
 
 def inside(operation, *args):
     """Run a building action; the vendor answers with the result."""
-    act(operation, *args)
+    saved = act(operation, *args)
     st.session_state.reply = st.session_state.town.message
+    return saved
 
 
 def action(label, operation, *args, key=None, shortcut=None, primary=True, **options):
@@ -272,7 +275,11 @@ def building_actions(site):
             actions += [("f", "Buy 1 egg", eggs, ()), ("shift+f", "Buy up to 4 eggs", eggs, (True,))]
         return actions
     if role == "GARAGE":
-        return [(str(number), f"Buy {ride.label} · ${ride.price:,} · +{ride.trunk} slots", Town.purchase_vehicle, (key,))
+        def label(key, ride):
+            if key in town.owned_vehicles or town.vehicle == key:
+                return f"Drive {ride.label} · Free"
+            return f"Buy {ride.label} · ${ride.price:,} · +{ride.trunk} slots"
+        return [(str(number), label(key, ride), Town.purchase_vehicle, (key,))
                 for number, (key, ride) in enumerate(VEHICLES.items(), start=1)]
     if role == "WAREHOUSE":
         return [("e", f"Add 12 slots · ${300 + town.warehouse_level * 250:,}", warehouse, ())]
@@ -331,27 +338,31 @@ def building(site):
     role = site.role
     if role == "CASINO":
         st.caption(f"Monastery luck +{town.casino_luck} percentage points")
-        st.segmented_control("Chip", CHIPS, default=10, key="chip", format_func=lambda value: f"${value}")
     actions = [item for item in building_actions(site) if not item[0].startswith("arrow")]
     if role == "GARAGE":
         for column, (key, ride), (number, label, operation, args) in zip(
                 st.columns(len(VEHICLES)), VEHICLES.items(), actions):
             with column:
                 current = town.vehicle == key
-                st.markdown(f"**{ride.label}** · {'Your ride' if current else f'${ride.price:,}'}")
+                owned = key in town.owned_vehicles or current
+                st.image(str(ROOT / "street" / "vehicles" / f"{key}.svg"), width="stretch")
+                status = "Your ride" if current else "Owned · Free collection" if owned else f"${ride.price:,}"
+                st.markdown(f"**{ride.label}** · {status}")
                 st.caption(f"Trunk +{ride.trunk} · {town.bag_size + ride.trunk} cargo · "
                            f"Road {ride.road_speed} · Off-road {ride.offroad_speed}")
                 action(label, operation, *args, key=f"vehicle-{key}", shortcut=number, disabled=current,
                        width="stretch")
+    elif role == "CASINO":
+        # No new bets until the wheel stops (the keys check the same lock).
+        if spin_remaining():
+            waiting_for_spin()
+        else:
+            bet_controls()
     elif actions:
         for column, (key, label, operation, args) in zip(st.columns(len(actions)), actions):
             with column:
                 shortcut = "Shift+F" if key == "shift+f" else key
-                if operation is spin:
-                    st.button(label, on_click=spin, args=args, shortcut=shortcut, width="stretch",
-                              type="primary" if key == "1" else "secondary")
-                else:
-                    action(label, operation, *args, shortcut=shortcut, width="stretch")
+                action(label, operation, *args, shortcut=shortcut, width="stretch")
     if role == "RESEARCH":
         research()
     elif role == "EXCHANGE":
@@ -359,10 +370,18 @@ def building(site):
 
 
 CHIPS = (5, 10, 25, 50, 100)
+SPIN_SECONDS = 4.5
+
+
+def spin_remaining():
+    spin_state = st.session_state.get("spin")
+    return max(0, spin_state["ends_at"] - monotonic()) if spin_state else 0
 
 
 def spin(choice):
     """Bet the chosen chip; the wheel animation lands on the result."""
+    if spin_remaining():
+        return
     stake = st.session_state.get("chip") or 10
     landed = {}
 
@@ -378,19 +397,45 @@ def spin(choice):
         town.message = f"{number} {roulette_color(number).upper()} · {result}"
         landed["number"] = number
 
-    inside(bet)
-    if landed:
+    if inside(bet) and landed:
         previous = st.session_state.get("spin") or {"id": 0, "angle": 0}
         pocket = ROULETTE_POCKETS.index(landed["number"])
         # Turn the wheel at least three times and stop with the winning pocket under the ball.
         target = previous["angle"] - (previous["angle"] % 360) - 3 * 360 - pocket * 360 / len(ROULETTE_POCKETS)
         st.session_state.spin = {"id": previous["id"] + 1, "angle": target, "from": previous["angle"],
-                                 "number": landed["number"]}
+                                 "number": landed["number"], "ends_at": monotonic() + SPIN_SECONDS}
 
 
 def chip_step(step):
     index = CHIPS.index(st.session_state.get("chip") or 10)
     st.session_state.chip = CHIPS[max(0, min(len(CHIPS) - 1, index + step))]
+
+
+@st.fragment(run_every=0.25)
+def waiting_for_spin():
+    if not spin_remaining():
+        st.rerun()
+    st.caption("Wait for the wheel to stop before betting again.")
+    bet_controls(disabled=True)
+
+
+def bet_controls(*, disabled=False):
+    st.html("""<style>
+        .st-key-bet_green button {background:#1f8a4c;color:#fff;border-color:#46be79;}
+        .st-key-bet_green button:hover {background:#176b3a;color:#fff;border-color:#8ae4ad;}
+        .st-key-bet_green button:focus-visible {outline:3px solid #b5ffd2;outline-offset:2px;}
+        .st-key-bet_green button:disabled {background:#1f8a4c;color:#fff;opacity:.5;}
+    </style>""")
+    st.segmented_control("Chip", CHIPS, default=10, key="chip", format_func=lambda value: f"${value}",
+                         disabled=disabled)
+    for column, (label, colour, shortcut) in zip(st.columns(3), (
+        ("Red · pays 2×", "red", "1"),
+        ("Black · pays 2×", "black", "2"),
+        ("Green 0 · pays 36×", "green", "3"),
+    )):
+        column.button(label, on_click=spin, args=(colour,), shortcut=shortcut, width="stretch",
+                      type="primary" if colour == "red" else "secondary", disabled=disabled,
+                      key="bet_green" if colour == "green" else None)
 
 
 def market():

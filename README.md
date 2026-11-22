@@ -49,11 +49,13 @@ The market clock, production, deliveries, research, and contracts run while the 
 
 The street view includes the original map art and collision rules, with the desktop game's traffic, the waterfront tram, the shuttling ferry and pedestrians who keep to the pavements, as decoration (they never block you). The soundtrack and desktop save services are outside this port. Driving a vehicle back to Lisboa needs the $3 bridge toll in cash before you start across.
 
-Drive straight through the road portals on either side of the Almada park. Your vehicle disappears under the park and reappears at the exit. On the street, press **V** or choose **Leave vehicle** to walk, and use **Bring back vehicle** to drive it again. Free up bag space first if you are using the trunk, and finish crossing any bridge or tunnel before getting out.
+Vehicles drive on paved streets, bridges, and the Almada tunnel. Drive straight through the road portals on either side of the Almada park. Your vehicle disappears under the park and reappears at the exit. Press **V** or choose **Leave vehicle** to walk on sidewalks. Return to a street to use **Bring back vehicle**. Free up bag space first if you are using the trunk, and finish crossing any bridge or tunnel before getting out.
 
 Street movement and camera tracking render immediately in the browser. Movement is batched approximately every 200 ms, with one request in flight, and Python validates collisions before trading or saving. The browser reconciles each reply and replays unsent movement. Prediction buffers at most two seconds during a slow response. The compressed night map loads only when night is first shown.
 
 ## Keep local progress
+
+Vehicles use the same side-view skins in the garage selection and on the street. All four player vehicles drive 30% slower than before, on roads and off-road. Press **X** or **Walk on foot** below the map to store your vehicle and walk. Owned rides remain available at any garage through **Drive · Free**, including after restoring a local save. Empty excess cargo and finish reserved orders before switching to your smaller walking bag. Leave bridges before dismounting.
 
 Run a private instance bound to loopback:
 

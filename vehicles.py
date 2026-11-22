@@ -16,10 +16,10 @@ class Vehicle:
 
 # Every ride can be purchased before the $500 victory threshold.
 VEHICLES = {
-    "motorcycle": Vehicle("Motorcycle", 120, 6, 420, 520),
-    "car": Vehicle("Car", 240, 48, 510, 690),
-    "van": Vehicle("Delivery van", 360, 108, 430, 620),
-    "f1": Vehicle("F1 car", 480, 0, 350, 900),
+    "motorcycle": Vehicle("Motorcycle", 120, 6, 294, 364),
+    "car": Vehicle("Car", 240, 48, 357, 483),
+    "van": Vehicle("Delivery van", 360, 108, 301, 434),
+    "f1": Vehicle("F1 car", 480, 0, 245, 630),
 }
 WALK_SPEED = 228
 # City traffic outpaces a walking player, even one with the 1.5x speed power-up.
@@ -56,6 +56,13 @@ ROAD_SEGMENTS = (
 )
 
 
+def road_projection(x, y, segment):
+    x1, y1, x2, y2, _ = segment
+    dx, dy = x2-x1, y2-y1
+    fraction = min(1, max(0, ((x-x1)*dx+(y-y1)*dy)/(dx*dx+dy*dy)))
+    return x1 + fraction*dx, y1 + fraction*dy
+
+
 def on_road(x, y, blocked=()):
     """Test actual lane width; collision footprints take priority over paint."""
     if any(left < x < right and top < y < bottom and not in_tunnel(x, y)
@@ -63,9 +70,8 @@ def on_road(x, y, blocked=()):
         return False
     if any(left < x < right and top < y < bottom for left, top, right, bottom in blocked):
         return False
-    for x1, y1, x2, y2, half_width in ROAD_SEGMENTS:
-        dx, dy = x2-x1, y2-y1
-        fraction = min(1, max(0, ((x-x1)*dx+(y-y1)*dy)/(dx*dx+dy*dy)))
-        if (x-x1-fraction*dx)**2+(y-y1-fraction*dy)**2 <= half_width**2:
+    for segment in ROAD_SEGMENTS:
+        center_x, center_y = road_projection(x, y, segment)
+        if (x-center_x)**2+(y-center_y)**2 <= segment[-1]**2:
             return True
     return False
