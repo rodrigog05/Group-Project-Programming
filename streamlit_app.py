@@ -651,12 +651,17 @@ def tutorial():
     back, skip, forward = st.columns(3)
     back.button("Back", disabled=step == 0, width="stretch", on_click=st.session_state.update,
                 kwargs={"tutorial_step": step - 1})
-    skip.button("Skip", width="stretch", on_click=close_tutorial)
-    if step < len(TUTORIAL) - 1:
+    last = len(TUTORIAL) - 1
+    # Skip jumps to the last slide, whose button starts the game.
+    skip.button("Skip", disabled=step == last, width="stretch", on_click=st.session_state.update,
+                kwargs={"tutorial_step": last})
+    if step < last:
         forward.button("Next", type="primary", width="stretch", on_click=st.session_state.update,
                        kwargs={"tutorial_step": step + 1})
-    else:
-        forward.button("Start playing", type="primary", width="stretch", on_click=close_tutorial)
+    elif forward.button("Start playing", type="primary", width="stretch"):
+        close_tutorial()
+        # A button inside a dialog only reruns the dialog; rerun the whole page so it closes.
+        st.rerun()
 
 
 def open_tutorial():
