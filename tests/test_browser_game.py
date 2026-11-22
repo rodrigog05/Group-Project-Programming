@@ -3,6 +3,7 @@ from streamlit.testing.v1 import AppTest
 
 from browser_game import LocalSave, SaveConflict, advance_clock, entrance, street_input, visit
 from tycoon import SITES, Town
+from scene_buttons import click_scene, press
 
 
 def click(app, label):
@@ -57,23 +58,23 @@ def test_browser_trade_loop_rejection_restart_and_session_isolation(tmp_path, mo
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     assert not app.exception
     choose_place(app, "Goldenfield Farm")
-    click(app, "Buy up to 4 Wheat")
+    click_scene(app, "Buy up to 4 Wheat")
     assert app.metric[0].value == "$44"
     choose_place(app, "Sunrise Bakery")
-    click(app, "Produce or collect")
-    click(app, "Produce or collect")
+    click_scene(app, "Produce or collect")
+    click_scene(app, "Produce or collect")
     assert "production" in app.info[0].value.lower()
     assert "Advance time" not in {button.label for button in app.button}
     assert not app.select_slider
     # AppTest does not run JavaScript. Simulate normal clock updates from the map.
     for _ in range(60):
         assert street_input(app.session_state.town, {"dx": 0, "dy": 0, "seconds": 0.25})
-    click(app, "Produce or collect")
+    click_scene(app, "Produce or collect")
     choose_place(app, "Daily Bread Market")
-    click(app, "Sell carried goods")
+    click_scene(app, "Sell carried goods")
     assert app.metric[0].value == "$100"
     choose_place(app, "Cacilhas Dealership")  # The only garage is across the Tejo
-    click(app, "Buy Motorcycle · $120 · +6 slots")
+    press(app, "1")  # The motorcycle card
     assert app.metric[0].value == "$100"
     assert app.metric[1].value == "0 / 12"
     assert "$120" in app.info[0].value
