@@ -150,6 +150,13 @@ class Site:
         return self.x, self.y, self.x + 176, self.y + 104
 
     @property
+    def solid_bounds(self):
+        """Building footprint; the rest of a compact trading plot is walkable paving."""
+        if self.role in ("SUPPLIER", "FACTORY", "PUBLIC SHOP", "WAREHOUSE", "TIER2") and self.name != "Armazém do Seixal":
+            return self.x + 24, self.y + 24, self.x + 152, self.y + 104
+        return self.bounds
+
+    @property
     def door(self):
         return self.x + 88, self.y + 104
 
@@ -182,7 +189,7 @@ SITES = (
     Site("Foundry Precision Works", "TIER2", -1, 650, south(935), "#ffc66c"),
 )
 
-COLLISION_BOUNDS = tuple(site.bounds for site in SITES)+SCENERY_BLOCKS+LANDMARK_SOLIDS+((1780, 190, 2030, 260),)
+COLLISION_BOUNDS = tuple(site.solid_bounds for site in SITES)+SCENERY_BLOCKS+LANDMARK_SOLIDS+((1780, 190, 2030, 260),)
 
 @dataclass
 class Order:

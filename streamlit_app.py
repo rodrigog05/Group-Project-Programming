@@ -538,10 +538,13 @@ def market():
 def landmarks():
     map_art = b64encode((ROOT / "street" / "world_100_day.webp").read_bytes()).decode("ascii")
     station = b64encode(station_svg().encode()).decode("ascii")
+    city = b64encode((ROOT / "street" / "city_day.svg").read_bytes()).decode("ascii")
     campus = b64encode((ROOT / "street" / "nova_presentation_signs.svg").read_bytes()).decode("ascii")
     x, y, width, height = ORIENTE_BOUNDS
     st.html(f'<div style="position:relative"><img src="data:image/webp;base64,{map_art}" '
             'alt="Foundry Town · Lisboa and Almada" style="width:100%;display:block">'
+            f'<img src="data:image/svg+xml;base64,{city}" alt="City buildings" '
+            'style="position:absolute;inset:0;width:100%;height:100%">'
             f'<img src="data:image/svg+xml;base64,{station}" alt="Gare do Oriente" '
             f'style="position:absolute;left:{x/2400*100}%;top:{y/1780*100}%;width:{width/2400*100}%;'
             f'height:{height/1780*100}%">'

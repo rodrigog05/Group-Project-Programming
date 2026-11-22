@@ -118,7 +118,7 @@ The tests need no network, accounts or secrets.
 ## Known limits
 
 - Guest games reset on reload or when the server restarts. Players with cloud saves can sign in again to resume.
-- The soundtrack from the desktop version is not in the browser version. The exchange uses plain controls. Nova SBE opens the supplied classroom photograph of our team presenting Foundry Town to the professors, with no research or workshop controls.
+- The soundtrack from the desktop version is not in the browser version. The exchange uses plain controls. Nova SBE opens a game-style classroom scene of three team members presenting Foundry Town to the professors, inspired by the supplied reference. It has no research or workshop controls.
 - To keep the town simple, the only car dealership is Cacilhas Dealership (your first vehicle needs a ferry ride), Foundry Warehouse is the only warehouse, and eggs and Pastéis de Belém were removed. The engine keeps these buildings for older saves; on the map their plots show apartment blocks and they cannot be entered.
 - One local save slot per `FOUNDRY_LOCAL_DB` path, meant for one player.
 - Contracts, delivery routes and business ownership were taken out of the menus to keep the game simple. Research and advanced crafting were also retired from the browser menus; legacy innovation fields remain readable in saves. Their rules (`contracts.py`, `logistics.py`, `businesses.py`, `innovation.py`) remain in the engine, with their tests, because older saves still store their fields.
@@ -133,3 +133,5 @@ With Node.js installed, run `node --test tests/street_prediction.cjs` for browse
 - `tycoon.py` and the adjacent simulation modules hold game rules and state.
 - `street/` contains the browser map component and original day/night artwork; `street/scenes/` holds the building, casino, monastery and ferry scenes, drawn from the desktop game's own scene code (kept on the `desktop-game` branch).
 - `oriente_station.py` draws the station's branching steel canopy and glass platforms for day and night. Run `python oriente_station.py` to rebuild `street/oriente_day.svg` and `street/oriente_night.svg`; the street view and landmark map share this artwork.
+- `city_art.py` draws compact supply depots, workshops, product-specific stores, storage and traditional Lisbon apartments. The street and landmark views share its day/night SVG overlays. Building footprints are 128 × 80 within the original plots, with walkable side yards and unchanged entrances. `Site.solid_bounds` supplies the same walls to Python and browser movement validation. Closed buildings retain their apartment footprints.
+- Run `python city_art.py` to rebuild the city overlays and classroom SVG. To also export the classroom WebP, run `uv run --python 3.12 --with resvg-py --with Pillow python city_art.py --presentation`. These two image tools are needed only to rebuild that asset; playing the game requires no new dependencies.

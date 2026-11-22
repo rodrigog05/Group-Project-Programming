@@ -11,6 +11,8 @@ const stationArt = { day: new Image(), night: new Image() };
 stationArt.day.src = "oriente_day.svg";
 const campusSigns = new Image();
 campusSigns.src = "nova_presentation_signs.svg";
+const cityArt = { day: new Image(), night: new Image() };
+cityArt.day.src = "city_day.svg";
 
 const directions = {
   arrowleft: "left", a: "left", arrowright: "right", d: "right",
@@ -83,6 +85,7 @@ window.addEventListener("message", (event) => {
   const ownReply = pending && next.ack === eventId;
   if (next.night && !night.getAttribute("src")) night.src = "world_100_night.webp";
   if (next.night && !stationArt.night.getAttribute("src")) stationArt.night.src = "oriente_night.svg";
+  if (next.night && !cityArt.night.getAttribute("src")) cityArt.night.src = "city_night.svg";
   // A new ferry id means Python just moved the player across the Tejo: play the crossing.
   // The first id this map sees is history (for example after leaving a building), so skip it.
   const ferryId = next.ferry ? next.ferry.id : 0;
@@ -341,6 +344,8 @@ function draw() {
   const top = Math.max(0, Math.min(day.naturalHeight - viewHeight, player.y - viewHeight / 2));
   context.setTransform(ratio * scale, 0, 0, ratio * scale, -left * ratio * scale, -top * ratio * scale);
   context.drawImage(state.night && night.naturalWidth ? night : day, 0, 0);
+  const city = state.night && night.naturalWidth ? cityArt.night : cityArt.day;
+  if (city.complete && city.naturalWidth) context.drawImage(city, 0, 0);
   const station = state.night && night.naturalWidth ? stationArt.night : stationArt.day;
   if (station.complete && station.naturalWidth && state.station_bounds) context.drawImage(station, ...state.station_bounds);
   if (campusSigns.complete && campusSigns.naturalWidth) context.drawImage(campusSigns, 27, 508, 178, 110);
