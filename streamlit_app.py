@@ -27,6 +27,7 @@ from navigation import directions
 
 
 PLACES = {site.name: site for site in OPEN_SITES}
+DEFAULT_DESTINATION = "No destination"
 ROOT = Path(__file__).resolve().parent
 street_map = declare_component("foundry_street", path=str(ROOT / "street"))
 START_MESSAGE = "Buy materials, turn them into products, and sell them to grow your business."
@@ -219,7 +220,7 @@ def play_street(site_inside=None):
         cash=town.cash, on_bridge=town.bridge_journey is not None, ferry=st.session_state.get("ferry"),
         interior=interior_view(site_inside) if site_inside is not None else None,
         next_move=next_move(town, st.session_state.get("inside")) if st.session_state.get("show_hints", True) else None,
-        route=directions(town, destination_point(st.session_state.get("destination", "Goldenfield Farm"))),
+        route=directions(town, destination_point(st.session_state.get("destination", DEFAULT_DESTINATION))),
         suppliers=[{"x": site.door[0], "y": site.door[1], "trade": site.trade,
                     "cost": town.costs[site.trade]} for site in OPEN_SITES if site.role == "SUPPLIER"],
         free_slots=town.carry_capacity-town.cargo-town.reserved,
@@ -241,6 +242,8 @@ def site_status(site):
 
 
 def destination_point(name):
+    if name == DEFAULT_DESTINATION:
+        return None
     if name == MONASTERY:
         left, _, right, bottom = LANDMARKS[0].bounds
         return (left+right)/2, bottom+16
@@ -251,10 +254,17 @@ def places():
     name = st.session_state.get("inside")
     if not (name and building_at(town) == name):
         st.session_state.inside = name = None
+    destination = st.session_state.get("destination", DEFAULT_DESTINATION)
+    point = destination_point(destination)
+    arrived = point is not None and (
+        building_at(town) == destination or (town.x-point[0])**2 + (town.y-point[1])**2 <= 28**2
+    )
+    if st.session_state.pop("reset_destination", False) or arrived:
+        st.session_state.destination = DEFAULT_DESTINATION
     # One row with a fixed height: a button appearing here must not push the game view down (it flickered).
     pick, route, hints = st.columns((3, 2, 1), vertical_alignment="bottom")
-    destination = pick.selectbox("Destination", [*PLACES, MONASTERY],
-                                 index=list(PLACES).index("Goldenfield Farm"),
+    destination = pick.selectbox("Destination", [DEFAULT_DESTINATION, *PLACES, MONASTERY],
+                                 index=0,
                                  key="destination")
     hints.toggle("💡 Show hints", value=True, key="show_hints")
     hint = next_move(town, name)
@@ -744,6 +754,7 @@ def cloud_account():
 
 def enter_game(*, new_game=False):
     if new_game:
+        st.session_state.reset_destination = True
         st.session_state.town_page = "Game"
         st.session_state.show_tutorial = True
         st.session_state.tutorial_step = 0
