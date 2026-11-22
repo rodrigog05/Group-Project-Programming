@@ -72,7 +72,22 @@ FOUNDRY_LOCAL_DB=.local/game.sqlite3 uv run --python 3.12 --with-requirements re
 3. Set **Main file path** to `streamlit_app.py`. Select Python 3.12 in advanced settings, then deploy.
 4. Open the assigned URL and run the first-trade walkthrough above. Open a separate private browser window and confirm it starts with $60.
 
-Cloud mode uses one independent game per browser session. A full reload, disconnected session, or server restart can reset progress. Leave `FOUNDRY_LOCAL_DB` unset for a public instance. No external services, database setup, or account credentials are needed for gameplay. [Community Cloud deployment guide](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy)
+Guests can play immediately. Their progress lasts for their current browser session. Leave `FOUNDRY_LOCAL_DB` unset for a public instance so players have separate games. [Community Cloud deployment guide](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy)
+
+## Enable per-player cloud saves
+
+1. In your Supabase project, run [`supabase/foundry_saves.sql`](supabase/foundry_saves.sql) once in the SQL Editor. It creates one save row per player and enables row-level security so signed-in players can read and write their own row.
+2. Enable **Email** sign-in and email confirmations in Supabase Auth. Under **URL Configuration**, set **Site URL** to your public Streamlit URL. Players confirm their email and then return to the game to sign in.
+3. In Streamlit's **Secrets** settings, add these two top-level values using your project URL and **publishable key**. A private local deployment can also pass them as environment variables.
+
+   ```toml
+   SUPABASE_URL = "https://YOUR_PROJECT_REF.supabase.co"
+   SUPABASE_PUBLISHABLE_KEY = "sb_publishable_YOUR_KEY"
+   ```
+
+4. Open the start menu and choose **Sign in for cloud saves**. After signing in, **Continue** opens your cloud save. When an account has an empty save slot, signing in from a guest game carries that progress into the account. When the account already has a save, signing in opens that save.
+
+Trades and other explicit actions save immediately. Street movement and clock updates save about every 15 seconds while playing. **More → Save progress** saves your position before you close the tab. **Sign out** also saves before ending the session. If another tab has changed the save, use **More → Reload cloud progress** to continue from the latest revision. After closing the app or a server restart, sign in again and choose **Continue**. Play a test session in two separate accounts and verify their saves stay independent before sharing the deployed app.
 
 ## Tests
 
@@ -93,14 +108,14 @@ The tests need no network, accounts or secrets.
 
 ## Security and data
 
-- The game needs no API keys, passwords or accounts. `.env` files, Streamlit secrets and SQLite saves are listed in `.gitignore`.
+- Guests can play without accounts. Supabase cloud saves require sign-in and the app uses a publishable key paired with the player's access token. `.env` files, Streamlit secrets and SQLite saves are listed in `.gitignore`.
 - The only dependency is `streamlit`, pinned to an exact version in `requirements.txt`.
-- On the public site each browser session plays its own game in memory. Nothing is stored on the server, so a reload or restart starts a new game.
+- Guest progress is held in session memory. Signed-in cloud saves use the same versioned game snapshot as local saves. Supabase enforces ownership in the database.
 - Locally, `FOUNDRY_LOCAL_DB` turns on one SQLite save slot. All database queries are parameterized.
 
 ## Known limits
 
-- Progress on the public site resets on reload or when the server restarts.
+- Guest games reset on reload or when the server restarts. Players with cloud saves can sign in again to resume.
 - The soundtrack from the desktop version is not in the browser version. The warehouse, exchange and research centre use plain controls, as they had no illustrated scene on desktop.
 - One local save slot per `FOUNDRY_LOCAL_DB` path, meant for one player.
 
