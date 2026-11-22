@@ -72,7 +72,7 @@ def test_browser_trade_loop_rejection_restart_and_session_isolation(tmp_path, mo
     choose_place(app, "Daily Bread Market")
     click(app, "Sell carried goods")
     assert app.metric[0].value == "$100"
-    choose_place(app, "Cacilhas Garage")  # The only garage is across the Tejo
+    choose_place(app, "Cacilhas Dealership")  # The only garage is across the Tejo
     click(app, "Buy Motorcycle · $120 · +6 slots")
     assert app.metric[0].value == "$100"
     assert app.metric[1].value == "0 / 12"
@@ -80,7 +80,7 @@ def test_browser_trade_loop_rejection_restart_and_session_isolation(tmp_path, mo
     reloaded = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     assert reloaded.metric[0].value == "$100"
     assert reloaded.session_state.town.elapsed == pytest.approx(15)
-    assert reloaded.session_state.town.nearby().name == "Cacilhas Garage"
+    assert reloaded.session_state.town.nearby().name == "Cacilhas Dealership"
     monkeypatch.delenv("FOUNDRY_LOCAL_DB")
     separate = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     assert separate.metric[0].value == "$60"
