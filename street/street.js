@@ -1,7 +1,7 @@
 const canvas = document.querySelector("#map");
 const context = canvas.getContext("2d");
 const hint = document.querySelector("#hint");
-const feedback = document.querySelector("#feedback");
+const route = document.querySelector("#route");
 const vehicleButton = document.querySelector('[data-action="vehicle"]');
 const controls = document.querySelector(".controls");
 const day = new Image();
@@ -64,9 +64,14 @@ function updateTradeButtons() {
 }
 
 function frameHeight() {
-  if (parentOrigin === location.origin && Number.isFinite(window.parent.innerHeight)) {
-    const height = Math.max(350, Math.floor(window.parent.innerHeight * 0.8));
-    document.body.style.setProperty("--map-height", `${height}px`);
+  if (parentOrigin === location.origin && window.frameElement) {
+    const main = window.frameElement.closest('[data-testid="stMain"]');
+    const top = window.frameElement.getBoundingClientRect().top + (main?.scrollTop || 0);
+    const bottom = main?.getBoundingClientRect().bottom ?? window.parent.innerHeight;
+    const controlsHeight = document.body.offsetHeight - canvas.offsetHeight;
+    // Reserve space for the page's bottom padding and keep the map usable in very short windows.
+    const height = Math.max(128, Math.floor(bottom - top - controlsHeight - 8));
+    canvas.style.setProperty("--map-height", `${height}px`);
   }
   const height = document.body.offsetHeight;
   if (height !== reportedHeight) {
@@ -98,10 +103,6 @@ window.addEventListener("message", (event) => {
   const spinId = spin ? spin.id : 0;
   if (lastSpinId !== null && spinId !== lastSpinId && spin) spinAnimation = { start: performance.now(), spin };
   lastSpinId = spinId;
-  if (next.interior && !(state && state.interior)) {
-    // Going inside: bring the whole store view to the middle of the screen.
-    requestAnimationFrame(() => canvas.scrollIntoView({ block: "center", behavior: "smooth" }));
-  }
   // A new alert id means Python just refused something: show it for a few seconds.
   const alertId = next.alert ? next.alert.id : 0;
   if (lastAlertId !== null && alertId !== lastAlertId) alertBanner = { text: next.alert.text, start: performance.now() };
@@ -109,8 +110,6 @@ window.addEventListener("message", (event) => {
   timerBase = next.interior && next.interior.timer
     ? { seconds: next.interior.timer.seconds, at: performance.now() } : null;
   controls.hidden = Boolean(next.interior);
-  // Inside, the scene shows the vendor's reply (and the casino reveals results when the ball stops).
-  feedback.hidden = Boolean(next.interior);
   player = { x: next.x, y: next.y };
   facing = next.facing;
   state = next;
@@ -125,7 +124,8 @@ window.addEventListener("message", (event) => {
   // Teleports (ferry/Visit) use the new authoritative origin.
   for (const segment of segments) predict(segment);
   if (hint.textContent !== state.hint) hint.textContent = state.hint;
-  if (feedback.textContent !== state.message) feedback.textContent = state.message;
+  const instruction = next.interior ? "" : next.route?.instruction || "";
+  if (route.textContent !== instruction) route.textContent = instruction;
   frameHeight();
   if (!ownReply) claimKeyboard();
 });
@@ -817,7 +817,7 @@ canvas.addEventListener("pointerdown", (event) => {
   const button = sceneButtonAt(event);
   if (!button || !state.interior.accepts.includes(button.key)) return;
   event.preventDefault();
-  canvas.focus();
+  canvas.focus({ preventScroll: true });
   queuedAction = button.key === "escape" ? "leave" : "building";
   queuedKey = button.key;
 });
@@ -1230,7 +1230,7 @@ document.addEventListener("visibilitychange", pause);
 for (const button of document.querySelectorAll("[data-direction]")) {
   button.addEventListener("pointerdown", (event) => {
     event.preventDefault();
-    canvas.focus();
+    canvas.focus({ preventScroll: true });
     button.setPointerCapture(event.pointerId);
     held.set(event.pointerId, button.dataset.direction);
   });
@@ -1241,15 +1241,21 @@ for (const button of document.querySelectorAll("[data-direction]")) {
 
 for (const button of document.querySelectorAll("[data-action]")) {
   button.addEventListener("click", () => {
-    canvas.focus();
+    canvas.focus({ preventScroll: true });
     queuedAction = button.dataset.action;
   });
 }
 
 new ResizeObserver(frameHeight).observe(document.body);
 if (parentOrigin === location.origin && window.parent !== window) {
+  const layout = window.frameElement?.closest(".st-key-foundry_play");
+  const layoutObserver = new ResizeObserver(frameHeight);
+  if (layout) layoutObserver.observe(layout);
   window.parent.addEventListener?.("resize", frameHeight);
-  window.addEventListener("pagehide", () => window.parent.removeEventListener?.("resize", frameHeight));
+  window.addEventListener("pagehide", () => {
+    layoutObserver.disconnect();
+    window.parent.removeEventListener?.("resize", frameHeight);
+  });
 }
 send("streamlit:componentReady", { apiVersion: 1 });
 frameHeight();

@@ -10,10 +10,10 @@
     body { margin: 0; color: #fff7e6; background: #17343b; font: 14px system-ui, sans-serif; }
     canvas { display: block; width: 100%; height: var(--map-height, clamp(350px, 56.25vw, 720px)); background: #315860; }
     canvas:focus-visible, button:focus-visible { outline: 3px solid #f8cb76; outline-offset: -3px; }
-    .status { padding: 8px 12px; line-height: 1.4; min-height: 54px; }
+    .status { display: flex; flex-wrap: wrap; column-gap: 1rem; padding: 4px 8px; line-height: 1.4; }
     #hint { font-weight: 700; }
-    #feedback { color: #f9d399; }
-    .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; }
+    #route { color: #bde7ff; }
+    .controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 4px 8px; }
     .controls p { margin: 0; }
     /* Actions: dark buttons with their key drawn as a small keyboard key, like the buttons inside buildings */
     button { display: inline-flex; align-items: center; gap: 8px; background: #1b1f27; color: #fafafa;
@@ -36,7 +36,7 @@
   <canvas id="map" tabindex="0" aria-label="Foundry Town map. Move with WASD or arrows. Press E to interact."></canvas>
   <div class="status">
     <div id="hint"></div>
-    <div id="feedback" role="status"></div>
+    <div id="route" role="status"></div>
   </div>
   <div class="controls">
     <div class="pad" aria-label="Movement controls">

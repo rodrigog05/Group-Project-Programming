@@ -202,7 +202,7 @@ def play_street(site_inside=None):
     street_map(
         key="street_map", on_change=play, x=town.x, y=town.y, ack=ack,
         night=town.market_elapsed % DAY_SECONDS >= 180, facing=town.facing,
-        vehicle=town.vehicle, stowed_vehicle=town.stowed_vehicle, hint=hint, message=localize_place_names(town.message),
+        vehicle=town.vehicle, stowed_vehicle=town.stowed_vehicle, hint=hint,
         speed=town.movement_speed, collision=COLLISION_MAP, life=STREET_LIFE,
         cash=town.cash, on_bridge=town.bridge_journey is not None, ferry=st.session_state.get("ferry"),
         station_bounds=ORIENTE_BOUNDS,
@@ -259,23 +259,20 @@ def places():
     if st.session_state.pop("reset_destination", False) or arrived:
         st.session_state.destination = DEFAULT_DESTINATION
     # One row with a fixed height: a button appearing here must not push the game view down (it flickered).
-    pick, route, hints = st.columns((3, 2, 1), vertical_alignment="bottom")
+    pick, route_button, hints = st.columns((3, 2, 1), vertical_alignment="center")
     destination = pick.selectbox("Destination", [DEFAULT_DESTINATION, *PLACES, MONASTERY],
                                  index=0, format_func=place_name,
-                                 key="destination")
+                                 key="destination", label_visibility="collapsed")
     hints.toggle("💡 Show hints", value=True, key="show_hints")
     hint = next_move(town, name)
     target = hint and hint["target"]
-    route.button(f"Show route to {place_name(target)}" if target else "Show route", width="stretch",
-                 disabled=not (st.session_state.show_hints and target and target != destination),
-                 on_click=st.session_state.update, kwargs={"destination": target})
+    route_button.button(f"Show route to {place_name(target)}" if target else "Show route", width="stretch",
+                        disabled=not (st.session_state.show_hints and target and target != destination),
+                        on_click=st.session_state.update, kwargs={"destination": target})
     site_inside = PLACES.get(name, MONASTERY) if name else None
-    # The game view stays on screen inside buildings too, so it keeps the keyboard (see street.js).
-    play_street(site_inside)
-    if site_inside is None:
-        st.caption(directions(town, destination_point(destination))["instruction"])
-    else:
+    if site_inside is not None:
         building(site_inside)
+    play_street(site_inside)
 
 
 def enter_building(name):
@@ -383,14 +380,15 @@ def interior_view(site):
 
 
 def building(site):
-    """Inside a building. The scene and its buttons are drawn in the map view above; only notes stay here."""
+    """Render information and controls alongside the building scene."""
     if site == MONASTERY:
         st.caption(f"Casino luck +{town.casino_luck}% · Maximum +20%")
         return
     if site.role == "CASINO":
         st.caption(f"Monastery luck: your odds are {town.casino_luck}% better")
     if site.role == "EXCHANGE":
-        district_exchange()
+        with st.popover("Trade shares"):
+            district_exchange()
 
 
 CHIPS = (5, 10, 25, 50, 100)
@@ -746,6 +744,29 @@ st.html(f"""
     padding-inline: clamp(0.5rem, 2vw, 1.75rem);
     padding-top: 3.25rem;
   }}
+  [data-testid="stMainBlockContainer"]:has(.st-key-foundry_play) {{
+    padding-bottom: 0.5rem;
+  }}
+  [data-testid="stMainBlockContainer"]:has(.st-key-foundry_play) > [data-testid="stVerticalBlock"],
+  .st-key-foundry_play,
+  .st-key-foundry_hud {{
+    gap: 0.35rem;
+  }}
+  .st-key-foundry_play iframe {{
+    display: block;
+  }}
+  .st-key-foundry_play [data-testid="stAlertContainer"] {{
+    padding-block: 0.25rem;
+  }}
+  [data-testid="stMainBlockContainer"]:has(.st-key-foundry_play) [data-testid="stProgress"] {{
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.5rem;
+  }}
+  [data-testid="stMainBlockContainer"]:has(.st-key-foundry_play) [data-testid="stProgress"] > div {{
+    padding-bottom: 0;
+  }}
   section[role="dialog"]:has(.st-key-foundry_start) {{
     position: fixed !important;
     inset: 0 !important;
@@ -861,16 +882,30 @@ st.html(f"""
     color: #101f28;
   }}
   @media (max-width: 760px) {{
-    .st-key-foundry_hud [data-testid="stHorizontalBlock"],
-    .st-key-foundry_nav [data-testid="stHorizontalBlock"] {{
+    .st-key-foundry_hud [data-testid="stHorizontalBlock"] {{
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       align-items: center;
       gap: 0.55rem;
     }}
+    .st-key-foundry_play [data-testid="stHorizontalBlock"] {{
+      display: grid;
+      grid-template-columns: minmax(0, 3fr) minmax(0, 2fr) auto;
+      align-items: center;
+      gap: 0.35rem;
+    }}
+    .st-key-foundry_play [data-testid="stColumn"],
     .st-key-foundry_hud [data-testid="stColumn"],
     .st-key-foundry_nav [data-testid="stColumn"] {{ width: auto !important; }}
     .st-key-foundry_hud [data-testid="stColumn"]:first-child {{ grid-column: 1 / -1; }}
+    .st-key-foundry_nav [data-testid="stHorizontalBlock"] {{ gap: 0.35rem; }}
+    .st-key-foundry_nav [data-testid="stColumn"] {{ flex: 1; min-width: 0; }}
+  }}
+  @media (min-width: 600px) and (max-width: 760px) {{
+    .st-key-foundry_hud [data-testid="stHorizontalBlock"] {{
+      grid-template-columns: 1.5fr repeat(3, 1fr) auto auto;
+    }}
+    .st-key-foundry_hud [data-testid="stColumn"]:first-child {{ grid-column: auto; }}
   }}
   body:has(.st-key-foundry_start) #foundry-fullscreen-game {{ display: none; }}
 </style>
@@ -913,16 +948,25 @@ with st.container(key="foundry_nav"):
                 except SAVE_ERRORS:
                     st.session_state.save_error = "Could not reload progress. Check your save settings and try again."
 
-if st.session_state.save_error:
-    st.error(st.session_state.save_error)
-if town.won and not town.milestone_acknowledged:
-    st.success("You reached the $500 cash milestone.")
-    button("Continue building", Town.continue_after_milestone)
+def play_notices():
+    if st.session_state.save_error:
+        st.error(st.session_state.save_error)
+    if town.won and not town.milestone_acknowledged:
+        st.success("You reached the $500 cash milestone.")
+        button("Continue building", Town.continue_after_milestone)
 
-PAGES[page]()
 
-if town.message:
-    st.info(localize_place_names(town.message))
+if page == "Game":
+    with st.container(key="foundry_play"):
+        play_notices()
+        if town.message:
+            st.info(localize_place_names(town.message))
+        places()
+else:
+    play_notices()
+    PAGES[page]()
+    if town.message:
+        st.info(localize_place_names(town.message))
 
 if st.session_state.get("show_menu", True):
     start_menu()
