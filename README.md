@@ -1,6 +1,6 @@
 # Foundry Town
 
-Foundry Town is a browser business tycoon set in Lisboa and Almada. Buy materials, make products, and sell them to reach $500. Keep growing with vehicles, a bigger warehouse, research and investments.
+Foundry Town is a browser business tycoon set in Lisboa and Almada. Buy materials, make products, and sell them to reach $500. Keep growing with vehicles, a bigger warehouse and investments.
 
 **Play online:** https://foundrytown.streamlit.app/
 
@@ -45,7 +45,7 @@ Click or tab into the street map. Walk with **WASD** or the **arrow keys**. Pres
 
 Inside, each building shows its illustrated scene from the desktop game: the vendor answers in a speech bubble and the chalkboard shows live prices. Use the buttons or their keys: **E** to buy, make, sell or collect (or expand the warehouse), **Q** to buy four, **1–4** for vehicles in a garage, and in the casino pick a chip (**←** / **→**) and press **1** (red), **2** (black) or **3** (green 0) to spin the wheel. **Esc** leaves. The building is drawn in the same game view as the street, so the keys work straight away without clicking. A light-bulb hint in the corner of the game view says what to do next (for example *Now you should go to Sunrise Bakery to turn your Wheat into Bread*); **💡 Show hints** hides it, and **Show route to …** puts that building in Destination. The workshop shows its countdown and ready-to-collect status only in the top-right corner. The hint simply says to collect; the seller keeps their usual line and the board keeps the recipe while the order is pending. **Destination** selects a light-blue dashed street route. Follow it and press **E** at the door to enter; selecting a destination never moves you or opens a store. The Jerónimos monastery adds 5 points of casino luck per visit, up to 20.
 
-The market clock, production and research run while the map has focus. Click outside the map to pause street play. The market settles every 300 game seconds and the map switches to night after 180 seconds. Trade shortcuts appear only within reach of the right supplier, with enough cash and free cargo space. On foot, the ferry costs $2. With a vehicle, bridges charge a $3 toll toward Lisboa.
+The market clock and production run while the map has focus. Click outside the map to pause street play. The market settles every 300 game seconds and the map switches to night after 180 seconds. Trade shortcuts appear only within reach of the right supplier, with enough cash and free cargo space. On foot, the ferry costs $2. With a vehicle, bridges charge a $3 toll toward Lisboa.
 
 Destination starts at **No destination**, with no route drawn. Choose a building to show directions, or choose **No destination** to cancel them. Reaching the selected building resets the selector and clears the line. Ferry stops keep your final destination selected. Starting a new game clears any previous destination.
 
@@ -118,10 +118,10 @@ The tests need no network, accounts or secrets.
 ## Known limits
 
 - Guest games reset on reload or when the server restarts. Players with cloud saves can sign in again to resume.
-- The soundtrack from the desktop version is not in the browser version. The exchange and research centre use plain controls, as they had no illustrated scene on desktop.
+- The soundtrack from the desktop version is not in the browser version. The exchange uses plain controls. Nova SBE opens the supplied classroom photograph of our team presenting Foundry Town to the professors, with no research or workshop controls.
 - To keep the town simple, the only car dealership is Cacilhas Dealership (your first vehicle needs a ferry ride), Foundry Warehouse is the only warehouse, and eggs and Pastéis de Belém were removed. The engine keeps these buildings for older saves; on the map their plots show apartment blocks and they cannot be entered.
 - One local save slot per `FOUNDRY_LOCAL_DB` path, meant for one player.
-- Contracts, delivery routes and business ownership were taken out of the menus to keep the game simple. Their rules (`contracts.py`, `logistics.py`, `businesses.py`) remain in the engine, with their tests, because older saves still store their fields.
+- Contracts, delivery routes and business ownership were taken out of the menus to keep the game simple. Research and advanced crafting were also retired from the browser menus; legacy innovation fields remain readable in saves. Their rules (`contracts.py`, `logistics.py`, `businesses.py`, `innovation.py`) remain in the engine, with their tests, because older saves still store their fields.
 
 ## Project structure
 

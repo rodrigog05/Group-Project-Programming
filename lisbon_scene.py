@@ -693,7 +693,7 @@ class LisbonScene:
             self.line((column_x+5, y+38, column_x+16, y+50), "#a8cbd0")
         self.line((x+10, y+61, right-16, y+61), "#f5f4e7", 4)
         self.rect(x+8, y+70, right-12, y+88, navy)
-        self.text(x+88, y+79, "E  research + workshop", 8, "#f1f8eb", True, "center")
+        self.text(x+88, y+79, "E  Present Foundry Town", 8, "#f1f8eb", True, "center")
         door_x, _ = site.door
         self.rect(door_x-13, y+90, door_x+13, bottom, "#537d84")
         self.line((door_x, y+91, door_x, bottom), "#d9ebe6", 2)
@@ -701,7 +701,7 @@ class LisbonScene:
         self.rect(x+3, bottom+13, right-3, bottom+32, "#ede4cf")
         self.rect(x-1, y-22, right+1, y-4, guide.color)
         self.rect(x+2, y-20, right-2, y-18, "#a4d6d4")
-        self.text(x+88, y-12, guide.badge, 9, "#ffffff", True, "center")
+        self.text(x+88, y-12, "APRESENTAÇÃO", 9, "#ffffff", True, "center")
 
     def light_research_building(self, site, glow):
         """Cool glazing and lit campus signs use the same cached night pass."""
@@ -715,13 +715,13 @@ class LisbonScene:
                           fill="#a3c9ca", width=1, tags="night_lights")
         c.create_rectangle(x-1, y-22, x+177, y-4,
                            fill="#246b80", outline="", tags="night_lights")
-        self.game.label(x+88, y-12, "INOVAÇÃO", 9, "#d9fff1", True,
+        self.game.label(x+88, y-12, "APRESENTAÇÃO", 9, "#d9fff1", True,
                         anchor="center", tag="night_lights")
         self.game.label(x+11, y+23, "NOVA SBE", 11, "#e2fff3", True,
                         anchor="w", tag="night_lights")
         self.game.label(x+163, y+23, "CARCAVELOS", 7, "#dcf4e6", True,
                         anchor="e", tag="night_lights")
-        self.game.label(x+88, y+79, "E  research + workshop", 8, "#e2fff3", True,
+        self.game.label(x+88, y+79, "E  Present Foundry Town", 8, "#e2fff3", True,
                         anchor="center", tag="night_lights")
         door_x, door_y = site.door
         glow(door_x, door_y+7, 22, "#c6e4da")

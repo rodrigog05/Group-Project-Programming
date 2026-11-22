@@ -67,7 +67,7 @@ def test_every_illustrated_scene_exists_and_every_building_greets_you():
             assert (SCENES / f"{found[0]}.webp").is_file(), found[0]
         assert greeting(town, site)
     plain = {site.role for site in SITES if scene_for(town, site) is None}
-    assert plain == {"EXCHANGE", "RESEARCH"}  # The warehouse has its own scene now
+    assert plain == {"EXCHANGE"}  # Nova SBE now shows the team's presentation
     assert (SCENES / "ferry_day.webp").is_file() and (SCENES / "ferry_night.webp").is_file()
 
 
@@ -79,6 +79,37 @@ def test_monastery_luck_is_capped_at_twenty_points():
 
 
 # ----- Inside buildings in the app -----
+
+
+def test_nova_sbe_presentation_has_only_exit_and_preserves_progress(monkeypatch):
+    from copy import deepcopy
+    app = new_app(monkeypatch)
+    town = app.session_state.town
+    before = town.cash, list(town.supplies), list(town.goods), deepcopy(town.innovation)
+    choose_place(app, "Nova SBE · Carcavelos")
+    room = streamlit_interior(app)
+    assert room["scene"] == "nova_presentation"
+    assert room["size"] == [1448, 1086]
+    assert room["bubble"] is None and room["board"] is None
+    assert room["accepts"] == ["escape"]
+    assert room["keys"] == [["escape", "Leave"]]
+    assert not app.get("number_input")
+    assert not any("research" in label.lower() or "craft" in label.lower() for label in labels(app))
+    assert (town.cash, town.supplies, town.goods, town.innovation) == before
+    click(app, "Leave")
+    assert app.session_state.inside is None
+
+
+def test_browser_clock_leaves_retired_research_untouched():
+    from copy import deepcopy
+    from browser_game import advance_clock
+    town = Town()
+    town.cash = 10000
+    town.start_research("metallurgy")
+    before = deepcopy(town.innovation)
+    advance_clock(town, 1)
+    assert town.innovation == before
+
 
 def test_visit_enters_the_building_and_leave_returns_to_the_street(monkeypatch):
     app = new_app(monkeypatch)
