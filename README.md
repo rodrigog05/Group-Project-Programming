@@ -39,11 +39,13 @@ Open the local URL printed by Streamlit. You start with $60 and 12 cargo slots. 
 
 The Lisbon start menu fills the browser and offers **New Game**, **Continue**, and **Rules & How to Play**. Open it again from **Start menu** above the map. Replacing your progress requires confirmation. Use **Fullscreen** from the menu or game and **Exit Fullscreen** or **Esc** to return to the browser window.
 
-Click or tab into the street map. Walk with **WASD** or the **arrow keys**. Use **E** at a marked entrance to trade and at a ferry pier to cross the Tejo. At suppliers, **Q** buys up to four units. At farms, **F** buys one egg and **R** buys up to four. The buttons below the map provide touch controls. For garages, the warehouse, the exchange, research, and the casino, **E** selects the building's controls below the map.
+Click or tab into the street map. Walk with **WASD** or the **arrow keys**. Press **E** at a marked entrance to go inside, or at a ferry pier to cross the Tejo (the crossing plays as an animation; click or **Esc** skips it). On the street, **Q** buys up to four units at a supplier and **F** / **R** buy eggs at a farm. The buttons below the map provide touch controls.
+
+Inside, each building shows its illustrated scene from the desktop game: the vendor answers in a speech bubble and the chalkboard shows live prices. Use the buttons or their keys: **E** to buy, make, sell or collect, **Q** to buy four, **F** / **Shift+F** for eggs, **1–4** for vehicles in a garage, and in the casino pick a chip and press **1** (red), **2** (black) or **3** (green 0) to spin the wheel. **Esc** leaves. **Visit** in Places travels to a building and takes you inside. The Jerónimos monastery adds 5 points of casino luck per visit, up to 20.
 
 The market clock, production, deliveries, research, and contracts run while the map has focus. Click outside the map to pause street play. Use **Advance time** in the sidebar to move the clock from any screen. The market settles every 300 game seconds and the map switches to night after 180 seconds. Use **Visit** below the map for direct travel. On foot, the ferry costs $2. With a vehicle, bridges charge a $3 toll toward Lisboa.
 
-The street view includes the original map art and collision rules, with the desktop game's traffic, pedestrians and waterfront tram as decoration (they never block you). Building interiors, soundtrack, and desktop save services are outside this port. Driving a vehicle back to Lisboa needs the $3 bridge toll in cash before you start across.
+The street view includes the original map art and collision rules, with the desktop game's traffic, the waterfront tram, the shuttling ferry and pedestrians who keep to the pavements, as decoration (they never block you). The soundtrack and desktop save services are outside this port. Driving a vehicle back to Lisboa needs the $3 bridge toll in cash before you start across.
 
 Street movement and camera tracking render immediately in the browser. Movement is batched approximately every 200 ms, with one request in flight, and Python validates collisions before trading or saving. The browser reconciles each reply and replays unsent movement. Prediction buffers at most two seconds during a slow response. The compressed night map loads only when night is first shown.
 
@@ -78,8 +80,10 @@ The tests need no network, accounts or secrets.
 
 - **Game rules** (`tests/test_market.py`, `test_vehicles.py`, `test_contracts.py` and the other engine tests) cover trades, production, prices, vehicles, tolls, contracts, research, businesses and deliveries. They include rejected actions, such as buying without enough cash or space.
 - **Browser app** (`tests/test_browser_game.py`) tests the start menu and save replacement, a full trade loop, rejected purchases, separate player sessions, ferry fares and bridge tolls, and stale-save protection.
-- **Street map** (`tests/test_street.py`) checks walking, collisions, entrances, cargo limits, the ferry and invalid input.
-- **Not covered by automated tests:** how the street map looks and feels in a real browser, and the deployed site. We check those by hand before the demo.
+- **Street map** (`tests/test_street.py`) checks walking, collisions, entrances, cargo limits, the ferry, invalid input, and that cars stay on roads and pedestrians never step onto one.
+- **Buildings** (`tests/test_buildings.py`) check that every door opens its own building without trading, every scene image exists, Visit enters and Leave exits, casino spins pay by colour and reject unaffordable chips, the monastery's luck cap, and that crossing on foot triggers the ferry animation.
+- **Casino and ferry rules** (`tests/test_casino.py`, `tests/test_ferry.py`) cover the roulette wheel and payouts, fares, failed trips and reaching every business on foot.
+- **Not covered by automated tests:** the JavaScript in `street/` (map drawing, the ferry animation and the browser's copy of the collision rules) and the deployed site. We check those by hand in a browser before the demo.
 
 ## Security and data
 
@@ -91,7 +95,7 @@ The tests need no network, accounts or secrets.
 ## Known limits
 
 - Progress on the public site resets on reload or when the server restarts.
-- Building interiors and the soundtrack from the desktop version are not in the browser version.
+- The soundtrack from the desktop version is not in the browser version. The warehouse, exchange and research centre use plain controls, as they had no illustrated scene on desktop.
 - One local save slot per `FOUNDRY_LOCAL_DB` path, meant for one player.
 
 ## Project structure
@@ -101,4 +105,4 @@ With Node.js installed, run `node --test tests/street_prediction.cjs` for browse
 - `streamlit_app.py` contains game screens and event handlers.
 - `browser_game.py` adapts navigation, time, and persistence for the browser.
 - `tycoon.py` and the adjacent simulation modules hold game rules and state.
-- `street/` contains the browser map component and original day/night artwork.
+- `street/` contains the browser map component and original day/night artwork; `street/scenes/` holds the building, casino, monastery and ferry scenes, drawn from the desktop game's own scene code (kept on the `desktop-game` branch).

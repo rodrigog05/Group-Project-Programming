@@ -23,6 +23,9 @@ let lastSend = 0;
 let segments = [];
 let bufferedSeconds = 0;
 let facing = 1;
+let ferry = null;
+let lastFerryId = null;
+const ferryArt = { day: new Image(), night: new Image() };
 let reportedHeight;
 
 function send(type, data = {}) {
@@ -48,6 +51,14 @@ window.addEventListener("message", (event) => {
   // Ignore rerenders while an older request is still in flight.
   if (pending && next.ack !== eventId) return;
   if (next.night && !night.getAttribute("src")) night.src = "world_100_night.webp";
+  // A new ferry id means Python just moved the player across the Tejo: play the crossing.
+  // The first id this map sees is history (for example after leaving a building), so skip it.
+  const ferryId = next.ferry ? next.ferry.id : 0;
+  if (lastFerryId !== null && ferryId !== lastFerryId) {
+    ferry = { start: performance.now(), heading: next.ferry.heading };
+    held.clear();
+  }
+  lastFerryId = ferryId;
   player = { x: next.x, y: next.y };
   facing = next.facing;
   state = next;
@@ -139,7 +150,7 @@ function update(now) {
   const seconds = lastFrame ? Math.min(0.05, (now - lastFrame) / 1000) : 0;
   lastFrame = now;
   if (!state) return;
-  const active = !document.hidden && document.hasFocus() && document.activeElement === canvas;
+  const active = !ferry && !document.hidden && document.hasFocus() && document.activeElement === canvas;
   if (active && !queuedAction && seconds && bufferedSeconds < 2 && segments.length < 120) {
     const values = new Set(held.values());
     const dx = Number(values.has("right")) - Number(values.has("left"));
@@ -172,6 +183,10 @@ function update(now) {
 }
 
 function draw() {
+  if (state && ferry) {
+    drawFerry();
+    return;
+  }
   if (!state || !day.complete || !day.naturalWidth) return;
   const ratio = Math.min(window.devicePixelRatio || 1, 2);
   const width = canvas.clientWidth;
@@ -224,16 +239,7 @@ function draw() {
     context.fillStyle = "#f7d37a";
     context.fillRect(12, -8, 5, 4);
   } else {
-    context.fillStyle = "#192c39";
-    context.fillRect(-6, -8, 5, 9);
-    context.fillRect(2, -8, 5, 9);
-    context.fillStyle = "#397fa0";
-    context.fillRect(-8, -19, 16, 12);
-    context.fillStyle = "#eeb181";
-    context.fillRect(-5, -27, 11, 9);
-    context.fillStyle = "#ffd072";
-    context.fillRect(-7, -30, 13, 5);
-    context.fillRect(4, -27, 6, 3);
+    drawWalker();
   }
   context.restore();
 }
@@ -294,9 +300,40 @@ function drawTram(t, left, top, width, height) {
   context.fillText("TEJO", x, 690);
 }
 
+function drawShuttle(t, left, top, width, height) {
+  const [x1, y1, x2, y2, speed] = state.life.ferry;
+  const length = Math.hypot(x2 - x1, y2 - y1);
+  let progress = (t * speed / length) % 2;
+  const outbound = progress <= 1;
+  progress = outbound ? progress : 2 - progress;
+  const x = x1 + (x2 - x1) * progress;
+  const y = y1 + (y2 - y1) * progress + Math.sin(t * 0.7) * 1.5;
+  if (!seen(x, y, left, top, width, height)) return;
+  context.save();
+  context.translate(x, y);
+  context.rotate(Math.atan2(y2 - y1, x2 - x1) + (outbound ? 0 : Math.PI));
+  context.strokeStyle = "#abd0ce";
+  context.lineWidth = 1;
+  context.beginPath();
+  context.moveTo(-36, 3); context.lineTo(-24, 0); context.lineTo(-35, -3);
+  context.stroke();
+  context.fillStyle = "#e07a2e";
+  context.strokeStyle = "#879d9a";
+  context.beginPath();
+  context.ellipse(0, 0, 30, 9, 0, 0, Math.PI * 2);
+  context.fill();
+  context.stroke();
+  context.fillStyle = "#f5efe2";
+  context.fillRect(-12, -5, 24, 10);
+  context.fillStyle = state.night ? "#ffd682" : "#688b98";
+  context.fillRect(-8, -3, 16, 6);
+  context.restore();
+}
+
 function drawStreetLife(t, left, top, width, height) {
   if (!state.life) return;
   drawTram(t, left, top, width, height);
+  drawShuttle(t, left, top, width, height);
   const [tunnelLeft, tunnelRight, tunnelY, tunnelHalf] = state.life.tunnel;
   for (const [start, y, end, speed, phase, direction, color] of state.life.cars) {
     const length = end - start;
@@ -345,14 +382,151 @@ function drawStreetLife(t, left, top, width, height) {
   }
 }
 
+function drawWalker() {
+  context.fillStyle = "#192c39";
+  context.fillRect(-6, -8, 5, 9);
+  context.fillRect(2, -8, 5, 9);
+  context.fillStyle = "#397fa0";
+  context.fillRect(-8, -19, 16, 12);
+  context.fillStyle = "#eeb181";
+  context.fillRect(-5, -27, 11, 9);
+  context.fillStyle = "#ffd072";
+  context.fillRect(-7, -30, 13, 5);
+  context.fillRect(4, -27, 6, 3);
+}
+
+// ----- The ferry crossing, ported from the desktop game's ferry scene (640 x 400 scene units) -----
+const CROSSING_SECONDS = 4.5;
+const WATER_Y = 250;
+const PIERS_X = [120, 520];  // Cais do Sodré (Lisboa, left) and Cacilhas (right)
+
+function tint(color, night, lit = false) {
+  if (!night || lit) return color;
+  const mix = (a, b) => Math.round(a * 0.55 + b * 0.45);
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16));
+  return `rgb(${mix(r, 0x17)},${mix(g, 0x22)},${mix(b, 0x3f)})`;
+}
+
+function drawFerry() {
+  const night = state.night;
+  const art = night ? ferryArt.night : ferryArt.day;
+  if (!art.getAttribute("src")) art.src = night ? "scenes/ferry_night.webp" : "scenes/ferry_day.webp";
+  const elapsed = (performance.now() - ferry.start) / 1000;
+  if (elapsed > CROSSING_SECONDS + 0.6) {
+    ferry = null;
+    return;
+  }
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+  }
+  context.setTransform(ratio, 0, 0, ratio, 0, 0);
+  context.fillStyle = "#1f2a30";
+  context.fillRect(0, 0, width, height);
+  const scale = Math.min(width / 640, height / 400);
+  context.setTransform(ratio * scale, 0, 0, ratio * scale, ratio * (width - 640 * scale) / 2,
+                       ratio * (height - 400 * scale) / 2);
+  if (art.complete && art.naturalWidth) context.drawImage(art, 0, 0, 640, 400);
+
+  const heading = ferry.heading;
+  const progress = Math.min(1, elapsed / CROSSING_SECONDS);
+  const eased = progress * progress * (3 - 2 * progress);
+  const [start, end] = heading > 0 ? PIERS_X : [PIERS_X[1], PIERS_X[0]];
+  const x = start + (end - start) * eased;
+  const y = WATER_Y + 34 + Math.sin(elapsed * 2.4) * 2;
+  const line = (points, color, width) => {
+    context.strokeStyle = color;
+    context.lineWidth = width;
+    context.beginPath();
+    context.moveTo(points[0], points[1]);
+    for (let i = 2; i < points.length; i += 2) context.lineTo(points[i], points[i + 1]);
+    context.stroke();
+  };
+  const rect = (x1, y1, x2, y2, color, lit = false) => {
+    context.fillStyle = tint(color, night, lit);
+    context.fillRect(x1, y1, x2 - x1, y2 - y1);
+  };
+  for (let index = 0; index < 26; index += 1) {
+    const waveX = ((index * 61 + elapsed * 18 * (index % 2 ? 1 : -1)) % 700 + 700) % 700 - 30;
+    const waveY = WATER_Y + 30 + (index * 37) % (400 - WATER_Y - 40);
+    line([waveX, waveY, waveX + 18 + (index % 3) * 8, waveY], tint("#cfe8ea", night), 1);
+  }
+  if (progress > 0 && progress < 1) {
+    for (let trail = 1; trail < 5; trail += 1) {
+      const trailX = x - heading * (48 + trail * 16);
+      line([trailX, y + 10 + trail * 2, trailX - heading * 18, y + 12 + trail * 3], tint("#eaf6f4", night), 2);
+    }
+  }
+  // Cabin, then the player at the bow, then the hull in front of their legs.
+  rect(x - 38, y - 34, x + 30, y - 8, "#f5efe2");
+  for (let window = 0; window < 5; window += 1) {
+    const left = x - 32 + window * 12;
+    rect(left, y - 28, left + 8, y - 20, night ? "#ffd682" : "#2f4b5a", night);
+  }
+  rect(x - 6, y - 50, x + 6, y - 34, "#2f3d45");
+  rect(x - 6, y - 50, x + 6, y - 45, "#d33a35");
+  context.save();
+  context.translate(x + heading * 44, y + 3);
+  context.scale(heading * 0.9, 0.9);
+  drawWalker();
+  context.restore();
+  context.fillStyle = tint("#e07a2e", night);
+  context.beginPath();
+  [[x - 58, y - 4], [x + 58, y - 4], [x + 58 + heading * 12, y - 14], [x + 46, y + 16], [x - 46, y + 16]]
+    .forEach(([px, py], i) => (i ? context.lineTo(px, py) : context.moveTo(px, py)));
+  context.closePath();
+  context.fill();
+  rect(x - 56, y - 8, x + 56, y - 4, "#f5efe2");
+  context.font = "bold 6px system-ui";
+  context.textAlign = "center";
+  context.fillStyle = tint("#fff5e2", night);
+  context.fillText("CACILHEIRO", x - 4, y + 8);
+  if (night) {
+    context.fillStyle = "#fff3c4";
+    context.beginPath();
+    context.arc(x, y - 55, 3, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = heading > 0 ? "#7dff9a" : "#ff6a5a";
+    context.beginPath();
+    context.arc(x + heading * 60, y - 9, 3, 0, Math.PI * 2);
+    context.fill();
+  } else {
+    for (let index = 0; index < 4; index += 1) {
+      const gullX = (index * 170 + elapsed * 40) % 680 - 20;
+      const gullY = 60 + index * 22 + Math.sin(elapsed * 1.3 + index) * 6;
+      const flap = 4 * Math.sin(elapsed * 9 + index);
+      line([gullX - 8, gullY, gullX - 3, gullY - flap, gullX, gullY, gullX + 3, gullY - flap, gullX + 8, gullY],
+           "#2f3d45", 2);
+    }
+  }
+  const names = heading > 0 ? "Cais do Sodré  →  Cacilhas" : "Cacilhas  →  Cais do Sodré";
+  context.fillStyle = "#1f2a30cc";
+  context.fillRect(170, 12, 300, 26);
+  context.font = "bold 13px system-ui";
+  context.fillStyle = "#f6e7b4";
+  context.fillText(`Ferry  ·  ${names}`, 320, 30);
+  context.font = "10px system-ui";
+  context.fillStyle = "#e5d9bd";
+  context.fillText("Click or press Esc to skip", 320, 392);
+}
+
 function frame(now) {
   update(now);
   draw();
   requestAnimationFrame(frame);
 }
 
+canvas.addEventListener("pointerdown", () => { ferry = null; });
 canvas.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
+  if (ferry) {
+    if (key === "escape") ferry = null;
+    event.preventDefault();
+    return;
+  }
   if (!Object.hasOwn(directions, key) && !Object.hasOwn(actions, key)) return;
   event.preventDefault();
   if (directions[key]) held.set(key, directions[key]);

@@ -95,12 +95,13 @@ def test_browser_collision_map_matches_python_walls():
     assert town.can_walk(right + COLLISION_MAP["radius"] + 5, 760)
 
 
-def test_street_life_cars_drive_on_roads_and_people_walk_on_pavements():
-    from browser_game import STREET_LIFE
+def test_street_life_cars_drive_on_roads_and_people_never_step_onto_one():
+    from browser_game import PEDESTRIAN_BODY, STREET_LIFE
     from vehicles import on_road
-    town = Town()
     for start, y, end, *_ in STREET_LIFE["cars"]:
         assert on_road(start + 5, y) and on_road(end - 5, y)
-    for x1, y1, x2, y2, *_ in STREET_LIFE["people"]:
-        assert town.can_walk(x1, y1) and town.can_walk(x2, y2)
+    for x1, y, x2, _, *_ in STREET_LIFE["people"]:
+        # Every point of the walk, head to feet, stays off the roads, so walkers never cross traffic.
+        for x in range(x1, x2 + 1, 2):
+            assert not any(on_road(x + dx, y + dy) for dx in (-5, 5) for dy in PEDESTRIAN_BODY), (x, y)
     assert len(STREET_LIFE["cars"]) == 24 and len(STREET_LIFE["people"]) == 45
