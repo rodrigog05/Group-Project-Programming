@@ -166,6 +166,8 @@ def greeting(town, site):
     if role == "GARAGE":
         ride = VEHICLES.get(town.vehicle)
         if ride is None:
+            if town.owned_vehicles:
+                return "Welcome back! Your owned vehicles are ready to collect for free. Pick a ride."
             return "Tired of walking? The bridges are for vehicles only. Pick a ride and I'll hand you the keys!"
         return f"How's the {ride.label.lower()} running? Trade up for a bigger trunk any time."
     if role == "CASINO":
@@ -245,21 +247,15 @@ def place_vehicle_on_road(town):
 
 def toggle_vehicle(town):
     if town.vehicle:
-        if in_tunnel(town.x, town.y) or town.bridge_journey or not scene.walkable_terrain(
-            town.x, town.y, PLAYER_RADIUS, on_foot=True
-        ):
-            town.message = "Leave the bridge or tunnel before getting out."
-        elif town.cargo + town.reserved > town.bag_size:
-            town.message = "Make room in your bag before getting out."
-        else:
-            town.stowed_vehicle, town.vehicle = town.vehicle, None
-            town.message = "You’re on foot. Press V to bring your vehicle back."
+        town.leave_vehicle()
     elif town.stowed_vehicle:
         if not on_road(town.x, town.y) or scene.vehicle_park_blocked(town.x, town.y, PLAYER_RADIUS) or not scene.walkable_terrain(
             town.x, town.y, PLAYER_RADIUS
         ):
             town.message = "Move to a street before bringing your vehicle back."
         else:
+            if town.stowed_vehicle not in town.owned_vehicles:
+                town.owned_vehicles.append(town.stowed_vehicle)
             town.vehicle, town.stowed_vehicle = town.stowed_vehicle, None
             town.message = "You’re back in your vehicle."
 
@@ -271,7 +267,7 @@ def street_input(town, event):
     action = event.get("action")
     segments = event.get("segments", [event])
     if (not isinstance(segments, list) or not 1 <= len(segments) <= 120
-            or action not in (None, "interact", "bulk", "egg", "eggs", "vehicle")):
+            or action not in (None, "interact", "bulk", "egg", "eggs", "dismount", "vehicle")):
         return False
     total = 0
     for segment in segments:
@@ -294,7 +290,9 @@ def street_input(town, event):
                 town.move(dx, dy, seconds / steps, roads_only=True)
             if seconds:
                 advance_clock(town, seconds / steps)
-    if action == "interact" and nearby_pier(town.x, town.y):
+    if action == "dismount":
+        town.leave_vehicle()
+    elif action == "interact" and nearby_pier(town.x, town.y):
         ride_ferry(town)
     elif action in ("interact", "bulk"):
         if action == "bulk" and (town.nearby() is None or town.nearby().role != "SUPPLIER"):

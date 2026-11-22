@@ -11,7 +11,12 @@ const directions = {
   arrowleft: "left", a: "left", arrowright: "right", d: "right",
   arrowup: "up", w: "up", arrowdown: "down", s: "down",
 };
-const actions = { e: "interact", q: "bulk", f: "egg", r: "eggs", v: "vehicle" };
+const actions = { e: "interact", q: "bulk", f: "egg", r: "eggs", x: "dismount", v: "vehicle" };
+const vehicleArt = Object.fromEntries(["motorcycle", "car", "van", "f1"].map(key => {
+  const art = new Image();
+  art.src = `vehicles/${key}.svg`;
+  return [key, art];
+}));
 const held = new Map();
 const parentOrigin = document.referrer ? new URL(document.referrer).origin : location.origin;
 let state;
@@ -65,6 +70,9 @@ window.addEventListener("message", (event) => {
   player = { x: next.x, y: next.y };
   facing = next.facing;
   state = next;
+  for (const button of document.querySelectorAll('[data-action="dismount"]')) {
+    button.hidden = !state.vehicle;
+  }
   vehicleButton.hidden = !state.vehicle && !state.stowed_vehicle;
   const vehicleLabel = state.vehicle ? "Leave vehicle · V" : "Bring back vehicle · V";
   if (vehicleButton.textContent !== vehicleLabel) vehicleButton.textContent = vehicleLabel;
@@ -274,12 +282,8 @@ function draw() {
   context.ellipse(0, 2, 14, 5, 0, 0, Math.PI * 2);
   context.fill();
   if (state.vehicle) {
-    context.fillStyle = "#25435a";
-    context.fillRect(-16, -10, 33, 13);
-    context.fillStyle = "#8fd5df";
-    context.fillRect(-8, -16, 16, 9);
-    context.fillStyle = "#f7d37a";
-    context.fillRect(12, -8, 5, 4);
+    const art = vehicleArt[state.vehicle];
+    if (art?.complete && art.naturalWidth) context.drawImage(art, -30, -34, 60, 36);
   } else {
     drawWalker();
   }

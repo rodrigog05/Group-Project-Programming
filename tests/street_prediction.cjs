@@ -22,7 +22,7 @@ function browser() {
   };
   const scope = vm.createContext({
     window, document, Image, URL, location: { origin: "http://localhost" },
-    ResizeObserver: class { observe() {} }, requestAnimationFrame() {},
+    ResizeObserver: class { observe() {} }, requestAnimationFrame() {}, setTimeout() {},
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../street/street.js"), "utf8"), scope);
   const run = code => vm.runInContext(code, scope);
@@ -30,6 +30,9 @@ function browser() {
     source: parent, origin: "http://localhost",
     data: { type: "streamlit:render", args: {
       x: 480, y: 321, speed: 228, facing: 1, night: false,
+      collision: { radius: 10, world: [2400, 114, 1780], boxes: [], parks: [],
+        river: [740, 1160], tunnel: [0, 0, 0, 0], sand: [40, 260, 850],
+        tower: [90, 735, 190, 850], vasco: 2070, toll: 3 },
       locations: [], hint: "", message: "", ...args,
     } },
   });

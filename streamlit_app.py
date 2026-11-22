@@ -337,11 +337,15 @@ def building(site):
         for column, (key, ride) in zip(st.columns(len(VEHICLES)), VEHICLES.items()):
             with column:
                 current = town.vehicle == key
-                st.markdown(f"**{ride.label}** · {'Your ride' if current else f'${ride.price:,}'}")
+                owned = key in town.owned_vehicles or current
+                st.image(str(ROOT / "street" / "vehicles" / f"{key}.svg"), width="stretch")
+                status = "Your ride" if current else "Owned · Free collection" if owned else f"${ride.price:,}"
+                st.markdown(f"**{ride.label}** · {status}")
                 st.caption(f"Trunk +{ride.trunk} · {town.bag_size + ride.trunk} cargo · "
                            f"Road {ride.road_speed} · Off-road {ride.offroad_speed}")
                 number = str(list(VEHICLES).index(key) + 1)
-                action(f"Buy {ride.label} · ${ride.price:,} · +{ride.trunk} slots", Town.purchase_vehicle, key,
+                label = f"Drive {ride.label} · Free" if owned else f"Buy {ride.label} · ${ride.price:,} · +{ride.trunk} slots"
+                action(label, Town.purchase_vehicle, key,
                        key=f"vehicle-{key}", shortcut=number, disabled=current, width="stretch")
     elif role == "WAREHOUSE":
         st.write(f"Personal storage {town.bag_size} · Total cargo {town.carry_capacity}")
@@ -470,6 +474,12 @@ def waiting_for_spin():
 
 
 def bet_controls(*, disabled=False):
+    st.html("""<style>
+        .st-key-bet_green button {background:#1f8a4c;color:#fff;border-color:#46be79;}
+        .st-key-bet_green button:hover {background:#176b3a;color:#fff;border-color:#8ae4ad;}
+        .st-key-bet_green button:focus-visible {outline:3px solid #b5ffd2;outline-offset:2px;}
+        .st-key-bet_green button:disabled {background:#1f8a4c;color:#fff;opacity:.5;}
+    </style>""")
     st.segmented_control("Chip", CHIPS, default=10, key="chip", format_func=lambda value: f"${value}",
                          disabled=disabled)
     for column, (label, colour, shortcut) in zip(st.columns(3), (
@@ -478,7 +488,8 @@ def bet_controls(*, disabled=False):
         ("Green 0 · pays 36×", "green", "3"),
     )):
         column.button(label, on_click=spin, args=(colour,), shortcut=shortcut, width="stretch",
-                      type="primary" if colour == "red" else "secondary", disabled=disabled)
+                      type="primary" if colour == "red" else "secondary", disabled=disabled,
+                      key="bet_green" if colour == "green" else None)
 
 
 def market():
