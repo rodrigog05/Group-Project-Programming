@@ -218,7 +218,7 @@ def play_street(site_inside=None):
         speed=town.movement_speed, collision=COLLISION_MAP, life=STREET_LIFE,
         cash=town.cash, on_bridge=town.bridge_journey is not None, ferry=st.session_state.get("ferry"),
         interior=interior_view(site_inside) if site_inside is not None else None,
-        next_move=next_move(town) if st.session_state.get("show_hints", True) else None,
+        next_move=next_move(town, st.session_state.get("inside")) if st.session_state.get("show_hints", True) else None,
         route=directions(town, destination_point(st.session_state.get("destination", "Goldenfield Farm"))),
         suppliers=[{"x": site.door[0], "y": site.door[1], "trade": site.trade,
                     "cost": town.costs[site.trade]} for site in OPEN_SITES if site.role == "SUPPLIER"],
@@ -251,15 +251,17 @@ def places():
     name = st.session_state.get("inside")
     if not (name and building_at(town) == name):
         st.session_state.inside = name = None
-    pick, hints = st.columns((4, 1), vertical_alignment="bottom")
+    # One row with a fixed height: a button appearing here must not push the game view down (it flickered).
+    pick, route, hints = st.columns((3, 2, 1), vertical_alignment="bottom")
     destination = pick.selectbox("Destination", [*PLACES, MONASTERY],
                                  index=list(PLACES).index("Goldenfield Farm"),
                                  key="destination")
     hints.toggle("💡 Show hints", value=True, key="show_hints")
-    hint = next_move(town)
-    if st.session_state.show_hints and hint["target"] and hint["target"] != destination:
-        st.button(f"Show route to {hint['target']}", on_click=st.session_state.update,
-                  kwargs={"destination": hint["target"]})
+    hint = next_move(town, name)
+    target = hint and hint["target"]
+    route.button(f"Show route to {target}" if target else "Show route", width="stretch",
+                 disabled=not (st.session_state.show_hints and target and target != destination),
+                 on_click=st.session_state.update, kwargs={"destination": target})
     site_inside = PLACES.get(name, MONASTERY) if name else None
     # The game view stays on screen inside buildings too, so it keeps the keyboard (see street.js).
     play_street(site_inside)
