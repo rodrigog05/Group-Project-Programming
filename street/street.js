@@ -3,6 +3,7 @@ const context = canvas.getContext("2d");
 const hint = document.querySelector("#hint");
 const feedback = document.querySelector("#feedback");
 const vehicleButton = document.querySelector('[data-action="vehicle"]');
+const controls = document.querySelector(".controls");
 const day = new Image();
 const night = new Image();
 day.src = "world_100_day.webp";
@@ -18,6 +19,10 @@ let state;
 let player;
 let pending = false;
 let queuedAction = null;
+let queuedKey = null;
+const sceneArt = {};
+let lastSpinId = null;
+let spinAnimation = null;
 let eventId = 0;
 let lastFrame = 0;
 let lastSend = 0;
@@ -62,6 +67,13 @@ window.addEventListener("message", (event) => {
     held.clear();
   }
   lastFerryId = ferryId;
+  const spin = next.interior && next.interior.casino && next.interior.casino.spin;
+  const spinId = spin ? spin.id : 0;
+  if (lastSpinId !== null && spinId !== lastSpinId && spin) spinAnimation = { start: performance.now(), spin };
+  lastSpinId = spinId;
+  controls.hidden = Boolean(next.interior);
+  // Inside, the scene shows the vendor's reply (and the casino reveals results when the ball stops).
+  feedback.hidden = Boolean(next.interior);
   player = { x: next.x, y: next.y };
   facing = next.facing;
   state = next;
@@ -79,26 +91,64 @@ window.addEventListener("message", (event) => {
   if (!ownReply) claimKeyboard();
 });
 
-// Take the keyboard when the map appears or the page updates (after Continue, Visit, Leave...),
-// so the player can walk without clicking first. Replies to the map's own movement never do this,
-// so clicking elsewhere on the page still pauses street play, and a field being typed in keeps it.
+// Keep the keyboard on the game view, so walking and building keys work without clicking.
+// Streamlit removes clicked buttons and the start menu on reruns; the browser then drops the
+// keyboard onto the empty page. Whenever nothing else holds it, the map takes it back. It never
+// takes it from a field or button the player is using, and a click on an empty part of the page
+// pauses street play until the player clicks the map again.
+let userPaused = false;
+const INTERACTIVE = 'button, a, input, select, textarea, label, iframe, [role="button"], [role="option"], ' +
+  '[role="combobox"], [role="listbox"], [role="tab"], [tabindex]';
+
+function pageDocuments() {
+  const documents = [];
+  try {
+    for (let view = window.parent; view && view !== window; view = view === view.parent ? null : view.parent) {
+      documents.push(view.document);
+    }
+  } catch {
+    // A cross-origin page above the game; only the documents we can read are checked.
+  }
+  return documents;
+}
+
+for (const page of pageDocuments()) {
+  page.addEventListener("pointerdown", (event) => {
+    userPaused = !(event.target instanceof page.defaultView.Element && event.target.closest(INTERACTIVE));
+  }, true);
+}
+canvas.addEventListener("pointerdown", () => { userPaused = false; });
+
+function keyboardIsFree() {
+  if (document.hidden || userPaused) return false;
+  if (document.activeElement === canvas && document.hasFocus()) return false;
+  const pages = pageDocuments();
+  if (pages.length && !pages.at(-1).hasFocus()) return false;  // Another window or tab is in use
+  // Free when every page above the map has only its body (or a frame on the way down) focused.
+  return pages.every((page) => {
+    const active = page.activeElement;
+    return !active || active === page.body || active.tagName === "IFRAME";
+  });
+}
+
+function typingOnPage() {
+  return pageDocuments().some((page) => {
+    const active = page.activeElement;
+    return active && (active.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(active.tagName));
+  });
+}
+
 function claimKeyboard() {
-  focusMap();
-  // Streamlit may remove the clicked button or the start menu just after this render; try again.
-  setTimeout(focusMap, 400);
+  // A page update the player caused (Continue, Visit, Leave, a page button) resumes play.
+  userPaused = false;
+  if (!typingOnPage() && !document.hidden) canvas.focus({ preventScroll: true });
 }
 
 function focusMap() {
-  if (document.activeElement === canvas && document.hasFocus()) return;
-  try {
-    const active = window.parent.document.activeElement;
-    const typing = active && (active.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(active.tagName));
-    if (typing) return;
-  } catch {
-    // The parent page is unavailable; focusing the map is still safe.
-  }
-  canvas.focus({ preventScroll: true });
+  if (keyboardIsFree()) canvas.focus({ preventScroll: true });
 }
+
+setInterval(focusMap, 300);
 
 // Collision checks mirror Town.can_walk in tycoon.py, using the geometry Python sends.
 // Python stays the authority: it replays every step and corrects the position if needed.
@@ -181,8 +231,9 @@ function update(now) {
   const active = !ferry && !document.hidden && document.hasFocus() && document.activeElement === canvas;
   if (active && !queuedAction && seconds && bufferedSeconds < 2 && segments.length < 120) {
     const values = new Set(held.values());
-    const dx = Number(values.has("right")) - Number(values.has("left"));
-    const dy = Number(values.has("down")) - Number(values.has("up"));
+    const walking = !state.interior;
+    const dx = walking ? Number(values.has("right")) - Number(values.has("left")) : 0;
+    const dy = walking ? Number(values.has("down")) - Number(values.has("up")) : 0;
     const duration = Math.min(seconds, 2 - bufferedSeconds);
     const segment = { dx, dy, seconds: duration };
     const previous = segments.at(-1);
@@ -192,7 +243,7 @@ function update(now) {
       segments.push({ ...segment });
     }
     bufferedSeconds += duration;
-    predict(segment);
+    if (walking) predict(segment);
   }
   // One request at a time. Continue predicting while Python handles the batch.
   // Freeze at an action boundary so trades happen at the validated location.
@@ -205,14 +256,19 @@ function update(now) {
   pending = true;
   send("streamlit:setComponentValue", {
     dataType: "json",
-    value: { segments: batch, action: queuedAction, id: ++eventId },
+    value: { segments: batch, action: queuedAction, key: queuedKey, id: ++eventId },
   });
   queuedAction = null;
+  queuedKey = null;
 }
 
 function draw() {
   if (state && ferry) {
     drawFerry();
+    return;
+  }
+  if (state && state.interior) {
+    drawInterior();
     return;
   }
   if (!state || !day.complete || !day.naturalWidth) return;
@@ -427,6 +483,182 @@ function drawWalker() {
   context.fillRect(4, -27, 6, 3);
 }
 
+// ----- Inside a building: the desktop game's scene, the vendor's words and the keys -----
+const SPIN_SECONDS = 4.5;
+const POCKETS = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14,
+                 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
+const REDS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
+const KEY_NAMES = { escape: "Esc", "shift+f": "Shift+F" };
+
+function fitScene(width, height) {
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  if (canvas.width !== Math.round(w * ratio) || canvas.height !== Math.round(h * ratio)) {
+    canvas.width = Math.round(w * ratio);
+    canvas.height = Math.round(h * ratio);
+  }
+  context.setTransform(ratio, 0, 0, ratio, 0, 0);
+  context.fillStyle = "#1f2a30";
+  context.fillRect(0, 0, w, h);
+  const scale = Math.min(w / width, h / height);
+  context.setTransform(ratio * scale, 0, 0, ratio * scale, ratio * (w - width * scale) / 2,
+                       ratio * (h - height * scale) / 2);
+}
+
+function wrapLines(text, width) {
+  const lines = [];
+  let line = "";
+  for (const word of String(text).split(/\s+/)) {
+    const trial = line ? `${line} ${word}` : word;
+    if (line && context.measureText(trial).width > width) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = trial;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function textInBox(text, [left, top, right, bottom], size, color, weight = "bold") {
+  if (!text) return;
+  context.font = `${weight} ${size}px system-ui, sans-serif`;
+  context.fillStyle = color;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  const lines = wrapLines(text, right - left - size * 2);
+  const lineHeight = size * 1.25;
+  const startY = (top + bottom) / 2 - (lines.length - 1) * lineHeight / 2;
+  lines.forEach((line, index) => context.fillText(line, (left + right) / 2, startY + index * lineHeight));
+  context.textBaseline = "alphabetic";
+}
+
+function drawInterior() {
+  const room = state.interior;
+  const [width, height] = room.size;
+  fitScene(width, height);
+  if (room.scene) {
+    if (!sceneArt[room.scene]) {
+      sceneArt[room.scene] = new Image();
+      sceneArt[room.scene].src = `scenes/${room.scene}.webp`;
+    }
+    const art = sceneArt[room.scene];
+    if (art.complete && art.naturalWidth) context.drawImage(art, 0, 0, width, height);
+  } else {
+    context.fillStyle = "#16303a";
+    context.fillRect(0, 0, width, height);
+    textInBox(room.speech, [40, 120, width - 40, height - 120], 18, "#fff3dc", "600");
+  }
+  const unit = width / 640;
+  const spinning = room.casino && spinAnimation && performance.now() - spinAnimation.start < SPIN_SECONDS * 1000;
+  if (room.casino) {
+    drawWheel(room.casino);
+    if (!spinning) {
+      context.shadowColor = "#000";
+      context.shadowBlur = 4;
+      textInBox(room.speech, [0, height * 0.78, width, height * 0.88], 15 * unit, "#fff7e6");
+      context.shadowBlur = 0;
+    }
+  } else if (room.bubble) {
+    textInBox(room.speech, room.bubble, 12 * (640 / width) * unit, "#1f2a30");
+  }
+  if (room.board && room.board_text) {
+    const [left, top, right, bottom] = room.board;
+    textInBox(room.board_text, [left + 6, top + 22, right - 6, bottom - 4], 8.5, "#eef3ea", "500");
+  }
+  // Title and the keys that work here.
+  context.font = `bold ${11 * unit}px system-ui, sans-serif`;
+  context.textAlign = "left";
+  const title = room.title;
+  context.fillStyle = "#1f2a30d9";
+  context.fillRect(8 * unit, 8 * unit, context.measureText(title).width + 16 * unit, 20 * unit);
+  context.fillStyle = "#f6e7b4";
+  context.fillText(title, 16 * unit, 22 * unit);
+  const hint = room.keys.map(([key, label]) => `${KEY_NAMES[key] || key.toUpperCase()} ${label}`).join("   ·   ");
+  context.font = `600 ${8.5 * unit}px system-ui, sans-serif`;
+  context.textAlign = "center";
+  context.fillStyle = "#1f2a30d9";
+  context.fillRect(0, height - 20 * unit, width, 20 * unit);
+  context.fillStyle = "#fff3dc";
+  context.fillText(room.casino ? `Chip $${room.casino.chip} (← →)   ·   ${hint}` : hint, width / 2, height - 7 * unit);
+}
+
+function drawWheel(casino) {
+  const seg = (Math.PI * 2) / POCKETS.length;
+  const spin = casino.spin;
+  let angle = spin ? spin.angle : 0;
+  let ball = 0;
+  if (spinAnimation && spin && spinAnimation.spin.id === spin.id) {
+    const t = Math.min(1, (performance.now() - spinAnimation.start) / (SPIN_SECONDS * 1000));
+    const ease = 1 - (1 - t) ** 3;
+    angle = spin.from + (spin.angle - spin.from) * ease;
+    ball = 1440 * (1 - ease);
+  }
+  context.save();
+  context.translate(600, 268);
+  context.scale(1.2, 1.2);
+  const ring = (radius, color) => {
+    context.fillStyle = color;
+    context.beginPath();
+    context.arc(0, 0, radius, 0, Math.PI * 2);
+    context.fill();
+  };
+  ring(198, "#4a2614");
+  ring(192, "#7a4424");
+  context.save();
+  context.rotate((angle * Math.PI) / 180);
+  POCKETS.forEach((number, index) => {
+    const a0 = index * seg - seg / 2 - Math.PI / 2;
+    const a1 = index * seg + seg / 2 - Math.PI / 2;
+    context.fillStyle = number === 0 ? "#1f8a4c" : REDS.has(number) ? "#c8313c" : "#1b1d22";
+    context.strokeStyle = "#c9a24a";
+    context.lineWidth = 1;
+    context.beginPath();
+    context.arc(0, 0, 190, a0, a1);
+    context.arc(0, 0, 140, a1, a0, true);
+    context.closePath();
+    context.fill();
+    context.stroke();
+    context.save();
+    context.rotate(index * seg);
+    context.fillStyle = "#fff";
+    context.font = "bold 13px system-ui, sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(String(number), 0, -166);
+    context.restore();
+  });
+  ring(140, "#6b3d22");
+  ring(100, "#8a5a33");
+  ring(55, "#b07a45");
+  context.strokeStyle = "#ffc66c";
+  context.lineWidth = 6;
+  context.lineCap = "round";
+  context.beginPath();
+  context.moveTo(0, -60); context.lineTo(0, 60); context.moveTo(-60, 0); context.lineTo(60, 0);
+  context.stroke();
+  ring(16, "#ffc66c");
+  context.restore();
+  context.save();
+  context.rotate((ball * Math.PI) / 180);
+  context.fillStyle = "#f7f7f2";
+  context.strokeStyle = "#9aa3a6";
+  context.beginPath();
+  context.arc(0, spin ? -152 : -178, 7, 0, Math.PI * 2);
+  context.fill();
+  context.stroke();
+  context.restore();
+  context.fillStyle = "#ffc66c";
+  context.beginPath();
+  context.moveTo(-8, -196); context.lineTo(8, -196); context.lineTo(0, -182);
+  context.closePath();
+  context.fill();
+  context.restore();
+  context.textBaseline = "alphabetic";
+}
+
 // ----- The ferry crossing, ported from the desktop game's ferry scene (640 x 400 scene units) -----
 const CROSSING_SECONDS = 4.5;
 const WATER_Y = 250;
@@ -557,6 +789,15 @@ canvas.addEventListener("keydown", (event) => {
   if (ferry) {
     if (key === "escape") ferry = null;
     event.preventDefault();
+    return;
+  }
+  if (state && state.interior) {
+    const name = event.shiftKey && key === "f" ? "shift+f" : key;
+    if (!state.interior.accepts.includes(name)) return;
+    event.preventDefault();
+    if (event.repeat) return;
+    queuedAction = name === "escape" ? "leave" : "building";
+    queuedKey = name;
     return;
   }
   if (!Object.hasOwn(directions, key) && !Object.hasOwn(actions, key)) return;
