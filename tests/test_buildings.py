@@ -166,3 +166,32 @@ def test_e_at_a_door_opens_the_building_without_trading():
     bad = {"segments": [{"dx": 9, "dy": 0, "seconds": 0.1}], "action": "interact"}
     before = vars(town).copy()
     assert street_event(town, bad) is None and vars(town) == before
+
+
+# ----- Basics tutorial -----
+
+def test_new_game_opens_the_basics_and_the_slides_page_through(monkeypatch):
+    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
+    app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
+    click(app, "New Game")
+    assert app.session_state.show_tutorial and app.session_state.tutorial_step == 0
+    assert "Back" in labels(app) and "Next" in labels(app)
+    for step in range(1, 5):
+        click(app, "Next")
+        assert app.session_state.tutorial_step == step
+    assert "Next" not in labels(app) and "Start playing" in labels(app)
+    click(app, "Back")
+    assert app.session_state.tutorial_step == 3
+    click(app, "Skip")
+    assert not app.session_state.show_tutorial
+    assert "Back" not in labels(app)
+
+
+def test_basics_can_be_replayed_from_the_start_menu_and_every_slide_exists(monkeypatch):
+    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
+    app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
+    click(app, "Basics · how to play in 5 slides")
+    assert app.session_state.show_tutorial and not app.session_state.show_menu
+    slides = Path(__file__).resolve().parents[1] / "street" / "tutorial"
+    for name in ("goal", "buy", "make", "sell", "garage"):
+        assert (slides / f"{name}.webp").is_file(), name
