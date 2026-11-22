@@ -1,13 +1,12 @@
 from pathlib import Path
 
-import pytest
 from streamlit.testing.v1 import AppTest
-from streamlit.testing.v1.errors import AppTestError
 
 from browser_game import MONASTERY, building_at, entrance, greeting, scene_for
 from ferry import FERRY_PIERS
 from lisbon_landmarks import LANDMARKS
 from tycoon import ROULETTE_POCKETS, SITES, Town, roulette_color
+from scene_buttons import click_scene, press, scene, scene_labels
 
 SCENES = Path(__file__).resolve().parents[1] / "street" / "scenes"
 
@@ -96,7 +95,7 @@ def test_nova_sbe_presentation_has_only_exit_and_preserves_progress(monkeypatch)
     assert not app.get("number_input")
     assert not any("research" in label.lower() or "craft" in label.lower() for label in labels(app))
     assert (town.cash, town.supplies, town.goods, town.innovation) == before
-    click(app, "Leave")
+    press(app, "escape")
     assert app.session_state.inside is None
 
 
@@ -114,36 +113,36 @@ def test_browser_clock_leaves_retired_research_untouched():
 def test_visit_enters_the_building_and_leave_returns_to_the_street(monkeypatch):
     app = new_app(monkeypatch)
     choose_place(app, "Goldenfield Farm")
-    assert {"Buy up to 4 Wheat", "Leave"} <= labels(app)
-    assert not {"Buy 1 egg", "Buy up to 4 eggs"} & labels(app)  # Eggs were removed from the game
-    click(app, "Buy up to 4 Wheat")
+    assert {"Buy up to 4 Wheat", "Leave"} <= set(scene_labels(app))  # Buttons drawn in the scene
+    assert not {"Buy up to 4 Wheat", "Leave"} & labels(app)  # Not repeated under the map
+    assert not {"Buy 1 egg", "Buy up to 4 eggs"} & set(scene_labels(app))  # Eggs were removed from the game
+    click_scene(app, "Buy up to 4 Wheat")
     assert app.metric[0].value == "$44"
     assert "Wheat" in app.session_state.reply  # The vendor answers inside the speech bubble
-    click(app, "Leave")
-    assert "Enter Goldenfield Farm" not in labels(app) and "Buy up to 4 Wheat" not in labels(app)
+    click_scene(app, "Leave")
+    assert app.session_state.inside is None and not scene(app)
+    assert "Enter Goldenfield Farm" not in labels(app)
     choose_place(app, "Goldenfield Farm")
-    assert "Buy up to 4 Wheat" in labels(app)
+    assert "Buy up to 4 Wheat" in scene_labels(app)
 
 
 def test_casino_spin_pays_by_colour_and_rejects_an_unaffordable_chip(monkeypatch):
     app = new_app(monkeypatch)
     choose_place(app, "Foundry Casino")
-    click(app, "Red · pays 2×")
+    assert not any("pays" in label for label in labels(app))  # The bets are only in the scene
+    click_scene(app, "Red · pays 2×")
     spin = app.session_state.spin
     expected = 70 if roulette_color(spin["number"]) == "red" else 50
     assert app.session_state.town.cash == expected
     assert spin["number"] in ROULETTE_POCKETS and spin["id"] == 1
-    black = next(button for button in app.button if button.label == "Black · pays 2×")
-    assert black.proto.disabled
-    with pytest.raises(AppTestError, match="Cannot update a disabled button"):
-        black.click()
+    click_scene(app, "Black · pays 2×")  # Rejected while the wheel is still turning
     assert app.session_state.town.cash == expected
     assert app.session_state.spin["id"] == 1
 
     app.session_state.spin["ends_at"] = 0
     app.session_state.town.cash = 4
     app.run()
-    click(app, "Green 0 · pays 36×")
+    click_scene(app, "Green 0 · pays 36×")
     assert app.session_state.town.cash == 4
     assert app.session_state.spin["id"] == 1  # No new spin
     assert "need $10" in app.session_state.reply
@@ -359,10 +358,10 @@ def test_hints_can_be_hidden_and_show_route_sets_the_destination(monkeypatch):
 def test_bakery_shows_a_countdown_while_bread_is_made(monkeypatch):
     app = new_app(monkeypatch)
     choose_place(app, "Goldenfield Farm")
-    click(app, "Buy up to 4 Wheat")
+    click_scene(app, "Buy up to 4 Wheat")
     choose_place(app, "Sunrise Bakery")
     assert "timer" not in streamlit_interior(app)
-    click(app, "Produce or collect")
+    click_scene(app, "Produce or collect")
     timer = streamlit_interior(app)["timer"]
     assert timer["product"] == "Bread" and timer["quantity"] == 4 and 0 < timer["seconds"] <= 4
 
@@ -401,9 +400,9 @@ def test_buying_with_a_full_bag_raises_the_red_warning_only_then(monkeypatch):
     app.session_state.town.cash = 500
     choose_place(app, "Goldenfield Farm")
     for _ in range(3):
-        click(app, "Buy up to 4 Wheat")
+        click_scene(app, "Buy up to 4 Wheat")
     assert app.metric[1].value == "12 / 12" and "alert" not in app.session_state  # Room until now
-    click(app, "Buy up to 4 Wheat")
+    click_scene(app, "Buy up to 4 Wheat")
     assert app.session_state.alert == {"id": 1, "text": "Your bag is full"}
     assert app.metric[1].value == "12 / 12"
     assert app.session_state.reply is None  # The farmer keeps his greeting; the banner explains

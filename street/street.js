@@ -688,6 +688,116 @@ function textInBox(text, [left, top, right, bottom], size, color, weight = "bold
   context.textBaseline = "alphabetic";
 }
 
+// ----- The building's buttons, drawn in the scene and clickable (each also has a key) -----
+let sceneButtons = [];  // [{key, left, top, width, height}] in scene pixels, for clicks
+let hoveredKey = null;
+const KEY_NAMES = { escape: "Esc", "shift+f": "Shift+F" };
+const BUTTON_STYLES = {
+  secondary: { fill: "#1b1f27f2", border: "#4b505a", text: "#fafafa", hint: "#9ca0a8" },
+  red: { fill: "#ff4b4b", border: "#ff4b4b", text: "#ffffff", hint: "#ffd2d2" },
+  green: { fill: "#1f8a4c", border: "#46be79", text: "#ffffff", hint: "#c9f2da" },
+  selected: { fill: "#1b1f27f2", border: "#ff4b4b", text: "#ff4b4b", hint: "#ff9b9b" },
+};
+
+function drawButton({ key, label, hint = KEY_NAMES[key] || key.toUpperCase(), style = "secondary", disabled = false },
+                    left, top, width, height, unit) {
+  const look = BUTTON_STYLES[style];
+  const hovered = !disabled && hoveredKey === key;
+  context.globalAlpha = disabled ? 0.45 : 1;
+  context.fillStyle = look.fill;
+  context.strokeStyle = hovered ? "#ffffff" : look.border;
+  context.lineWidth = (hovered ? 1.6 : 1) * unit;
+  context.beginPath();
+  context.roundRect(left, top, width, height, 6 * unit);
+  context.fill();
+  context.stroke();
+  context.textBaseline = "middle";
+  context.font = `500 ${9 * unit}px system-ui, sans-serif`;
+  const labelWidth = context.measureText(label).width;
+  context.font = `500 ${8 * unit}px system-ui, sans-serif`;
+  const hintWidth = hint ? context.measureText(hint).width + 6 * unit : 0;
+  const start = left + (width - labelWidth - hintWidth) / 2;
+  context.textAlign = "left";
+  context.fillStyle = look.text;
+  context.font = `500 ${9 * unit}px system-ui, sans-serif`;
+  context.fillText(label, start, top + height / 2 + 0.5 * unit);
+  if (hint) {
+    context.fillStyle = look.hint;
+    context.font = `500 ${8 * unit}px system-ui, sans-serif`;
+    context.fillText(hint, start + labelWidth + 6 * unit, top + height / 2 + 0.5 * unit);
+  }
+  context.textBaseline = "alphabetic";
+  context.globalAlpha = 1;
+  if (!disabled) sceneButtons.push({ key, left, top, width, height });
+}
+
+// A row of equal buttons between left and right, like Streamlit columns.
+function buttonRow(buttons, left, right, top, height, unit, gap = 8 * unit) {
+  const width = (right - left - gap * (buttons.length - 1)) / buttons.length;
+  buttons.forEach((button, index) => drawButton(button, left + index * (width + gap), top, width, height, unit));
+}
+
+function drawButtons(room, unit, spinning) {
+  const [width, height] = room.size;
+  sceneButtons = [];
+  const size = 19 * unit;
+  const margin = 10 * unit;
+  // Leave sits in the top-right corner of every room; in the dealership, bottom-right, clear of the speech bubble.
+  context.font = `500 ${9 * unit}px system-ui, sans-serif`;
+  const leaveWidth = context.measureText("Leave  Esc").width + 26 * unit;
+  const leaveTop = room.showroom ? height - size - margin : margin;
+  drawButton({ key: "escape", label: "Leave" }, width - margin - leaveWidth, leaveTop, leaveWidth, size, unit);
+  if (room.showroom) {  // The vehicle cards themselves are the buttons
+    room.showroom.forEach((ride, index) => {
+      if (ride.status !== "current") {
+        sceneButtons.push({ key: String(ride.number), left: SHOWROOM_X[index] - 74, top: 333, width: 148, height: 41 });
+      }
+    });
+    return;
+  }
+  const actions = room.keys.filter(([key]) => key !== "escape");
+  if (!actions.length && !room.casino) return;
+  const top = height - size - margin * 0.6;  // Low, so signs and price boards above stay readable
+  context.fillStyle = "#11161c99";  // A dark strip so the buttons read over any scene
+  context.fillRect(0, top - margin * 0.4, width, height - top + margin * 0.4);
+  if (room.casino) {
+    const chips = room.casino.chips.map(value => ({
+      key: `chip-${value}`, label: `$${value}`, hint: "", disabled: spinning,
+      style: value === room.casino.chip ? "selected" : "secondary",
+    }));
+    const chipRight = margin + width * 0.3;
+    buttonRow(chips, margin, chipRight, top, size, unit, 3 * unit);
+    const styles = { 1: "red", 2: "secondary", 3: "green" };
+    buttonRow(actions.map(([key, label]) => ({ key, label, style: styles[key], disabled: spinning })),
+              chipRight + margin * 1.5, width - margin, top, size, unit);
+    return;
+  }
+  buttonRow(actions.map(([key, label], index) => ({ key, label, style: index === 0 ? "red" : "secondary" })),
+            margin, width - margin, top, size, unit);
+}
+
+function sceneButtonAt(event) {
+  if (!state || !state.interior || !sceneOnScreen) return null;
+  const rect = canvas.getBoundingClientRect();
+  const x = (event.clientX - rect.left - sceneOnScreen.left) / sceneOnScreen.scale;
+  const y = (event.clientY - rect.top - sceneOnScreen.top) / sceneOnScreen.scale;
+  return sceneButtons.find(b => x >= b.left && x <= b.left + b.width && y >= b.top && y <= b.top + b.height) || null;
+}
+
+canvas.addEventListener("pointermove", (event) => {
+  const button = sceneButtonAt(event);
+  hoveredKey = button ? button.key : null;
+  canvas.style.cursor = button ? "pointer" : "";
+});
+canvas.addEventListener("pointerdown", (event) => {
+  const button = sceneButtonAt(event);
+  if (!button || !state.interior.accepts.includes(button.key)) return;
+  event.preventDefault();
+  canvas.focus();
+  queuedAction = button.key === "escape" ? "leave" : "building";
+  queuedKey = button.key;
+});
+
 function drawInterior() {
   const room = state.interior;
   const [width, height] = room.size;
@@ -737,8 +847,8 @@ function drawInterior() {
     context.fillStyle = "#f6e7b4";
     context.fillText(title, 16 * unit, 22 * unit);
   }
+  drawButtons(room, unit, spinning);
   if (room.scene === "monastery" || room.scene === "nova_presentation") return;
-  // The actions and their keys are the coloured buttons under the map, so the scene doesn't repeat them.
   drawTimer();
   drawHint("interior");
   drawAlert();
@@ -804,10 +914,13 @@ function drawTimer() {
   context.font = "bold 17px system-ui, sans-serif";
   const boxWidth = context.measureText(text).width + 62;
   const x = width - boxWidth - 14;
-  card(x, 14, boxWidth, 46, ready ? "#7ee0a1" : "#ffc66c");
+  // Under the Leave button in the top-right corner.
+  const leave = sceneButtons.find(button => button.key === "escape");
+  const top = leave ? sceneOnScreen.top + (leave.top + leave.height) * sceneOnScreen.scale + 10 : 14;
+  card(x, top, boxWidth, 46, ready ? "#7ee0a1" : "#ffc66c");
   // A small clock whose hand sweeps once per second.
   const cx = x + 24;
-  const cy = 37;
+  const cy = top + 23;
   context.strokeStyle = ready ? "#7ee0a1" : "#ffc66c";
   context.lineWidth = 2.5;
   context.beginPath();
@@ -821,7 +934,7 @@ function drawTimer() {
   context.fillStyle = "#fff3dc";
   context.textAlign = "left";
   context.textBaseline = "middle";
-  context.fillText(text, x + 44, 38);
+  context.fillText(text, x + 44, top + 24);
   context.textBaseline = "alphabetic";
 }
 

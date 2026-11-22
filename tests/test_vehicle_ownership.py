@@ -3,6 +3,7 @@ import pytest
 from browser_game import LocalSave, entrance, street_input
 from tycoon import Order, SITES, Town, pack_save, unpack_save
 from vehicles import VEHICLES, WALK_SPEED
+from scene_buttons import press, scene, scene_labels
 
 
 def driver(key="car"):
@@ -145,7 +146,7 @@ def test_garage_free_collection_and_green_bet_controls(monkeypatch):
     app.session_state.inside = garage.name
     app.run()
     assert not app.exception
-    next(b for b in app.button if b.key == "vehicle-car").click().run()
+    press(app, "2")  # The car's card
     assert app.session_state.town.vehicle == "car"
     assert app.session_state.town.cash == 760
     assert app.session_state.town.leave_vehicle()
@@ -154,10 +155,9 @@ def test_garage_free_collection_and_green_bet_controls(monkeypatch):
     app.session_state.town.x, app.session_state.town.y = entrance(garage)
     app.session_state.inside = garage.name
     app.run()
-    retrieve = next(b for b in app.button if b.key == "vehicle-car")
-    assert retrieve.label == "Drive Car · Free"
-    assert not retrieve.disabled
-    retrieve.click().run()
+    car = next(card for card in scene(app)["showroom"] if card["label"] == "Car")
+    assert car["status"] == "owned"
+    press(app, "2")
     assert not app.exception
     assert app.session_state.town.vehicle == "car"
     assert app.session_state.town.cash == 0
@@ -166,8 +166,7 @@ def test_garage_free_collection_and_green_bet_controls(monkeypatch):
     app.session_state.inside = casino.name
     app.run()
     assert not app.exception
-    green = next(b for b in app.button if b.key == "bet_green")
-    assert green.label == "Green 0 · pays 36×"
-    green.click().run()
+    assert scene_labels(app)["Green 0 · pays 36×"] == "3"
+    press(app, "3")
     assert not app.exception
     assert "cash" in app.session_state.town.message
