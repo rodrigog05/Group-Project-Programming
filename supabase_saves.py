@@ -16,6 +16,39 @@ class SupabaseError(OSError):
     """A cloud request failed. Keep response details out of the game UI."""
 
 
+class SignupError(SupabaseError):
+    """An account creation failure with a message safe to show to the player."""
+
+
+SIGNUP_MESSAGES = {
+    "weak_password": "Supabase rejected this password. Choose a stronger one.",
+    "email_address_invalid": "Enter a valid email address.",
+    "email_address_not_authorized": (
+        "Confirmation email is unavailable for this address. The site owner needs to configure "
+        "an email provider in Supabase to allow public signups."
+    ),
+    "email_provider_disabled": "Email sign-up is currently disabled for this game.",
+    "signup_disabled": "Account creation is currently disabled for this game.",
+    "over_email_send_rate_limit": "Too many confirmation emails were requested. Wait before trying again.",
+    "over_request_rate_limit": "Too many requests. Wait before trying again.",
+    "unexpected_failure": "The account service could not finish signup. The site owner can check Supabase Auth logs.",
+}
+
+
+def signup_error(error):
+    message = {
+        401: "The site owner needs to check the Supabase project URL and publishable key.",
+        429: "Too many signup requests. Wait before trying again.",
+    }.get(error.code, "Could not create an account. Check your email and password or try again.")
+    try:
+        details = json.loads(error.read(8192))
+        if isinstance(details, dict) and isinstance(details.get("error_code"), str):
+            message = SIGNUP_MESSAGES.get(details["error_code"], message)
+    except (OSError, ValueError):
+        pass
+    return SignupError(message)
+
+
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):
         return None
@@ -69,8 +102,10 @@ class Supabase:
                     raise ValueError("Cloud response is too large.")
                 return json.loads(content) if content else None
         except HTTPError as error:
-            error.close()
-            raise SupabaseError(f"Cloud request failed ({error.code}).") from None
+            with error:
+                if path == "/auth/v1/signup":
+                    raise signup_error(error) from None
+                raise SupabaseError(f"Cloud request failed ({error.code}).") from None
         except (OSError, ValueError):
             raise SupabaseError("Could not reach cloud saves.") from None
 
@@ -82,7 +117,14 @@ class Supabase:
         return CloudSession.from_response(response)
 
     def sign_up(self, email, password):
-        self.request("POST", "/auth/v1/signup", body={"email": email, "password": password})
+        response = self.request("POST", "/auth/v1/signup", body={"email": email, "password": password})
+        if not isinstance(response, dict):
+            raise SupabaseError("Invalid signup response.")
+        if response.get("access_token"):
+            return CloudSession.from_response(response)
+        if not (response.get("id") or response.get("user")):
+            raise SupabaseError("Invalid signup response.")
+        return None
 
     def refresh(self, session):
         response = self.request(

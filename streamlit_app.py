@@ -22,7 +22,7 @@ from lisbon_landmarks import LANDMARKS
 from ferry import FERRY_PIERS, nearby_pier
 from lisbon_scene import RIVER_BOTTOM
 from tourism import monument_description
-from supabase_saves import CloudSave, Supabase
+from supabase_saves import CloudSave, SignupError, Supabase
 from tycoon import DAY_SECONDS, INDUSTRIES, SITES, TRADES, ROULETTE_POCKETS, Town, roulette_color
 from vehicles import VEHICLES
 from navigation import directions
@@ -760,17 +760,22 @@ def cloud_account():
             return
         if sign_up:
             try:
-                cloud.sign_up(email.strip(), password)
+                session = cloud.sign_up(email.strip(), password)
+            except SignupError as error:
+                st.error(str(error))
+                return
             except SAVE_ERRORS:
-                st.error("Could not create an account. Check your email and password or try again.")
-            else:
-                st.success("Check your email to confirm your account, then sign in here.")
-            return
-        try:
-            session = cloud.sign_in(email.strip(), password)
-        except SAVE_ERRORS:
-            st.error("Could not sign in. Check your details and confirm your email first.")
-            return
+                st.error("Could not reach the account service. Try again in a moment.")
+                return
+            if session is None:
+                st.success("Check your inbox or spam folder for the confirmation email, then sign in here.")
+                return
+        else:
+            try:
+                session = cloud.sign_in(email.strip(), password)
+            except SAVE_ERRORS:
+                st.error("Could not sign in. Check your details and confirm your email first.")
+                return
         try:
             remote = CloudSave(cloud, session)
             town, revision = remote.load()

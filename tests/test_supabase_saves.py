@@ -1,11 +1,13 @@
 from collections import defaultdict
+from io import BytesIO
 from time import time
+from urllib.error import HTTPError
 
 import pytest
 from streamlit.testing.v1 import AppTest
 
 from browser_game import SaveConflict
-from supabase_saves import CloudSave, Supabase, SupabaseError
+from supabase_saves import CloudSave, SignupError, Supabase, SupabaseError
 from tycoon import Town
 
 
@@ -80,10 +82,14 @@ def click(app, value):
     assert not app.exception
 
 
-def sign_in(app, email):
+def submit_account(app, email, button="Sign in"):
     next(field for field in app.text_input if field.label == "Email").set_value(email)
     next(field for field in app.text_input if field.label == "Password").set_value("test-password")
-    click(app, "Sign in")
+    click(app, button)
+
+
+def sign_in(app, email):
+    submit_account(app, email)
 
 
 def test_cloud_account_can_continue_after_reopening_and_other_player_starts_fresh(cloud):
@@ -126,3 +132,43 @@ def test_failed_sign_in_keeps_guest_progress(cloud):
     with pytest.raises(KeyError):
         app.session_state["cloud_session"]
     assert "Could not sign in" in app.error[0].value
+
+
+@pytest.mark.parametrize("confirm_email", [True, False])
+def test_account_creation_handles_both_confirmation_settings(cloud, monkeypatch, confirm_email):
+    request = Supabase.request
+
+    def signup_request(self, method, path, **options):
+        if path == "/auth/v1/signup":
+            assert method == "POST" and options["body"]["email"] == "player1@example.test"
+            if confirm_email:
+                return {"id": "00000000-0000-4000-8000-000000000001"}
+            return request(self, "POST", "/auth/v1/token", query={"grant_type": "password"},
+                           body=options["body"])
+        return request(self, method, path, **options)
+
+    monkeypatch.setattr(Supabase, "request", signup_request)
+    app = AppTest.from_file("../streamlit_app.py").run()
+    submit_account(app, "player1@example.test", "Create account")
+    if confirm_email:
+        assert "confirmation email" in app.success[0].value
+        with pytest.raises(KeyError):
+            app.session_state["cloud_session"]
+    else:
+        assert app.session_state["cloud_session"].user_id.endswith("1")
+        assert not app.success
+
+
+def test_signup_returns_safe_message_for_default_email_provider(monkeypatch):
+    class RejectedSignup:
+        def open(self, request, timeout):
+            assert request.get_method() == "POST"
+            assert request.full_url.endswith("/auth/v1/signup")
+            data = BytesIO(b'{"error_code":"email_address_not_authorized","msg":"private response"}')
+            raise HTTPError(request.full_url, 403, "Forbidden", {}, data)
+
+    monkeypatch.setattr("supabase_saves.build_opener", lambda *_: RejectedSignup())
+    api = Supabase("https://example.supabase.co", "sb_publishable_test")
+    with pytest.raises(SignupError, match="configure an email provider") as error:
+        api.sign_up("player1@example.test", "test-password")
+    assert "private response" not in str(error.value)

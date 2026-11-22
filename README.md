@@ -77,7 +77,7 @@ Guests can play immediately. Their progress lasts for their current browser sess
 ## Enable per-player cloud saves
 
 1. In your Supabase project, run [`supabase/foundry_saves.sql`](supabase/foundry_saves.sql) once in the SQL Editor. It creates one save row per player and enables row-level security so signed-in players can read and write their own row.
-2. Enable **Email** sign-in and email confirmations in Supabase Auth. Under **URL Configuration**, set **Site URL** to your public Streamlit URL. Players confirm their email and then return to the game to sign in.
+2. Enable **Email** sign-in, new account signups, and email confirmations in Supabase Auth. Under **URL Configuration**, set **Site URL** to your public Streamlit URL. Players confirm their email and then return to the game to sign in. For public signups, configure a custom SMTP provider. The default Supabase mail service sends only to addresses on the project team and has a low rate limit. [Supabase SMTP guide](https://supabase.com/docs/guides/auth/auth-smtp)
 3. In Streamlit's **Secrets** settings, add these two top-level values using your project URL and **publishable key**. A private local deployment can also pass them as environment variables.
 
    ```toml
