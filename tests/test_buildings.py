@@ -182,7 +182,10 @@ def test_new_game_opens_the_basics_and_the_slides_page_through(monkeypatch):
     assert "Next" not in labels(app) and "Start playing" in labels(app)
     click(app, "Back")
     assert app.session_state.tutorial_step == 3
-    click(app, "Skip")
+    click(app, "Skip")  # Skip jumps to the last slide, it doesn't restart
+    assert app.session_state.show_tutorial and app.session_state.tutorial_step == 4
+    assert "Start playing" in labels(app)
+    click(app, "Start playing")
     assert not app.session_state.show_tutorial
     assert "Back" not in labels(app)
 
