@@ -379,10 +379,10 @@ def interior_view(site):
 def building(site):
     """Inside a building. The scene and its buttons are drawn in the map view above; only notes stay here."""
     if site == MONASTERY:
-        st.caption(f"Casino luck +{town.casino_luck} percentage points · Maximum +20")
+        st.caption(f"Casino luck +{town.casino_luck}% · Maximum +20%")
         return
     if site.role == "CASINO":
-        st.caption(f"Monastery luck +{town.casino_luck} percentage points")
+        st.caption(f"Monastery luck: your odds are {town.casino_luck}% better")
     if site.role == "EXCHANGE":
         district_exchange()
 

@@ -76,16 +76,17 @@ def test_monastery_e_visits_award_and_save_luck_once_per_entry(monkeypatch):
 
 
 @pytest.mark.parametrize("colour", ["red", "black", "green"])
-def test_each_monastery_visit_adds_five_probability_points(colour, monkeypatch):
+def test_each_monastery_visit_scales_the_win_chance_by_five_percent(colour, monkeypatch):
     import tycoon
     town = Town()
     base = sum(roulette_color(number) == colour for number in ROULETTE_POCKETS)/len(ROULETTE_POCKETS)
     monkeypatch.setattr(tycoon.random, "choice", lambda options: options[0])
     for visit in range(5):
         town.monastery_visits = visit
-        monkeypatch.setattr(tycoon.random, "random", lambda: base+visit*.05-.001)
+        chance = base * (1 + visit * .05)  # +5% of the bet's own chance per visit
+        monkeypatch.setattr(tycoon.random, "random", lambda: chance-.0001)
         assert roulette_color(ROULETTE_POCKETS[town.roulette_pocket(colour)]) == colour
-        monkeypatch.setattr(tycoon.random, "random", lambda: base+visit*.05+.001)
+        monkeypatch.setattr(tycoon.random, "random", lambda: chance+.0001)
         assert roulette_color(ROULETTE_POCKETS[town.roulette_pocket(colour)]) != colour
 
 
