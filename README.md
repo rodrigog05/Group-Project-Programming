@@ -47,6 +47,8 @@ Inside, each building shows its illustrated scene from the desktop game: the ven
 
 The market clock, production and research run while the map has focus. Click outside the map to pause street play. The market settles every 300 game seconds and the map switches to night after 180 seconds. Trade shortcuts appear only within reach of the right supplier, with enough cash and free cargo space. On foot, the ferry costs $2. With a vehicle, bridges charge a $3 toll toward Lisboa.
 
+Destination starts at **No destination**, with no route drawn. Choose a building to show directions, or choose **No destination** to cancel them. Reaching the selected building resets the selector and clears the line. Ferry stops keep your final destination selected. Starting a new game clears any previous destination.
+
 The street view includes the original map art and collision rules, with the desktop game's traffic, the waterfront tram, the shuttling ferry and pedestrians who keep to the pavements, as decoration (they never block you). The soundtrack and desktop save services are outside this port. Driving a vehicle back to Lisboa needs the $3 bridge toll in cash before you start across.
 
 Vehicles drive on paved streets, bridges, and the Almada tunnel. Drive straight through the road portals on either side of the Almada park. Your vehicle disappears under the park and reappears at the exit. Press **V** or choose **Leave vehicle** to walk on sidewalks. Return to a street to use **Bring back vehicle**. Free up bag space first if you are using the trunk, and finish crossing any bridge or tunnel before getting out.

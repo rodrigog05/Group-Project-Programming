@@ -75,6 +75,8 @@ def grid_route(start, end, driving):
 
 
 def directions(town, destination):
+    if destination is None:
+        return {"points": [], "instruction": "Choose a destination to show directions."}
     start = town.x, town.y
     end = tuple(destination)
     driving = bool(town.vehicle)

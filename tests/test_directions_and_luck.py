@@ -7,6 +7,58 @@ from navigation import clear_line, directions
 from tycoon import SITES, Town, pack_save, roulette_color, ROULETTE_POCKETS, unpack_save
 
 
+def map_route(app):
+    import json
+    return json.loads(app.get("component_instance")[0].proto.json_args)["route"]
+
+
+def test_destination_starts_empty_and_can_cancel_route_without_changing_game(monkeypatch):
+    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
+    app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
+    assert not app.exception
+    assert app.selectbox[0].options[0] == "No destination"
+    assert app.selectbox[0].value == "No destination"
+    assert map_route(app)["points"] == []
+    before = pack_save(app.session_state.town, 0)
+    app.selectbox[0].select("Goldenfield Farm").run()
+    assert map_route(app)["points"]
+    app.selectbox[0].select("No destination").run()
+    assert not app.exception
+    assert map_route(app)["points"] == []
+    assert pack_save(app.session_state.town, 0) == before
+
+
+def test_destination_resets_only_at_selected_destination(monkeypatch):
+    from ferry import FERRY_PIERS
+    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
+    app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
+    app.selectbox[0].select("Iron Hill Mine").run()
+    app.session_state.town.x, app.session_state.town.y = FERRY_PIERS[0].position
+    app.run()
+    assert app.selectbox[0].value == "Iron Hill Mine"  # Ferry is only an intermediate stop.
+    mine = next(site for site in SITES if site.name == "Iron Hill Mine")
+    app.session_state.town.x, app.session_state.town.y = entrance(mine)
+    app.run()
+    assert not app.exception
+    assert app.selectbox[0].value == "No destination"
+    assert map_route(app)["points"] == []
+    app.run()
+    assert app.selectbox[0].value == "No destination"
+
+
+def test_new_game_clears_previous_destination(monkeypatch):
+    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
+    app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
+    app.session_state.started = True
+    app.session_state.show_menu = False
+    app.selectbox[0].select("Goldenfield Farm").run()
+    for label in ("Start menu", "New Game", "Replace progress"):
+        next(button for button in app.button if button.label == label).click().run()
+        assert not app.exception
+    assert app.selectbox[0].value == "No destination"
+    assert map_route(app)["points"] == []
+
+
 def test_monastery_e_visits_award_and_save_luck_once_per_entry(monkeypatch):
     town = Town()
     left, _, right, bottom = LANDMARKS[0].bounds
