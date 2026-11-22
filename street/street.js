@@ -4,6 +4,27 @@ const hint = document.querySelector("#hint");
 const route = document.querySelector("#route");
 const vehicleButton = document.querySelector('[data-action="vehicle"]');
 const controls = document.querySelector(".controls");
+const musicButton = document.querySelector("#music");
+const soundtrack = document.querySelector("#soundtrack");
+soundtrack.volume = 0.4;
+function updateMusicButton() {
+  musicButton.textContent = soundtrack.paused ? "Play music" : "Pause music";
+  musicButton.setAttribute("aria-pressed", String(!soundtrack.paused));
+}
+musicButton.addEventListener("click", async () => {
+  if (soundtrack.paused) {
+    try {
+      await soundtrack.play();
+    } catch {
+      musicButton.textContent = "Music unavailable";
+    }
+  } else {
+    soundtrack.pause();
+  }
+  canvas.focus({ preventScroll: true });
+});
+soundtrack.addEventListener("play", updateMusicButton);
+soundtrack.addEventListener("pause", updateMusicButton);
 const day = new Image();
 const night = new Image();
 day.src = "world_100_day.webp";
