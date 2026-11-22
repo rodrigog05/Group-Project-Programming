@@ -381,12 +381,17 @@ function draw() {
   context.scale(facing < 0 ? -1 : 1, 1);
   context.fillStyle = "#1b292788";
   context.beginPath();
-  context.ellipse(0, 2, 14, 5, 0, 0, Math.PI * 2);
-  context.fill();
   if (state.vehicle) {
+    // A flat shadow right under the wheels, which touch the ground at y = 1 (the art's wheels end at
+    // 107 of its 120-pixel height), so thin vehicles like the motorcycle don't look like they float.
+    context.ellipse(0, 1, 17, 3, 0, 0, Math.PI * 2);
+    context.fill();
+    if (state.night) drawBeam(28, -10, 7, 70);  // From the headlamp at the vehicle's front
     const art = vehicleArt[state.vehicle];
-    if (art?.complete && art.naturalWidth) context.drawImage(art, -30, -34, 60, 36);
+    if (art?.complete && art.naturalWidth) context.drawImage(art, -30, -31, 60, 36);
   } else {
+    context.ellipse(0, 2, 14, 5, 0, 0, Math.PI * 2);
+    context.fill();
     drawWalker();
   }
   context.restore();
@@ -485,6 +490,21 @@ function drawShuttle(t, left, top, width, height) {
   context.restore();
 }
 
+// A soft cone of headlight, pointing along +x from the car's front (callers flip x for direction).
+function drawBeam(front, centre, halfWidth, reach = 58) {
+  const glow = context.createLinearGradient(front, 0, front + reach, 0);
+  glow.addColorStop(0, "rgba(255, 238, 170, 0.55)");
+  glow.addColorStop(1, "rgba(255, 238, 170, 0)");
+  context.fillStyle = glow;
+  context.beginPath();
+  context.moveTo(front, centre - halfWidth * 0.6);
+  context.lineTo(front + reach, centre - halfWidth * 2.1);
+  context.lineTo(front + reach, centre + halfWidth * 2.1);
+  context.lineTo(front, centre + halfWidth * 0.6);
+  context.closePath();
+  context.fill();
+}
+
 function drawStreetLife(t, left, top, width, height) {
   if (!state.life) return;
   drawTram(t, left, top, width, height);
@@ -497,6 +517,7 @@ function drawStreetLife(t, left, top, width, height) {
     context.save();
     context.translate(x, y);
     context.scale(direction, 1);
+    if (state.night) drawBeam(15, 0, 9);  // Headlights reach ahead of the car
     context.fillStyle = color;
     context.strokeStyle = "#435c5c";
     context.lineWidth = 1;
