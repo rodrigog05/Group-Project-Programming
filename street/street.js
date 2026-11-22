@@ -52,13 +52,70 @@ window.addEventListener("message", (event) => {
   frameHeight();
 });
 
+// Collision checks mirror Town.can_walk in tycoon.py, using the geometry Python sends.
+// Python stays the authority: it replays every step and corrects the position if needed.
+function sandEdge(x) {
+  const [west, east, bottom] = state.collision.sand;
+  const top = state.collision.river[0];
+  const fraction = (x - west) / (east - west);
+  if (fraction < 0 || fraction > 1) return top;
+  const curve = Math.sin(Math.PI * fraction) ** 0.55;
+  const scallops = 1 + 0.045 * Math.sin(fraction * Math.PI * 2 * 3);
+  return top + (bottom - top) * curve * scallops;
+}
+
+function onSand(x, y, r) {
+  const [west, east] = state.collision.sand;
+  return west + r <= x && x <= east - r && state.collision.river[0] - 3 <= y &&
+    y + r <= Math.min(sandEdge(x - r), sandEdge(x), sandEdge(x + r));
+}
+
+function onBridge(x, y, r) {
+  const eastern = state.collision.vasco - 0.32 * (y - state.collision.river[0]);
+  return Math.abs(x - 300) <= 31 - r || Math.abs(x - eastern) <= 27 - r;
+}
+
+function insideAny(boxes, x, y, r) {
+  return boxes.some(([left, top, right, bottom]) =>
+    left - r < x && x < right + r && top - r < y && y < bottom + r);
+}
+
+function walkableTerrain(x, y, r, onFoot) {
+  const [riverTop, riverBottom] = state.collision.river;
+  if (riverTop - r < y && y < riverBottom + r) {
+    if (onFoot && onSand(x, y, r)) return !insideAny([state.collision.tower], x, y, r);
+    return !onFoot && onBridge(x, y, r);
+  }
+  return true;
+}
+
+function parkBlocked(x, y, r) {
+  const [left, right, centerY, halfWidth] = state.collision.tunnel;
+  if (left <= x && x <= right && Math.abs(y - centerY) <= halfWidth - r) return false;
+  return insideAny(state.collision.parks, x, y, r);
+}
+
+function canWalk(x, y) {
+  const { radius: r, world: [width, mapTop, bottom], boxes } = state.collision;
+  if (state.vehicle && parkBlocked(x, y, r)) return false;
+  return r <= x && x <= width - r && mapTop + r <= y && y <= bottom - r &&
+    walkableTerrain(x, y, r, !state.vehicle) && !insideAny(boxes, x, y, r);
+}
+
 function predict({ dx, dy, seconds }) {
   const length = Math.hypot(dx, dy);
   if (!length) return;
-  const distance = state.speed * seconds / length;
-  player.x = Math.max(10, Math.min(2390, player.x + dx * distance));
-  player.y = Math.max(114, Math.min(1770, player.y + dy * distance));
   if (dx) facing = dx < 0 ? -1 : 1;
+  const [width, mapTop, bottom] = state.collision.world;
+  // Same 1/60 s steps and x-then-y order as street_input and Town.move, so walls stop the player.
+  const steps = Math.max(1, Math.ceil(seconds * 60));
+  const distance = state.speed * seconds / steps / length;
+  for (let step = 0; step < steps; step += 1) {
+    const nextX = Math.max(17, Math.min(width - 17, player.x + dx * distance));
+    const nextY = Math.max(mapTop + 15, Math.min(bottom - 15, player.y + dy * distance));
+    if (canWalk(nextX, player.y)) player.x = nextX;
+    if (canWalk(player.x, nextY)) player.y = nextY;
+  }
 }
 
 function update(now) {

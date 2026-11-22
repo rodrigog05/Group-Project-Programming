@@ -1,8 +1,8 @@
 import pytest
 
-from browser_game import LocalSave, entrance, street_input
+from browser_game import COLLISION_MAP, LocalSave, entrance, street_input
 from ferry import FERRY_PIERS
-from tycoon import SITES, Town
+from tycoon import COLLISION_BOUNDS, SITES, Town
 
 
 def input_event(dx=0, dy=0, seconds=0, action=None):
@@ -84,3 +84,12 @@ def test_batch_collision_precedes_trade():
                                "action": "bulk"})
     assert town.can_walk(town.x, town.y)
     assert town.supplies[3] == 4 and town.cash == 44
+
+
+def test_browser_collision_map_matches_python_walls():
+    # street.js predicts movement with these walls, so they must be Python's own.
+    assert COLLISION_MAP["boxes"] == [list(box) for box in COLLISION_BOUNDS]
+    left, top, right, bottom = COLLISION_MAP["tower"]
+    town = Town()
+    assert not town.can_walk((left + right) / 2, (top + bottom) / 2)
+    assert town.can_walk(right + COLLISION_MAP["radius"] + 5, 760)

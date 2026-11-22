@@ -7,7 +7,22 @@ import sqlite3
 
 from exchange import advance_city
 from ferry import FERRY_FARE, FERRY_PIERS, nearby_pier, ride_ferry
-from tycoon import BRIDGE_TOLL, RIVER_BOTTOM, Town, pack_save, unpack_save
+import lisbon_scene as scene
+from tycoon import (BRIDGE_TOLL, COLLISION_BOUNDS, MAP_TOP, PLAYER_RADIUS, RIVER_BOTTOM, Town, pack_save,
+                    unpack_save)
+
+# The browser predicts movement with the same walls as Town.can_walk. Python still checks every step.
+COLLISION_MAP = {
+    "radius": PLAYER_RADIUS,
+    "world": [scene.WORLD_WIDTH, MAP_TOP, scene.WORLD_BOTTOM],
+    "boxes": [list(box) for box in COLLISION_BOUNDS],
+    "parks": [list(box) for box in scene.PARK_BOUNDS],
+    "tunnel": list(scene.SOUTH_PARK_TUNNEL),
+    "river": [scene.RIVER_TOP, scene.RIVER_BOTTOM],
+    "vasco": scene.VASCO_NORTH_X,
+    "sand": [scene.SAND_WEST, scene.SAND_EAST, scene.SAND_BOTTOM],
+    "tower": [90, 735, 190, 850],  # Belém Tower on the beach (left, top, right, bottom), as in walkable_terrain
+}
 
 
 def entrance(site):
