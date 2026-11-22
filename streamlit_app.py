@@ -21,7 +21,7 @@ from ferry import FERRY_PIERS, nearby_pier
 from lisbon_scene import RIVER_BOTTOM
 from tourism import monument_description
 from supabase_saves import CloudSave, SignupError, Supabase
-from tycoon import DAY_SECONDS, EGG_COST, INDUSTRIES, SITES, TRADES, ROULETTE_POCKETS, Town, roulette_color
+from tycoon import DAY_SECONDS, DAYLIGHT_SECONDS, EGG_COST, INDUSTRIES, SITES, TRADES, ROULETTE_POCKETS, Town, roulette_color
 from vehicles import VEHICLES
 from navigation import directions
 from oriente_station import BOUNDS as ORIENTE_BOUNDS, station_svg
@@ -201,7 +201,7 @@ def play_street(site_inside=None):
     ack = last_input.get("id") if isinstance(last_input, dict) else None
     street_map(
         key="street_map", on_change=play, x=town.x, y=town.y, ack=ack,
-        night=town.market_elapsed % DAY_SECONDS >= 180, facing=town.facing,
+        night=town.market_elapsed % DAY_SECONDS >= DAYLIGHT_SECONDS, facing=town.facing,
         vehicle=town.vehicle, stowed_vehicle=town.stowed_vehicle, hint=hint,
         speed=town.movement_speed, collision=COLLISION_MAP, life=STREET_LIFE,
         cash=town.cash, on_bridge=town.bridge_journey is not None, ferry=st.session_state.get("ferry"),
@@ -617,6 +617,20 @@ def start_menu():
             loop=True,
             muted=True,
         )
+    st.html("""<script>
+        (() => {
+            const setSpeed = () => {
+                const video = document.querySelector(".st-key-foundry_waterfront video");
+                if (video) {
+                    video.playbackRate = 0.5;
+                    observer.disconnect();
+                }
+            };
+            const observer = new MutationObserver(setSpeed);
+            observer.observe(document.body, { childList: true, subtree: true });
+            setSpeed();
+        })();
+    </script>""", unsafe_allow_javascript=True)
     with st.container(key="foundry_start"):
         fullscreen_control("menu")
         start_menu_card()

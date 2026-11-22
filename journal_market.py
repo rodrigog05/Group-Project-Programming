@@ -65,7 +65,7 @@ def _order_quantity(order):
     return order.quantity if order is not None else 0
 
 
-def market_snapshot(town, trades=None, industries=None, sites=None, *, day_seconds=300, egg_cost=2):
+def market_snapshot(town, trades=None, industries=None, sites=None, *, day_seconds=120, egg_cost=2):
     """Return current observations without advancing time or changing a market."""
     # Main-script callers supply models, avoiding a second import as 'tycoon'.
     # The convenience form is useful to tools/tests that imported Town normally.

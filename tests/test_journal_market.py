@@ -102,7 +102,7 @@ class JournalMarketTest(unittest.TestCase):
         town.market_elapsed = DAY_SECONDS*2+12.25
         town.market_event = ("Pottery fair", "More pottery buyers today")
         snapshot = market_snapshot(town)
-        self.assertEqual((snapshot.day, snapshot.seconds_to_reset), (3, 288))
+        self.assertEqual((snapshot.day, snapshot.seconds_to_reset), (3, 108))
         self.assertEqual((snapshot.event_title, snapshot.event_detail), town.market_event)
 
     def test_locked_tier3_products_explain_research_and_have_no_buyers(self):

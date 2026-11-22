@@ -122,7 +122,7 @@ def test_local_save_rejects_stale_write_and_restores_market_clock(tmp_path):
     store = LocalSave(tmp_path / "nested" / "game.sqlite3")
     first, revision = store.load()
     stale, stale_revision = store.load()
-    for _ in range(301):
+    for _ in range(121):
         advance_clock(first, 1)
     assert first.day == 2
     assert store.save(first, revision) == 1
@@ -130,7 +130,7 @@ def test_local_save_rejects_stale_write_and_restores_market_clock(tmp_path):
         store.save(stale, stale_revision)
     reloaded, revision = store.load()
     assert revision == 1
-    assert reloaded.elapsed == reloaded.market_elapsed == 301
+    assert reloaded.elapsed == reloaded.market_elapsed == 121
     assert reloaded.day == 2
 
 

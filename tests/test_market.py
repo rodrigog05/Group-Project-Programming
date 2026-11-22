@@ -39,16 +39,25 @@ class DynamicMarketTest(unittest.TestCase):
         restored, _ = unpack_save(old_save)
         self.assertEqual(restored.total_sold, [0] * len(TRADES))
 
-    def test_day_length_is_five_minutes_and_legacy_progress_is_scaled(self):
-        self.assertEqual(DAY_SECONDS, 5 * 60)
-        self.assertEqual(DAYLIGHT_SECONDS, 3 * 60)
-        self.assertEqual(NIGHT_SECONDS, 2 * 60)
+    def test_day_and_night_are_one_minute_and_legacy_progress_is_scaled(self):
+        self.assertEqual(DAY_SECONDS, 2 * 60)
+        self.assertEqual(DAYLIGHT_SECONDS, 60)
+        self.assertEqual(NIGHT_SECONDS, 60)
         town = Town()
         town.market_elapsed = LEGACY_DAY_SECONDS + LEGACY_DAY_SECONDS // 2
         old_save = pack_save(town, 1_000)
         old_save.pop("dayLength")
         restored, _ = unpack_save(old_save)
         self.assertEqual(restored.market_elapsed, DAY_SECONDS * 1.5)
+
+    def test_previous_five_minute_save_keeps_its_day_and_phase(self):
+        town = Town()
+        town.market_elapsed = 300 + 225
+        old_save = pack_save(town, 1_000)
+        old_save["dayLength"] = 300
+        restored, _ = unpack_save(old_save)
+        self.assertEqual(restored.day, 2)
+        self.assertEqual(restored.market_elapsed, DAY_SECONDS + 90)
 
     def test_tier2_market_resets_and_updates_price_each_day(self):
         town = Town()
