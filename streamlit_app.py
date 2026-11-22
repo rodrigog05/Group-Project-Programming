@@ -385,6 +385,14 @@ def fullscreen_control(name):
 
 @st.dialog("Foundry Town · Lisboa", width="large", dismissible=False)
 def start_menu():
+    with st.container(key="foundry_waterfront"):
+        st.video(
+            str(ROOT / "street" / "lisbon_waterfront.webm"),
+            format="video/webm",
+            autoplay=True,
+            loop=True,
+            muted=True,
+        )
     with st.container(key="foundry_start"):
         fullscreen_control("menu")
         start_menu_card()
@@ -455,7 +463,25 @@ st.html(f"""
     overflow: hidden;
     clip-path: inset(50%);
   }}
+  .st-key-foundry_waterfront {{
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+  }}
+  .st-key-foundry_waterfront video {{
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }}
+  .st-key-foundry_waterfront video::-webkit-media-controls {{ display: none; }}
+  @media (prefers-reduced-motion: reduce) {{
+    .st-key-foundry_waterfront {{ display: none; }}
+  }}
   .st-key-foundry_start {{
+    position: relative;
+    z-index: 1;
     width: min(100%, 38rem);
     margin: clamp(2rem, 50dvh - 6rem, 26rem) auto 2rem;
     padding: clamp(1rem, 3vw, 2rem);
@@ -506,8 +532,7 @@ title.title("Foundry Town")
 cash.metric("Cash", f"${town.cash:,}")
 cargo.metric("Cargo + reserved", f"{town.cargo + town.reserved} / {town.carry_capacity}")
 day.metric("Market day", town.day)
-if menu.button("Start menu"):
-    st.session_state.show_menu = True
+menu.button("Start menu", on_click=st.session_state.update, kwargs={"show_menu": True})
 with display:
     fullscreen_control("game")
 

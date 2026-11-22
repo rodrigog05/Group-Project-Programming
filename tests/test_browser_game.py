@@ -36,6 +36,15 @@ def test_start_menu_can_resume_and_requires_confirmation_to_replace_save(tmp_pat
     assert store.load()[0].cash == 60
 
 
+def test_waterfront_video_is_muted_and_only_in_the_start_menu(monkeypatch):
+    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
+    app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
+    video = app.get("video")[0].proto
+    assert video.autoplay and video.loop and video.muted
+    click(app, "New Game")
+    assert not app.get("video")
+
+
 def test_browser_trade_loop_rejection_restart_and_session_isolation(tmp_path, monkeypatch):
     monkeypatch.setenv("FOUNDRY_LOCAL_DB", str(tmp_path / "game.sqlite3"))
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
