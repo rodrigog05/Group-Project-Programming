@@ -44,10 +44,11 @@ def new_app(monkeypatch):
 # ----- Which building is at the door -----
 
 def test_every_door_opens_its_own_building_and_piers_take_priority():
+    from browser_game import CLOSED_SITES
     town = Town()
     for site in SITES:
         town.x, town.y = entrance(site)
-        assert building_at(town) == site.name
+        assert building_at(town) == (None if site.name in CLOSED_SITES else site.name)
     for pier in FERRY_PIERS:
         town.x, town.y = pier.position
         assert building_at(town) is None  # E at a pier rides the ferry
@@ -66,7 +67,7 @@ def test_every_illustrated_scene_exists_and_every_building_greets_you():
             assert (SCENES / f"{found[0]}.webp").is_file(), found[0]
         assert greeting(town, site)
     plain = {site.role for site in SITES if scene_for(town, site) is None}
-    assert plain == {"WAREHOUSE", "EXCHANGE", "RESEARCH"}
+    assert plain == {"EXCHANGE", "RESEARCH"}  # The warehouse has its own scene now
     assert (SCENES / "ferry_day.webp").is_file() and (SCENES / "ferry_night.webp").is_file()
 
 
@@ -82,7 +83,8 @@ def test_monastery_luck_is_capped_at_twenty_points():
 def test_visit_enters_the_building_and_leave_returns_to_the_street(monkeypatch):
     app = new_app(monkeypatch)
     choose_place(app, "Goldenfield Farm")
-    assert {"Buy up to 4 Wheat", "Buy 1 egg", "Leave"} <= labels(app)
+    assert {"Buy up to 4 Wheat", "Leave"} <= labels(app)
+    assert not {"Buy 1 egg", "Buy up to 4 eggs"} & labels(app)  # Eggs were removed from the game
     click(app, "Buy up to 4 Wheat")
     assert app.metric[0].value == "$44"
     assert "Wheat" in app.session_state.reply  # The vendor answers inside the speech bubble
@@ -198,3 +200,42 @@ def test_basics_can_be_replayed_from_the_start_menu_and_every_slide_exists(monke
     slides = Path(__file__).resolve().parents[1] / "street" / "tutorial"
     for name in ("goal", "buy", "make", "sell", "garage"):
         assert (slides / f"{name}.webp").is_file(), name
+
+
+
+# ----- Simplified town -----
+
+def test_closed_buildings_cannot_be_entered_and_are_not_destinations(monkeypatch):
+    from browser_game import CLOSED_SITES, OPEN_SITES, street_event
+    assert CLOSED_SITES == {"Motorworks Garage", "Armazém do Seixal", "Pastéis de Belém"}
+    assert [site.name for site in OPEN_SITES if site.role == "GARAGE"] == ["Cacilhas Garage"]
+    assert [site.name for site in OPEN_SITES if site.role == "WAREHOUSE"] == ["Foundry Warehouse"]
+    town = Town()
+    garage = next(site for site in SITES if site.name == "Motorworks Garage")
+    town.x, town.y = entrance(garage)
+    assert street_event(town, {"dx": 0, "dy": 0, "seconds": 0, "action": "interact"}) is None
+    assert "apartments" in town.message and town.cash == 60
+    app = new_app(monkeypatch)
+    options = set(app.selectbox[0].options)
+    assert not CLOSED_SITES & options and {"Cacilhas Garage", "Foundry Warehouse"} <= options
+
+
+def test_warehouse_has_a_scene_and_the_farm_sells_only_wheat():
+    from browser_game import scene_for
+    town = Town()
+    warehouse = next(site for site in SITES if site.name == "Foundry Warehouse")
+    assert scene_for(town, warehouse)[0] == "warehouse"
+    assert "12 slots" in greeting(town, warehouse)
+    farm = next(site for site in SITES if site.name == "Goldenfield Farm")
+    assert "Egg" not in greeting(town, farm)
+
+
+def test_market_shows_four_route_cards_and_the_goal_bar(monkeypatch):
+    app = new_app(monkeypatch)
+    assert "of the" in app.get("progress")[0].proto.text  # "$60 of the $500 goal"
+    click(app, "Market & recipes")
+    text = " ".join(markdown.value for markdown in app.markdown)
+    for product in ("Tools", "Furniture", "Pottery", "Bread"):
+        assert product in text
+    assert "Profit \\$10 per bread" in text and "Goldenfield Farm" in text
+    assert "Pastéis" not in text

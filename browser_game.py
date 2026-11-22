@@ -15,7 +15,7 @@ from vehicles import (
     VEHICLES, CAR_SPEED_RANGE, ROAD_EXCLUSIONS, ROAD_SEGMENTS, in_tunnel, on_road,
     road_projection, tunnel_covers_y,
 )
-from tycoon import (BRIDGE_TOLL, COLLISION_BOUNDS, EGG_COST, MAP_TOP, PLAYER_RADIUS, RIVER_BOTTOM, TRADES, Town,
+from tycoon import (BRIDGE_TOLL, COLLISION_BOUNDS, MAP_TOP, PLAYER_RADIUS, RIVER_BOTTOM, SITES, TRADES, Town,
                     pack_save, unpack_save)
 
 # The browser predicts movement with the same walls as Town.can_walk. Python still checks every step.
@@ -104,6 +104,11 @@ STREET_LIFE = street_life()
 # ----- Buildings: what is at the door, which illustrated scene to show and what the vendor says -----
 
 MONASTERY = "Mosteiro dos Jerónimos"
+# Closed to keep the game simple: the only garage is in Cacilhas (so the first vehicle needs a ferry
+# ride), one warehouse is enough, and the eggs / pastéis side chain is gone. The engine keeps them for
+# old saves; on the map their plots show apartment blocks.
+CLOSED_SITES = frozenset({"Motorworks Garage", "Armazém do Seixal", "Pastéis de Belém"})
+OPEN_SITES = tuple(site for site in SITES if site.name not in CLOSED_SITES)
 INTERIOR_ROLES = ("SUPPLIER", "FACTORY", "PUBLIC SHOP", "PASTELARIA", "SHIPYARD", "TIER2")
 # Scenes from the desktop game, as drawn in street/scenes. Boxes are in each scene's own pixels.
 SCENES = {
@@ -120,7 +125,7 @@ def building_at(town):
         return None
     site = town.nearby()
     if site:
-        return site.name
+        return None if site.name in CLOSED_SITES else site.name
     left, _, right, bottom = LANDMARKS[0].bounds
     if math.hypot(town.x-(left+right)/2, town.y-(bottom+16)) <= 40:
         return MONASTERY
@@ -136,6 +141,8 @@ def scene_for(town, site):
         return f"{site.role.replace(' ', '_').lower()}_{trade}", SCENES["interior"]
     if site.role in ("GARAGE", "CASINO"):
         return site.role.lower(), SCENES[site.role.lower()]
+    if site.role == "WAREHOUSE":
+        return "warehouse", SCENES["interior"]
     return None
 
 
@@ -147,8 +154,7 @@ def greeting(town, site):
     if role == "SUPPLIER":
         trade = TRADES[site.trade]
         opener = ("Freshly mined", "Cut this morning", "Dug from the pit today", "Harvested at dawn")[site.trade]
-        text = f"{opener}! {trade.supply} for ${town.costs[site.trade]} each."
-        return text + f" Eggs are ${EGG_COST}." if site.trade == 3 else text
+        return f"{opener}! {trade.supply} for ${town.costs[site.trade]} each."
     if role == "PUBLIC SHOP":
         trade = town.business_site(site).trade
         if businesses.is_owned(town, site):
@@ -172,6 +178,8 @@ def greeting(town, site):
         return f"How's the {ride.label.lower()} running? Trade up for a bigger trunk any time."
     if role == "CASINO":
         return "Welcome to the casino. Pick a chip, then bet on a colour."
+    if role == "WAREHOUSE":
+        return f"Need more room? Each expansion adds 12 slots for ${300 + town.warehouse_level * 250:,}."
     return f"Welcome to {site.name}."
 
 
@@ -317,6 +325,9 @@ def street_event(town, event):
                 town.visit_monastery()
             return name
         if not moved:
+            return None
+        if town.nearby() and town.nearby().name in CLOSED_SITES:
+            town.message = "These are apartments. Follow a coloured shop sign to trade."
             return None
         event = {"segments": [{"dx": 0, "dy": 0, "seconds": 0}], "action": "interact"}
     street_input(town, event)

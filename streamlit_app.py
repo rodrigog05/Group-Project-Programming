@@ -12,7 +12,7 @@ from streamlit.components.v1 import declare_component
 import businesses
 import exchange
 import innovation
-from browser_game import (COLLISION_MAP, MONASTERY, STREET_LIFE, LocalSave, building_at, greeting, scene_for,
+from browser_game import (COLLISION_MAP, MONASTERY, OPEN_SITES, STREET_LIFE, LocalSave, building_at, greeting, scene_for,
                           SaveConflict, entrance, place_vehicle_on_road, street_event, street_input)
 from journal_market import market_snapshot
 from journal_recipes import RECIPE_BY_KEY
@@ -21,12 +21,12 @@ from ferry import FERRY_PIERS, nearby_pier
 from lisbon_scene import RIVER_BOTTOM
 from tourism import monument_description
 from supabase_saves import CloudSave, SignupError, Supabase
-from tycoon import DAY_SECONDS, INDUSTRIES, SITES, TRADES, ROULETTE_POCKETS, Town, roulette_color
+from tycoon import DAY_SECONDS, EGG_COST, INDUSTRIES, SITES, TRADES, ROULETTE_POCKETS, Town, roulette_color
 from vehicles import VEHICLES
 from navigation import directions
 
 
-PLACES = {site.name: site for site in SITES}
+PLACES = {site.name: site for site in OPEN_SITES}
 ROOT = Path(__file__).resolve().parent
 street_map = declare_component("foundry_street", path=str(ROOT / "street"))
 START_MESSAGE = "Buy materials, turn them into products, and sell them to grow your business."
@@ -127,10 +127,6 @@ def interact(town, bulk=False):
     town.interact(bulk)
 
 
-def eggs(town, bulk=False):
-    town.buy_eggs(bulk)
-
-
 def warehouse(town):
     price = 300 + town.warehouse_level * 250
     if town.cash < price:
@@ -224,11 +220,11 @@ def play_street(site_inside=None):
         interior=interior_view(site_inside) if site_inside is not None else None,
         route=directions(town, destination_point(st.session_state.get("destination", "Goldenfield Farm"))),
         suppliers=[{"x": site.door[0], "y": site.door[1], "trade": site.trade,
-                    "cost": town.costs[site.trade]} for site in SITES if site.role == "SUPPLIER"],
+                    "cost": town.costs[site.trade]} for site in OPEN_SITES if site.role == "SUPPLIER"],
         free_slots=town.carry_capacity-town.cargo-town.reserved,
         locations=[
             {"name": site.name, "x": site.door[0], "y": site.door[1], "color": site.color}
-            for site in SITES
+            for site in OPEN_SITES
         ] + [
             {"name": pier.name, "x": pier.x, "y": pier.y, "color": "#91dfff"}
             for pier in FERRY_PIERS
@@ -237,7 +233,7 @@ def play_street(site_inside=None):
 
 
 def site_status(site):
-    status = town.site_status(site)
+    status = town.site_status(site).replace(f" · Eggs ${EGG_COST}", "")
     for shortcut in (" · B Manage", " · L Deliveries", " (F / R)", "E · ", "E "):
         status = status.replace(shortcut, "")
     return status
@@ -296,10 +292,7 @@ def building_actions(site):
     role = site.role
     if role == "SUPPLIER":
         supply = TRADES[site.trade].supply
-        actions = [("e", f"Buy 1 {supply}", interact, ()), ("q", f"Buy up to 4 {supply}", interact, (True,))]
-        if site.trade == 3:
-            actions += [("f", "Buy 1 egg", eggs, ()), ("shift+f", "Buy up to 4 eggs", eggs, (True,))]
-        return actions
+        return [("e", f"Buy 1 {supply}", interact, ()), ("q", f"Buy up to 4 {supply}", interact, (True,))]
     if role == "GARAGE":
         def label(key, ride):
             if key in town.owned_vehicles or town.vehicle == key:
@@ -464,26 +457,48 @@ def bet_controls(*, disabled=False):
                       key="bet_green" if colour == "green" else None)
 
 
+ROUTE_COLOURS = ("#9aa3a6", "#b48762", "#c56b47", "#e8b04a")
+
+
 def market():
-    snapshot = market_snapshot(town, TRADES, INDUSTRIES, SITES)
-    if snapshot.event_title:
-        st.info(f"{snapshot.event_title} · {snapshot.event_detail}")
-    st.dataframe([{
-        "Product": row.product, "Materials held": row.raw_stock, "Material cost": row.raw_cost,
-        "Sale price": row.price, "Stock": row.stock_label, "In production": row.orders,
-        "Buyers / jobs": row.remaining_buyers, "Sold today": row.sold_today,
-    } for row in snapshot.rows], hide_index=True)
-    st.write(f"Revenue ${town.daily_revenue:,} · Expenses ${town.daily_expenses:,} · Net ${town.daily_net_profit:,}")
-    if town.last_day_summary:
-        summary = town.last_day_summary
-        st.caption(f"Day {summary['day']} settled · Tax ${summary['tax']:,} · Dividends ${summary['dividends']:,}")
-    st.subheader("Discovered recipes")
-    if not town.discovered_recipes:
-        st.caption("Operate a production site to discover its recipe.")
-    for key in town.discovered_recipes:
-        recipe = RECIPE_BY_KEY[key]
-        ingredients = ", ".join(f"{quantity} × {name}" for name, quantity in recipe.ingredients)
-        st.write(f"**{recipe.title}** · {ingredients} · {recipe.seconds}s")
+    """One card per trade route: where to buy, make and sell, and the profit per unit."""
+    st.subheader("Trade routes")
+    st.caption("Buy materials at a yellow store, make products at a blue store, then sell them at a green market.")
+    columns = st.columns(2)
+    for index, trade in enumerate(TRADES):
+        def named(role):
+            return " or ".join(site.name for site in OPEN_SITES if site.role == role and site.trade == index)
+        cost, price = town.costs[index], town.prices[index]
+        with columns[index % 2].container(border=True):
+            st.markdown(f"<h4 style='margin:0;color:{ROUTE_COLOURS[index]}'>{trade.product}</h4>",
+                        unsafe_allow_html=True)
+            st.markdown(f"**1 Buy** {trade.supply} at {named('SUPPLIER')} · \\${cost} each  \n"
+                        f"**2 Make** at {named('FACTORY')} · {trade.seconds} s  \n"
+                        f"**3 Sell** at {named('PUBLIC SHOP')} · \\${price} each")
+            st.markdown(f"**Profit \\${price - cost} per {trade.product.lower()}** · You carry "
+                        f"{town.supplies[index]} {trade.supply.lower()} and {town.goods[index]} {trade.product.lower()}")
+    with st.expander("Details: market table, today's results and recipes"):
+        snapshot = market_snapshot(town, TRADES, INDUSTRIES, SITES)
+        if snapshot.event_title:
+            st.info(f"{snapshot.event_title} · {snapshot.event_detail}")
+        st.dataframe([{
+            "Product": row.product, "Materials held": row.raw_stock, "Material cost": row.raw_cost,
+            "Sale price": row.price, "Stock": row.stock_label, "In production": row.orders,
+            "Buyers / jobs": row.remaining_buyers, "Sold today": row.sold_today,
+        } for row in snapshot.rows if row.product != "Pastéis"], hide_index=True)
+        st.write(f"Revenue \\${town.daily_revenue:,} · Expenses \\${town.daily_expenses:,} · "
+                 f"Net \\${town.daily_net_profit:,}")
+        if town.last_day_summary:
+            summary = town.last_day_summary
+            st.caption(f"Day {summary['day']} settled · Tax \\${summary['tax']:,} · "
+                       f"Dividends \\${summary['dividends']:,}")
+        st.markdown("**Discovered recipes**")
+        if not town.discovered_recipes:
+            st.caption("Operate a production site to discover its recipe.")
+        for key in town.discovered_recipes:
+            recipe = RECIPE_BY_KEY[key]
+            ingredients = ", ".join(f"{quantity} × {name}" for name, quantity in recipe.ingredients)
+            st.write(f"**{recipe.title}** · {ingredients} · {recipe.seconds}s")
 
 
 def landmarks():
@@ -538,9 +553,9 @@ TUTORIAL = (
      "Bring the products to a green **SELL PRODUCTS** market and press **E** to sell everything you carry. Bread "
      "made from $4 wheat sells for $14. Repeat with bigger batches to grow faster."),
     ("Getting around", "garage.webp",
-     "Grey **BUY VEHICLES** garages sell rides that are faster and carry more. On foot, cross the Tejo by ferry "
-     "($2); by car, the bridges charge a $3 toll toward Lisboa. Pick a **Destination** above the map to see the "
-     "route, and press **Esc** to leave any building."),
+     "The only **BUY VEHICLES** garage is in Cacilhas, across the Tejo: take the ferry ($2) from Cais do Sodré "
+     "to get there. Vehicles are faster and carry more, and by car the bridges charge a $3 toll toward Lisboa. "
+     "Pick a **Destination** above the map to see the route, and press **Esc** to leave any building."),
 )
 
 
@@ -865,6 +880,8 @@ with st.container(key="foundry_hud"):
     menu.button("Start menu", on_click=st.session_state.update, kwargs={"show_menu": True})
     with display:
         fullscreen_control("game")
+    goal = "Goal reached! Keep growing." if town.won else f"\\${town.cash:,} of the \\$500 goal"
+    st.progress(1.0 if town.won else max(0.0, min(town.cash / 500, 1.0)), text=goal)
 
 page = st.session_state.get("town_page", "Game")
 PAGES = {"Game": places, "Market & recipes": market, "Landmarks": landmarks}
