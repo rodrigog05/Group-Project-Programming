@@ -389,7 +389,8 @@ function draw() {
     // 107 of its 120-pixel height), so thin vehicles like the motorcycle don't look like they float.
     context.ellipse(0, 1, 17, 3, 0, 0, Math.PI * 2);
     context.fill();
-    if (state.night) drawBeam(28, -10, 7, 70);  // From the headlamp at the vehicle's front
+    const lamp = HEADLAMPS[state.vehicle] || HEADLAMPS.car;
+    if (state.night) drawBeam(lamp[0], lamp[1], lamp[2], 70);  // Starts right at the vehicle's headlamp
     const art = vehicleArt[state.vehicle];
     if (art?.complete && art.naturalWidth) context.drawImage(art, -30, -31, 60, 36);
   } else {
@@ -494,6 +495,9 @@ function drawShuttle(t, left, top, width, height) {
 }
 
 // A soft cone of headlight, pointing along +x from the car's front (callers flip x for direction).
+// Where each vehicle's headlamp sits on the map, from its art (drawn 60x36 at -30, -31): [x, y, beam half-width].
+const HEADLAMPS = { motorcycle: [15, -15, 4], car: [21, -9, 7], van: [22, -9, 7], f1: [27, -8, 5] };
+
 function drawBeam(front, centre, halfWidth, reach = 58) {
   const glow = context.createLinearGradient(front, 0, front + reach, 0);
   glow.addColorStop(0, "rgba(255, 238, 170, 0.55)");
