@@ -341,3 +341,38 @@ def streamlit_interior(app):
     import json
     component = next(iter(app.get("component_instance")))
     return json.loads(component.proto.json_args).get("interior") or {}
+
+
+# ----- Full bag -----
+
+def test_full_bag_hint_says_to_make_or_sell_on_any_route():
+    from browser_game import bag_full, next_move
+    named = lambda name: next(site for site in SITES if site.name == name)
+    town = Town()
+    town.cash, town.total_sold[3] = 500, 4  # Even on a learned route
+    town.x, town.y = entrance(named("Goldenfield Farm"))
+    for _ in range(3):
+        town.interact(bulk=True)
+    assert bag_full(town)
+    assert next_move(town, "Goldenfield Farm") == {
+        "text": "Your bag is full (12/12). Take your Wheat to Sunrise Bakery to make Bread.",
+        "target": "Sunrise Bakery"}
+    town.x, town.y = entrance(named("Sunrise Bakery"))
+    assert next_move(town, "Sunrise Bakery")["text"] == "Press E to drop off your Wheat and make Bread."
+    town.interact()
+    town.elapsed += 5
+    town.interact()
+    assert next_move(town, "Sunrise Bakery")["text"] == "Your bag is full (12/12). Sell your 12 Bread at Daily Bread Market."
+
+
+def test_buying_with_a_full_bag_raises_the_red_warning_only_then(monkeypatch):
+    app = new_app(monkeypatch)
+    app.session_state.town.cash = 500
+    choose_place(app, "Goldenfield Farm")
+    for _ in range(3):
+        click(app, "Buy up to 4 Wheat")
+    assert app.metric[1].value == "12 / 12" and "alert" not in app.session_state  # Room until now
+    click(app, "Buy up to 4 Wheat")
+    assert app.session_state.alert == {
+        "id": 1, "text": "Your bag is full: you can't buy more. Make or sell your products first."}
+    assert app.metric[1].value == "12 / 12"
