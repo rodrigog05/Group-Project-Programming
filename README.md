@@ -14,13 +14,24 @@ Foundry Town is a browser business tycoon set in Lisboa and Almada. Buy material
 
 ## Stack
 
-This port uses Python 3.12 and Streamlit. The desktop project's Python simulation supplies the economy and rules. Streamlit supplies the browser interface, and SQLite provides an optional single-user local save. The separate desktop checkout can still run independently.
+| Part | Choice | Why |
+|---|---|---|
+| Language | Python 3.12 | The course language. The game rules were already written in Python. |
+| Interface | Streamlit 1.66.0 | Runs Python in the browser with no separate front end, and deploys free on Streamlit Community Cloud. |
+| Street map | A small Streamlit component (`street/`, HTML and JavaScript) | Streamlit has no keyboard-driven map, so this one view is custom. |
+| Saving | SQLite, optional | Built into Python and enough for one local player. |
+| Tests | pytest | The course's test tool. Streamlit's `AppTest` drives the real app in tests. |
+| Commands | uv | Installs the pinned dependencies and runs the app and tests with one command. |
+
+The rules come from our earlier desktop (Tkinter) version, which is kept on the `desktop-game` branch.
 
 ## Run locally
 
-From the repository root, with uv installed:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then from a fresh copy of the repository:
 
 ```sh
+git clone https://github.com/rodrigog05/Group-Project-Programming.git
+cd Group-Project-Programming
 uv run --python 3.12 --with-requirements requirements.txt streamlit run streamlit_app.py --server.address 127.0.0.1
 ```
 
@@ -44,20 +55,42 @@ FOUNDRY_LOCAL_DB=.local/game.sqlite3 uv run --python 3.12 --with-requirements re
 
 ## Publish on Streamlit Community Cloud
 
-1. Push this repository to GitHub.
+1. Sign in at Streamlit Community Cloud with a GitHub account that can see this repository.
 2. In [Streamlit Community Cloud](https://share.streamlit.io/), choose **Create app** and select the repository and branch.
 3. Set **Main file path** to `streamlit_app.py`. Select Python 3.12 in advanced settings, then deploy.
 4. Open the assigned URL and run the first-trade walkthrough above. Open a separate private browser window and confirm it starts with $60.
 
 Cloud mode uses one independent game per browser session. A full reload, disconnected session, or server restart can reset progress. Leave `FOUNDRY_LOCAL_DB` unset for a public instance. No external services, database setup, or account credentials are needed for gameplay. [Community Cloud deployment guide](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy)
 
-## Verify
+## Tests
+
+From the repository root:
 
 ```sh
 uv run --python 3.12 --with-requirements requirements.txt --with pytest python -m pytest -q
 ```
 
-The suite includes unmodified engine tests from the desktop checkout and browser entrypoint tests for trade, rejection, restart, session isolation, river crossings, and concurrent save conflicts.
+Expected result: `222 passed`. The tests need no network, accounts or secrets.
+
+- **Game rules** (`tests/test_market.py`, `test_vehicles.py`, `test_contracts.py` and the other engine tests) cover trades, production, prices, vehicles, tolls, contracts, research, businesses and deliveries. They include rejected actions, such as buying without enough cash or space.
+- **Browser app** (`tests/test_browser_game.py`) runs the real Streamlit app: a full trade loop, a rejected purchase, restarting from a save, two players kept apart, the ferry fare and bridge toll, and an out-of-date tab being stopped from overwriting a newer save.
+- **Street map** (`tests/test_street.py`) checks walking, collisions, entrances, cargo limits, the ferry and invalid input.
+- **Not covered by automated tests:** how the street map looks and feels in a real browser, and the deployed site. We check those by hand before the demo.
+
+## Security and data
+
+- The game needs no API keys, passwords or accounts. `.env` files, Streamlit secrets and SQLite saves are listed in `.gitignore`.
+- The only dependency is `streamlit`, pinned to an exact version in `requirements.txt`.
+- On the public site each browser session plays its own game in memory. Nothing is stored on the server, so a reload or restart starts a new game.
+- Locally, `FOUNDRY_LOCAL_DB` turns on one SQLite save slot. All database queries are parameterized.
+
+## Known limits
+
+- Progress on the public site resets on reload or when the server restarts.
+- Animated traffic, building interiors and the soundtrack from the desktop version are not in the browser version.
+- One local save slot per `FOUNDRY_LOCAL_DB` path, meant for one player.
+
+## Project structure
 
 - `streamlit_app.py` contains game screens and event handlers.
 - `browser_game.py` adapts navigation, time, and persistence for the browser.
