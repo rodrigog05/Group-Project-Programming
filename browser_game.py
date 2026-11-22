@@ -204,13 +204,6 @@ def visit(town, position, label):
     town.message = f"Arrived at {label}{charge}."
 
 
-def advance_turn(town, seconds):
-    """Advance active systems in the same order as play, settling each day once."""
-    town.message = f"Advanced {seconds} seconds."
-    for _ in range(seconds):
-        advance_clock(town, 1)
-
-
 def advance_clock(town, seconds):
     town.advance(seconds)
     advance_city(town, seconds)
