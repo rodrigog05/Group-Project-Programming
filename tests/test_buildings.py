@@ -376,3 +376,17 @@ def test_buying_with_a_full_bag_raises_the_red_warning_only_then(monkeypatch):
     assert app.session_state.alert == {
         "id": 1, "text": "Your bag is full: you can't buy more. Make or sell your products first."}
     assert app.metric[1].value == "12 / 12"
+    assert app.session_state.reply is None  # The farmer keeps his greeting; the banner explains
+
+
+
+def test_full_bag_inside_a_new_routes_supplier_says_sell_not_buy():
+    from browser_game import next_move
+    named = lambda name: next(site for site in SITES if site.name == name)
+    town = Town()
+    town.total_sold[3] = 4  # Bread learned, as in the reported case
+    town.goods[3] = 12      # A full bag of bread
+    town.x, town.y = entrance(named("Redbank Clay Pit"))
+    assert next_move(town, "Redbank Clay Pit") == {
+        "text": "Your bag is full (12/12). Sell your 12 Bread at Daily Bread Market.",
+        "target": "Daily Bread Market"}

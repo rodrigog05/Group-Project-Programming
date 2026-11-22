@@ -303,8 +303,14 @@ def leave_building():
 
 def inside(operation, *args):
     """Run a building action; the vendor answers with the result."""
+    alert = st.session_state.get("alert")
     saved = act(operation, *args)
-    st.session_state.reply = st.session_state.town.message
+    if st.session_state.get("alert") != alert:
+        # A full bag is the player's problem, not the vendor's: the red banner and the hint explain it,
+        # and the vendor keeps their usual line.
+        st.session_state.reply = None
+    else:
+        st.session_state.reply = st.session_state.town.message
     return saved
 
 
