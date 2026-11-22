@@ -12,7 +12,7 @@ from streamlit.components.v1 import declare_component
 import businesses
 import exchange
 import innovation
-from browser_game import (COLLISION_MAP, MONASTERY, OPEN_SITES, next_move, STREET_LIFE, LocalSave, building_at, greeting, scene_for,
+from browser_game import (COLLISION_MAP, MONASTERY, OPEN_SITES, bag_full, next_move, STREET_LIFE, LocalSave, building_at, greeting, scene_for,
                           SaveConflict, entrance, place_vehicle_on_road, street_event, street_input)
 from journal_market import market_snapshot
 from journal_recipes import RECIPE_BY_KEY
@@ -87,6 +87,14 @@ def act(operation, *args):
     if result is False and operation is street_input:
         return
     before = st.session_state.town
+    buying = operation is interact or (operation is street_event and isinstance(args[0], dict)
+                                       and args[0].get("action") == "bulk")
+    supplier = before.nearby()
+    if buying and supplier and supplier.role == "SUPPLIER" and bag_full(before):
+        # The purchase was refused: show a red warning at the top of the game view.
+        previous = st.session_state.get("alert", {}).get("id", 0)
+        st.session_state.alert = {"id": previous + 1,
+                                  "text": "Your bag is full"}  # The hint says what to make or sell
     moving_between_banks = (before.y >= RIVER_BOTTOM) != (candidate.y >= RIVER_BOTTOM)
     map_tick = operation is street_event and not args[0].get("action") and not moving_between_banks
     saved = save_town(candidate, checkpoint=map_tick)
@@ -219,6 +227,7 @@ def play_street(site_inside=None):
         vehicle=town.vehicle, stowed_vehicle=town.stowed_vehicle, hint=hint, message=town.message,
         speed=town.movement_speed, collision=COLLISION_MAP, life=STREET_LIFE,
         cash=town.cash, on_bridge=town.bridge_journey is not None, ferry=st.session_state.get("ferry"),
+        alert=st.session_state.get("alert"),
         interior=interior_view(site_inside) if site_inside is not None else None,
         next_move=next_move(town, st.session_state.get("inside")) if st.session_state.get("show_hints", True) else None,
         route=directions(town, destination_point(st.session_state.get("destination", DEFAULT_DESTINATION))),
@@ -295,8 +304,14 @@ def leave_building():
 
 def inside(operation, *args):
     """Run a building action; the vendor answers with the result."""
+    alert = st.session_state.get("alert")
     saved = act(operation, *args)
-    st.session_state.reply = st.session_state.town.message
+    if st.session_state.get("alert") != alert:
+        # A full bag is the player's problem, not the vendor's: the red banner and the hint explain it,
+        # and the vendor keeps their usual line.
+        st.session_state.reply = None
+    else:
+        st.session_state.reply = st.session_state.town.message
     return saved
 
 

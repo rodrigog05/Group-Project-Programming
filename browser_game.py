@@ -142,6 +142,11 @@ BUILDING_HINTS = {
 }
 
 
+def bag_full(town):
+    """No free slot left: materials, products and slots reserved by orders in production all count."""
+    return town.cargo + town.reserved >= town.carry_capacity
+
+
 def next_move(town, inside=None):
     """The next step to suggest, as {"text", "target"}, or None when the player needs no hint.
 
@@ -170,6 +175,40 @@ def next_move(town, inside=None):
         if door == target:
             return {"text": f"Press E to go into {target}.", "target": target}
         return {"text": go_text, "target": target}
+
+    # 0. A full bag blocks buying on every route, learned or not: say how to make room.
+    if bag_full(town):
+        used = f"({town.cargo + town.reserved}/{town.carry_capacity})"
+        for index, trade in enumerate(TRADES):
+            if town.goods[index]:
+                market = place("PUBLIC SHOP", index)
+                return step(market, f"Press E to sell your {trade.product}.",
+                            f"Your bag is full {used}. Sell your {town.goods[index]} {trade.product} at {market}.")
+        for index, trade in enumerate(TRADES):
+            order = town.orders[index]
+            if order is not None and town.elapsed >= order.ready_at:
+                factory = place("FACTORY", index)
+                return step(factory, f"Press E to collect your {trade.product}.",
+                            f"Your bag is full {used}. Collect your {trade.product} at {factory}, then sell it.")
+        for index, trade in enumerate(TRADES):
+            if town.supplies[index]:
+                factory = place("FACTORY", index)
+                order = town.orders[index]
+                if order is not None:  # The workshop is still busy with this product
+                    seconds = math.ceil(order.ready_at - town.elapsed)
+                    return step(factory, f"{trade.product} is being made: ready in {seconds}s, then press E.",
+                                f"Your bag is full {used}. {trade.product} is ready at {factory} in {seconds}s: "
+                                f"collect it and drop off your {trade.supply}.")
+                return step(factory, f"Press E to drop off your {trade.supply} and make {trade.product}.",
+                            f"Your bag is full {used}. Take your {trade.supply} to {factory} to make {trade.product}.")
+        for index, trade in enumerate(TRADES):
+            order = town.orders[index]
+            if order is not None:
+                factory = place("FACTORY", index)
+                seconds = math.ceil(order.ready_at - town.elapsed)
+                return step(factory, f"{trade.product} is being made: ready in {seconds}s, then press E to collect.",
+                            f"Your bag is full {used}: {trade.product} takes the space while it is made at "
+                            f"{factory}. Collect it in {seconds}s and sell it.")
 
     # 1. Steps on a route the player has started but not completed yet.
     for index in new:  # Finished products first

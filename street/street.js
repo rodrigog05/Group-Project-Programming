@@ -97,6 +97,10 @@ window.addEventListener("message", (event) => {
     // Going inside: bring the whole store view to the middle of the screen.
     requestAnimationFrame(() => canvas.scrollIntoView({ block: "center", behavior: "smooth" }));
   }
+  // A new alert id means Python just refused something: show it for a few seconds.
+  const alertId = next.alert ? next.alert.id : 0;
+  if (lastAlertId !== null && alertId !== lastAlertId) alertBanner = { text: next.alert.text, start: performance.now() };
+  lastAlertId = alertId;
   timerBase = next.interior && next.interior.timer
     ? { seconds: next.interior.timer.seconds, at: performance.now() } : null;
   controls.hidden = Boolean(next.interior);
@@ -390,6 +394,7 @@ function draw() {
   }
   context.restore();
   drawHint("street");
+  drawAlert();
 }
 
 // Decorative street life from the desktop game. Nothing here blocks the player.
@@ -649,10 +654,41 @@ function drawInterior() {
   context.fillText(room.casino ? `Chip $${room.casino.chip} (← →)   ·   ${hint}` : hint, width / 2, height - 7 * unit);
   drawTimer();
   drawHint("interior");
+  drawAlert();
 }
 
 // ----- Overlays in screen pixels: the production countdown and the next-move hint -----
 let timerBase = null;
+let alertBanner = null;
+let lastAlertId = null;
+const ALERT_SECONDS = 3.5;
+
+function drawAlert() {
+  if (!alertBanner) return;
+  const age = (performance.now() - alertBanner.start) / 1000;
+  if (age > ALERT_SECONDS) {
+    alertBanner = null;
+    return;
+  }
+  const { width } = screenSpace();
+  context.globalAlpha = Math.min(1, (ALERT_SECONDS - age) / 0.5);  // Fade out at the end
+  context.font = "bold 16px system-ui, sans-serif";
+  const boxWidth = Math.min(width - 28, context.measureText(alertBanner.text).width + 40);
+  const x = (width - boxWidth) / 2;
+  context.fillStyle = "#b3261ef2";
+  context.strokeStyle = "#ffb4ab";
+  context.lineWidth = 2;
+  context.beginPath();
+  context.roundRect(x, 14, boxWidth, 40, 10);
+  context.fill();
+  context.stroke();
+  context.fillStyle = "#ffffff";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(alertBanner.text, width / 2, 35, boxWidth - 24);
+  context.textBaseline = "alphabetic";
+  context.globalAlpha = 1;
+}
 
 function screenSpace() {
   const ratio = Math.min(window.devicePixelRatio || 1, 2);
@@ -709,8 +745,9 @@ function drawHint(where) {
   context.font = "600 14px system-ui, sans-serif";
   const lines = wrapLines(state.next_move.text, boxWidth - 62);
   const boxHeight = 22 + lines.length * 19;
-  // On the street: top right. Inside: top left under the building name, clear of the vendor's bubble.
-  const x = where === "street" ? width - boxWidth - 14 : 14;
+  // Always on the left, so it doesn't jump sides when entering or leaving; inside it sits under the
+  // building name, clear of the vendor's speech bubble.
+  const x = 14;
   const y = where === "street" ? 14 : 52;
   card(x, y, boxWidth, boxHeight, "#ffd072");
   // The light bulb.
