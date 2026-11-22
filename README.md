@@ -2,7 +2,7 @@
 
 Foundry Town is a browser business tycoon set in Lisboa and Almada. Buy materials, make products, and sell them to reach $500. Keep growing through research, contracts, investments, business ownership, and automated deliveries.
 
-**Play online:** _Streamlit Community Cloud URL to be added after deployment_
+**Play online:** https://foundrytown.streamlit.app/
 
 ## Team
 
