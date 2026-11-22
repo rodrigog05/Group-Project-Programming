@@ -1,8 +1,6 @@
 """Foundry Town's Streamlit interface."""
 from base64 import b64encode
 from copy import deepcopy
-from functools import lru_cache
-from html import escape
 import os
 from pathlib import Path
 import sqlite3
@@ -165,7 +163,7 @@ def district_exchange():
         button("Sell shares", exchange.sell_shares, asset.symbol, quantity)
 
 
-def play_street():
+def play_street(site_inside=None):
     place_vehicle_on_road(town)
     nearby = town.nearby()
     pier = nearby_pier(town.x, town.y)
@@ -179,6 +177,13 @@ def play_street():
         event = st.session_state.get("street_map")
         if not isinstance(event, dict):
             return
+        if site_inside is not None and event.get("action") in ("leave", "building"):
+            act(street_event, {**event, "action": None})  # The time spent inside still counts
+            if event["action"] == "leave":
+                leave_building()
+            else:
+                run_building_key(site_inside, event.get("key"))
+            return
         name = act(street_event, event)
         if name:
             enter_building(name)
@@ -191,6 +196,7 @@ def play_street():
         vehicle=town.vehicle, stowed_vehicle=town.stowed_vehicle, hint=hint, message=town.message,
         speed=town.movement_speed, collision=COLLISION_MAP, life=STREET_LIFE,
         cash=town.cash, on_bridge=town.bridge_journey is not None, ferry=st.session_state.get("ferry"),
+        interior=interior_view(site_inside) if site_inside is not None else None,
         route=directions(town, destination_point(st.session_state.get("destination", "Goldenfield Farm"))),
         suppliers=[{"x": site.door[0], "y": site.door[1], "trade": site.trade,
                     "cost": town.costs[site.trade]} for site in SITES if site.role == "SUPPLIER"],
@@ -229,17 +235,18 @@ def places():
     destination = st.selectbox("Destination", [*PLACES, MONASTERY, *(location.name for location in contracts.LOCATIONS)],
                               index=list(PLACES).index("Goldenfield Farm"),
                               key="destination")
-    if name is None:
-        play_street()
+    site_inside = PLACES.get(name, MONASTERY) if name else None
+    # The game view stays on screen inside buildings too, so it keeps the keyboard (see street.js).
+    play_street(site_inside)
+    if site_inside is None:
         st.caption(directions(town, destination_point(destination))["instruction"])
-    if name:
-        building(PLACES.get(name, MONASTERY))
+    else:
+        building(site_inside)
 
 
 def enter_building(name):
     st.session_state.inside = name
     st.session_state.reply = None
-    st.session_state.focus_building = True
     if name == MONASTERY:
         st.session_state.reply = st.session_state.town.message
 
@@ -260,84 +267,85 @@ def action(label, operation, *args, key=None, shortcut=None, primary=True, **opt
               type="primary" if primary else "secondary", **options)
 
 
-@lru_cache(maxsize=32)
-def scene_image(name):
-    return b64encode((ROOT / "street" / "scenes" / f"{name}.webp").read_bytes()).decode("ascii")
+def building_actions(site):
+    """(key, label, operation, args) for a building. The same list drives its buttons and the map's keys."""
+    if site == MONASTERY:
+        return []
+    role = site.role
+    if role == "SUPPLIER":
+        supply = TRADES[site.trade].supply
+        actions = [("e", f"Buy 1 {supply}", interact, ()), ("q", f"Buy up to 4 {supply}", interact, (True,))]
+        if site.trade == 3:
+            actions += [("f", "Buy 1 egg", eggs, ()), ("shift+f", "Buy up to 4 eggs", eggs, (True,))]
+        return actions
+    if role == "GARAGE":
+        def label(key, ride):
+            if key in town.owned_vehicles or town.vehicle == key:
+                return f"Drive {ride.label} · Free"
+            return f"Buy {ride.label} · ${ride.price:,} · +{ride.trunk} slots"
+        return [(str(number), label(key, ride), Town.purchase_vehicle, (key,))
+                for number, (key, ride) in enumerate(VEHICLES.items(), start=1)]
+    if role == "WAREHOUSE":
+        return [("e", f"Add 12 slots · ${300 + town.warehouse_level * 250:,}", warehouse, ())]
+    if role == "CASINO":
+        return [("1", "Red · pays 2×", spin, ("red",)), ("2", "Black · pays 2×", spin, ("black",)),
+                ("3", "Green 0 · pays 36×", spin, ("green",)),
+                ("arrowleft", "Smaller chip", chip_step, (-1,)), ("arrowright", "Bigger chip", chip_step, (1,))]
+    if role in ("RESEARCH", "EXCHANGE"):
+        return []
+    labels = {
+        "FACTORY": "Produce or collect",
+        "PUBLIC SHOP": "Stock shop" if businesses.is_owned(town, site) else "Sell carried goods",
+        "TIER2": "Craft, collect or sell machinery",
+        "PASTELARIA": "Bake, collect or sell pastéis",
+        "SHIPYARD": "Start repair or collect payment",
+    }
+    return [("e", labels[role], interact, ())]
 
 
-def scene(name, layout, speech="", board="", overlay=""):
-    """An illustrated scene from the desktop game, with the speech bubble and chalkboard text on top."""
-    width, height = layout["size"]
+def run_building_key(site, key):
+    """A key pressed on the map view while inside: run the matching building action."""
+    for action_key, _, operation, args in building_actions(site):
+        if action_key == key:
+            if operation in (spin, chip_step):
+                operation(*args)
+            else:
+                inside(operation, *args)
+            return
 
-    def box(bounds, text, size, color, extra=""):
-        if not bounds or not text:
-            return ""
-        left, top, right, bottom = bounds
-        return (f'<div style="position:absolute;left:{left/width*100}%;top:{top/height*100}%;'
-                f'width:{(right-left)/width*100}%;height:{(bottom-top)/height*100}%;display:flex;'
-                f'align-items:center;justify-content:center;text-align:center;padding:0 2%;box-sizing:border-box;'
-                f'font:700 {size/width*100}cqw system-ui,sans-serif;color:{color};{extra}">{escape(text)}</div>')
 
-    board_box = layout["board"] and (layout["board"][0] + 6, layout["board"][1] + 22,
-                                     layout["board"][2] - 6, layout["board"][3] - 4)
-    st.html(f"""
-      <div style="position:relative;container-type:inline-size;max-width:1100px;margin:auto;border-radius:10px;
-                  overflow:hidden;box-shadow:0 6px 18px #0005">
-        <img src="data:image/webp;base64,{scene_image(name)}" alt="" style="display:block;width:100%">
-        {box(layout["bubble"], speech, 12, "#1f2a30")}
-        {box(board_box, board, 8.5, "#eef3ea", "font-weight:500")}
-        {overlay}
-      </div>""")
+def interior_view(site):
+    """What the map view draws inside a building: its scene, the vendor's words and the keys."""
+    found = scene_for(town, site)
+    name, layout = found if found else (None, {"size": (640, 400), "bubble": None, "board": None})
+    title = site if site == MONASTERY else site.name
+    keys = [[key, label] for key, label, *_ in building_actions(site) if not key.startswith("arrow")]
+    view = {"title": title, "scene": name, "size": layout["size"], "bubble": layout["bubble"],
+            "board": layout["board"], "speech": st.session_state.get("reply") or greeting(town, site),
+            "board_text": site_status(site) if site != MONASTERY and layout["board"] else "",
+            "keys": keys + [["escape", "Leave"]],
+            "accepts": [key for key, *_ in building_actions(site)] + ["escape"]}
+    if site != MONASTERY and site.role == "CASINO":
+        view["casino"] = {"spin": st.session_state.get("spin"), "chip": st.session_state.get("chip") or 10,
+                          "luck": town.casino_luck}
+    return view
 
 
 def building(site):
-    """Inside a building: its illustrated scene, the vendor's answer and the building's actions."""
+    """Inside a building: its actions as buttons. The scene itself is drawn in the map view above."""
     head, leave = st.columns((4, 1), vertical_alignment="center")
     head.subheader(site if site == MONASTERY else site.name)
     leave.button("Leave", key="leave_building", on_click=leave_building, shortcut="Escape", width="stretch")
-    if st.session_state.pop("focus_building", False):
-        # The map that had the keyboard is gone. Give it to this building so its keys work at once.
-        st.html("""<script>
-            // A held E that opened the door keeps repeating; ignore repeats briefly so it doesn't buy.
-            const swallow = (event) => { if (event.repeat) { event.preventDefault(); event.stopImmediatePropagation(); } };
-            window.addEventListener("keydown", swallow, true);
-            setTimeout(() => window.removeEventListener("keydown", swallow, true), 700);
-            let tries = 0;
-            const claim = () => {
-                const leave = document.querySelector(".st-key-leave_building button");
-                if (leave) leave.focus({ preventScroll: true });
-                else if (tries++ < 40) setTimeout(claim, 50);
-            };
-            claim();
-        </script>""", unsafe_allow_javascript=True)
-    speech = st.session_state.get("reply") or greeting(town, site)
-    found = scene_for(town, site)
-    if site != MONASTERY and site.role == "CASINO":
-        casino(found)
-        return
-    if found:
-        board = site_status(site) if site != MONASTERY else ""
-        scene(*found, speech=speech, board=board)
-    else:
-        st.info(speech)
     if site == MONASTERY:
         st.caption(f"Casino luck +{town.casino_luck} percentage points · Maximum +20")
         return
     role = site.role
-    if role == "SUPPLIER":
-        trade = TRADES[site.trade]
-        cols = st.columns(4 if site.trade == 3 else 2)
-        with cols[0]:
-            action(f"Buy 1 {trade.supply}", interact, shortcut="e", width="stretch")
-        with cols[1]:
-            action(f"Buy up to 4 {trade.supply}", interact, True, shortcut="q", width="stretch")
-        if site.trade == 3:
-            with cols[2]:
-                action("Buy 1 egg", eggs, shortcut="f", width="stretch")
-            with cols[3]:
-                action("Buy up to 4 eggs", eggs, True, shortcut="Shift+F", width="stretch")
-    elif role == "GARAGE":
-        for column, (key, ride) in zip(st.columns(len(VEHICLES)), VEHICLES.items()):
+    if role == "CASINO":
+        st.caption(f"Monastery luck +{town.casino_luck} percentage points")
+    actions = [item for item in building_actions(site) if not item[0].startswith("arrow")]
+    if role == "GARAGE":
+        for column, (key, ride), (number, label, operation, args) in zip(
+                st.columns(len(VEHICLES)), VEHICLES.items(), actions):
             with column:
                 current = town.vehicle == key
                 owned = key in town.owned_vehicles or current
@@ -346,30 +354,26 @@ def building(site):
                 st.markdown(f"**{ride.label}** · {status}")
                 st.caption(f"Trunk +{ride.trunk} · {town.bag_size + ride.trunk} cargo · "
                            f"Road {ride.road_speed} · Off-road {ride.offroad_speed}")
-                number = str(list(VEHICLES).index(key) + 1)
-                label = f"Drive {ride.label} · Free" if owned else f"Buy {ride.label} · ${ride.price:,} · +{ride.trunk} slots"
-                action(label, Town.purchase_vehicle, key,
-                       key=f"vehicle-{key}", shortcut=number, disabled=current, width="stretch")
-    elif role == "WAREHOUSE":
-        st.write(f"Personal storage {town.bag_size} · Total cargo {town.carry_capacity}")
-        action(f"Add 12 slots · ${300 + town.warehouse_level * 250:,}", warehouse, shortcut="e")
-    elif role == "RESEARCH":
+                action(label, operation, *args, key=f"vehicle-{key}", shortcut=number, disabled=current,
+                       width="stretch")
+    elif role == "CASINO":
+        # No new bets until the wheel stops (the keys check the same lock).
+        if spin_remaining():
+            waiting_for_spin()
+        else:
+            bet_controls()
+    elif actions:
+        for column, (key, label, operation, args) in zip(st.columns(len(actions)), actions):
+            with column:
+                shortcut = "Shift+F" if key == "shift+f" else key
+                action(label, operation, *args, shortcut=shortcut, width="stretch")
+    if role == "RESEARCH":
         research()
     elif role == "EXCHANGE":
         district_exchange()
-    else:
-        labels = {
-            "FACTORY": "Produce or collect",
-            "PUBLIC SHOP": "Stock shop" if businesses.is_owned(town, site) else "Sell carried goods",
-            "TIER2": "Craft, collect or sell machinery",
-            "PASTELARIA": "Bake, collect or sell pastéis",
-            "SHIPYARD": "Start repair or collect payment",
-        }
-        action(labels[role], interact, shortcut="e")
 
 
 CHIPS = (5, 10, 25, 50, 100)
-POCKET_COLORS = {"red": "#c8313c", "black": "#1b1d22", "green": "#1f8a4c"}
 SPIN_SECONDS = 4.5
 
 
@@ -406,66 +410,9 @@ def spin(choice):
                                  "number": landed["number"], "ends_at": monotonic() + SPIN_SECONDS}
 
 
-def wheel_svg(spin_state, remaining):
-    """European roulette wheel. A new spin animates once from the last angle to the winning pocket."""
-    from math import cos, radians, sin
-    seg = 360 / len(ROULETTE_POCKETS)
-    parts = []
-    for index, number in enumerate(ROULETTE_POCKETS):
-        a0, a1 = radians(index * seg - seg / 2 - 90), radians(index * seg + seg / 2 - 90)
-        outer, inner = 190, 140
-        path = (f"M{200 + outer * cos(a0):.1f},{200 + outer * sin(a0):.1f} "
-                f"A{outer},{outer} 0 0 1 {200 + outer * cos(a1):.1f},{200 + outer * sin(a1):.1f} "
-                f"L{200 + inner * cos(a1):.1f},{200 + inner * sin(a1):.1f} "
-                f"A{inner},{inner} 0 0 0 {200 + inner * cos(a0):.1f},{200 + inner * sin(a0):.1f} Z")
-        parts.append(f'<path d="{path}" fill="{POCKET_COLORS[roulette_color(number)]}" stroke="#c9a24a" '
-                     'stroke-width="1"/>')
-        mid = radians(index * seg - 90)
-        parts.append(f'<text x="{200 + 166 * cos(mid):.1f}" y="{200 + 166 * sin(mid):.1f}" fill="#fff" '
-                     f'font-size="13" font-weight="700" text-anchor="middle" dominant-baseline="central" '
-                     f'transform="rotate({index * seg:.1f} {200 + 166 * cos(mid):.1f} {200 + 166 * sin(mid):.1f})">'
-                     f'{number}</text>')
-    angle = spin_state["angle"] if spin_state else 0
-    css = ".wheel,.ball{transform-box:view-box;transform-origin:200px 200px}"
-    if remaining:
-        delay = remaining - SPIN_SECONDS
-        css += (f"@keyframes wheel{{from{{transform:rotate({spin_state['from']}deg)}}to{{transform:rotate({angle}deg)}}}}"
-                "@keyframes ball{from{transform:rotate(1440deg)}to{transform:rotate(0deg)}}"
-                f".wheel{{animation:wheel {SPIN_SECONDS}s cubic-bezier(.12,.6,.2,1) {delay}s both}}"
-                f".ball{{animation:ball {SPIN_SECONDS}s cubic-bezier(.2,.5,.25,1) {delay}s both}}")
-    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><style>{css}</style>
-        <circle cx="200" cy="200" r="198" fill="#4a2614"/><circle cx="200" cy="200" r="192" fill="#7a4424"/>
-        <g class="wheel" style="transform:rotate({angle}deg)">{''.join(parts)}
-          <circle cx="200" cy="200" r="140" fill="#6b3d22" stroke="#c9a24a"/>
-          <circle cx="200" cy="200" r="100" fill="#8a5a33"/><circle cx="200" cy="200" r="55" fill="#b07a45"/>
-          <path d="M200 140V260M140 200H260" stroke="#ffc66c" stroke-width="6" stroke-linecap="round"/>
-          <circle cx="200" cy="200" r="16" fill="#ffc66c"/></g>
-        <g class="ball"><circle cx="200" cy="{200 - 152 if spin_state else 200 - 178}" r="7" fill="#f7f7f2"
-           stroke="#9aa3a6"/></g>
-        <path d="M192 4 L208 4 L200 18 Z" fill="#ffc66c"/></svg>"""
-    # Streamlit's HTML sanitiser drops inline SVG, so the wheel is an SVG image (CSS animation still runs).
-    return f'<img alt="Roulette wheel" style="width:100%;display:block" src="data:image/svg+xml;base64,{b64encode(svg.encode()).decode()}">'
-
-
-def casino(found):
-    name, layout = found
-    spin_state = st.session_state.get("spin")
-    remaining = spin_remaining()
-    wheel = wheel_svg(spin_state, remaining)
-    message = st.session_state.get("reply") or greeting(town, PLACES["Foundry Casino"])
-    # The result appears when the ball stops.
-    reveal = f"animation:reveal 0s {remaining}s both;" if remaining else ""
-    result = (f'<style>@keyframes reveal{{from{{opacity:0}}to{{opacity:1}}}}</style>'
-              f'<div style="position:absolute;left:0;right:0;top:82%;{reveal}'
-              f'text-align:center;font:700 2.6cqw system-ui;color:#fff7e6;text-shadow:0 2px 4px #000">'
-              f'{escape(message)}</div>')
-    overlay = f'<div style="position:absolute;left:30%;top:4%;width:40%">{wheel}</div>{result}'
-    scene(name, layout, overlay=overlay)
-    st.caption(f"Monastery luck +{town.casino_luck} percentage points")
-    if remaining:
-        waiting_for_spin()
-    else:
-        bet_controls()
+def chip_step(step):
+    index = CHIPS.index(st.session_state.get("chip") or 10)
+    st.session_state.chip = CHIPS[max(0, min(len(CHIPS) - 1, index + step))]
 
 
 @st.fragment(run_every=0.25)
