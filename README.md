@@ -1,6 +1,6 @@
 # Foundry Town
 
-Foundry Town is a browser business tycoon set in Lisboa and Almada. Buy materials, make products, and sell them to reach $500. Keep growing through research, contracts, investments, business ownership, and automated deliveries.
+Foundry Town is a browser business tycoon set in Lisboa and Almada. Buy materials, make products, and sell them to reach $500. Keep growing with vehicles, a bigger warehouse, research and investments.
 
 **Play online:** https://foundrytown.streamlit.app/
 
@@ -39,13 +39,13 @@ Open the local URL printed by Streamlit. You start with $60 and 12 cargo slots. 
 
 The Lisbon start menu fills the browser with a looping waterfront scene from Core Edition. Boats and bridge traffic move through a 60-second day–night cycle. The browser plays the muted backdrop while the menu is open and displays a still image when reduced motion is enabled. Choose **New Game**, **Continue**, **Basics**, or **Rules & How to Play**. A new game opens **Basics**: five animated slides that show the goal and the player walking to a yellow BUY MATERIALS store, a blue MAKE PRODUCTS store and a green SELL PRODUCTS market, going inside with **E**, and getting around. Use **Back**, **Next** or **Skip**; **Basics** in the start menu replays it. The slides in `street/tutorial/` were drawn from the game's own map and store scenes. Open it again from **Start menu** above the map. Replacing your progress requires confirmation. Use **Fullscreen** from the menu or game and **Exit Fullscreen** or **Esc** to return to the browser window.
 
-**Game** opens the map. **Market & recipes** shows trading information. Open **More** for contracts, deliveries, businesses, and landmarks. The bar above the map shows cash, bag use including reserved slots, and the current market day.
+**Game** opens the map. **Market & recipes** shows trading information. **Landmarks** describes Lisbon's monuments. With local or cloud saves, **Saves** holds the save and reload buttons. The bar above the map shows cash, bag use including reserved slots, and the current market day.
 
 Click or tab into the street map. Walk with **WASD** or the **arrow keys**. Press **E** at a marked entrance to go inside, or at a ferry pier to cross the Tejo (the crossing plays as an animation; click or **Esc** skips it). On the street, **Q** buys up to four units at a supplier and **F** / **R** buy eggs at a farm. The buttons below the map provide touch controls.
 
 Inside, each building shows its illustrated scene from the desktop game: the vendor answers in a speech bubble and the chalkboard shows live prices. Use the buttons or their keys: **E** to buy, make, sell or collect, **Q** to buy four, **F** / **Shift+F** for eggs, **1–4** for vehicles in a garage, and in the casino pick a chip (**←** / **→**) and press **1** (red), **2** (black) or **3** (green 0) to spin the wheel. **Esc** leaves. The building is drawn in the same game view as the street, so the keys work straight away without clicking. **Destination** selects a light-blue dashed street route. Follow it and press **E** at the door to enter; selecting a destination never moves you or opens a store. The Jerónimos monastery adds 5 points of casino luck per visit, up to 20.
 
-The market clock, production, deliveries, research, and contracts run while the map has focus. Click outside the map to pause street play. The market settles every 300 game seconds and the map switches to night after 180 seconds. Trade shortcuts appear only within reach of the right supplier, with enough cash and free cargo space. On foot, the ferry costs $2. With a vehicle, bridges charge a $3 toll toward Lisboa.
+The market clock, production and research run while the map has focus. Click outside the map to pause street play. The market settles every 300 game seconds and the map switches to night after 180 seconds. Trade shortcuts appear only within reach of the right supplier, with enough cash and free cargo space. On foot, the ferry costs $2. With a vehicle, bridges charge a $3 toll toward Lisboa.
 
 The street view includes the original map art and collision rules, with the desktop game's traffic, the waterfront tram, the shuttling ferry and pedestrians who keep to the pavements, as decoration (they never block you). The soundtrack and desktop save services are outside this port. Driving a vehicle back to Lisboa needs the $3 bridge toll in cash before you start across.
 
@@ -63,7 +63,7 @@ Run a private instance bound to loopback:
 FOUNDRY_LOCAL_DB=.local/game.sqlite3 uv run --python 3.12 --with-requirements requirements.txt streamlit run streamlit_app.py --server.address 127.0.0.1
 ```
 
-`FOUNDRY_LOCAL_DB` selects one local autosave slot. Use **More → Reload local progress** to reopen that save. Choose a new path to start a fresh game or back up the database to keep progress. If two tabs edit the same slot, the older revision must reload before writing. A failed SQLite write leaves the current game state available for retry. The browser build starts fresh from its own save slot and does not import desktop saves.
+`FOUNDRY_LOCAL_DB` selects one local autosave slot. Use **Saves → Reload local progress** to reopen that save. Choose a new path to start a fresh game or back up the database to keep progress. If two tabs edit the same slot, the older revision must reload before writing. A failed SQLite write leaves the current game state available for retry. The browser build starts fresh from its own save slot and does not import desktop saves.
 
 ## Publish on Streamlit Community Cloud
 
@@ -87,7 +87,7 @@ Guests can play immediately. Their progress lasts for their current browser sess
 
 4. Open the start menu and choose **Sign in for cloud saves**. After signing in, **Continue** opens your cloud save. When an account has an empty save slot, signing in from a guest game carries that progress into the account. When the account already has a save, signing in opens that save.
 
-Trades and other explicit actions save immediately. Street movement and clock updates save about every 15 seconds while playing. **More → Save progress** saves your position before you close the tab. **Sign out** also saves before ending the session. If another tab has changed the save, use **More → Reload cloud progress** to continue from the latest revision. After closing the app or a server restart, sign in again and choose **Continue**. Play a test session in two separate accounts and verify their saves stay independent before sharing the deployed app.
+Trades and other explicit actions save immediately. Street movement and clock updates save about every 15 seconds while playing. **Saves → Save progress** saves your position before you close the tab. **Sign out** also saves before ending the session. If another tab has changed the save, use **Saves → Reload cloud progress** to continue from the latest revision. After closing the app or a server restart, sign in again and choose **Continue**. Play a test session in two separate accounts and verify their saves stay independent before sharing the deployed app.
 
 ## Tests
 
@@ -118,6 +118,7 @@ The tests need no network, accounts or secrets.
 - Guest games reset on reload or when the server restarts. Players with cloud saves can sign in again to resume.
 - The soundtrack from the desktop version is not in the browser version. The warehouse, exchange and research centre use plain controls, as they had no illustrated scene on desktop.
 - One local save slot per `FOUNDRY_LOCAL_DB` path, meant for one player.
+- Contracts, delivery routes and business ownership were taken out of the menus to keep the game simple. Their rules (`contracts.py`, `logistics.py`, `businesses.py`) remain in the engine, with their tests, because older saves still store their fields.
 
 ## Project structure
 
