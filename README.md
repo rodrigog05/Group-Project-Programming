@@ -37,6 +37,8 @@ uv run --python 3.12 --with-requirements requirements.txt streamlit run streamli
 
 Open the local URL printed by Streamlit. You start with $60 and 12 cargo slots. For a first trade, visit Goldenfield Farm and buy four Wheat, visit Sunrise Bakery and start production, advance time from the sidebar, collect the Bread, and sell it at Daily Bread Market. **Market & recipes** shows inventory, prices, demand, orders, and discovered recipes.
 
+The Lisbon start menu offers **New Game**, **Continue**, and **Rules & How to Play**. Open it again from **Start menu** in the sidebar. Replacing your progress requires confirmation.
+
 Click or tab into the street map. Walk with **WASD** or the **arrow keys**. Use **E** at a marked entrance to trade and at a ferry pier to cross the Tejo. At suppliers, **Q** buys up to four units. At farms, **F** buys one egg and **R** buys up to four. The buttons below the map provide touch controls. For garages, the warehouse, the exchange, research, and the casino, **E** selects the building's controls below the map.
 
 The market clock, production, deliveries, research, and contracts run while the map has focus. Click outside the map to pause street play. Use **Advance time** in the sidebar to move the clock from any screen. The market settles every 300 game seconds and the map switches to night after 180 seconds. Use **Visit** below the map for direct travel. On foot, the ferry costs $2. With a vehicle, bridges charge a $3 toll toward Lisboa.
@@ -72,10 +74,10 @@ From the repository root:
 uv run --python 3.12 --with-requirements requirements.txt --with pytest python -m pytest -q
 ```
 
-Expected result: `222 passed`. The tests need no network, accounts or secrets.
+The tests need no network, accounts or secrets.
 
 - **Game rules** (`tests/test_market.py`, `test_vehicles.py`, `test_contracts.py` and the other engine tests) cover trades, production, prices, vehicles, tolls, contracts, research, businesses and deliveries. They include rejected actions, such as buying without enough cash or space.
-- **Browser app** (`tests/test_browser_game.py`) runs the real Streamlit app: a full trade loop, a rejected purchase, restarting from a save, two players kept apart, the ferry fare and bridge toll, and an out-of-date tab being stopped from overwriting a newer save.
+- **Browser app** (`tests/test_browser_game.py`) tests the start menu and save replacement, a full trade loop, rejected purchases, separate player sessions, ferry fares and bridge tolls, and stale-save protection.
 - **Street map** (`tests/test_street.py`) checks walking, collisions, entrances, cargo limits, the ferry and invalid input.
 - **Not covered by automated tests:** how the street map looks and feels in a real browser, and the deployed site. We check those by hand before the demo.
 

@@ -57,6 +57,10 @@ def act(operation, *args):
         candidate.message = ""
     if operation(candidate, *args) is False and operation is street_input:
         return
+    return save_town(candidate)
+
+
+def save_town(candidate):
     try:
         if store:
             st.session_state.revision = store.save(candidate, st.session_state.revision)
@@ -68,6 +72,7 @@ def act(operation, *args):
         return
     st.session_state.town = candidate
     st.session_state.save_error = ""
+    return True
 
 
 def button(label, operation, *args, key=None, **options):
@@ -346,6 +351,43 @@ def landmarks():
             button("Visit monastery", Town.visit_monastery)
 
 
+@st.dialog("Foundry Town · Lisboa", width="large", dismissible=False)
+def start_menu():
+    st.image(str(ROOT / "street" / "lisbon_waterfront.webp"), width="stretch")
+    town = st.session_state.town
+    can_continue = bool(st.session_state.revision or st.session_state.get("started"))
+    st.caption(f"Continue with ${town.cash:,} in cash." if can_continue else "Start with $60 and a 12-slot bag.")
+    new, resume = st.columns(2)
+    if new.button("New Game", width="stretch", type="primary"):
+        if can_continue:
+            st.session_state.confirm_restart = True
+        else:
+            enter_game()
+    if resume.button("Continue", width="stretch", disabled=not can_continue):
+        enter_game()
+    if st.session_state.get("confirm_restart"):
+        st.warning("Start over and replace your current progress?")
+        confirm, cancel = st.columns(2)
+        if confirm.button("Replace progress"):
+            if save_town(Town()):
+                enter_game()
+            st.error(st.session_state.save_error)
+        if cancel.button("Keep my progress"):
+            st.session_state.confirm_restart = False
+            st.rerun()
+    with st.expander("Rules & How to Play"):
+        st.write("Click the map to focus it. Move with WASD or the arrow keys and press E to interact.")
+        st.write("Buy wheat at Goldenfield Farm, make bread at Sunrise Bakery, then sell it at Daily Bread Market.")
+        st.write("Reach $500, then keep growing through research, contracts, and business ownership.")
+
+
+def enter_game():
+    st.session_state.started = True
+    st.session_state.show_menu = False
+    st.session_state.confirm_restart = False
+    st.rerun()
+
+
 town = st.session_state.town
 st.title("Foundry Town")
 cash, cargo, day = st.columns(3)
@@ -354,6 +396,8 @@ cargo.metric("Cargo + reserved", f"{town.cargo + town.reserved} / {town.carry_ca
 day.metric("Market day", town.day)
 
 with st.sidebar:
+    if st.button("Start menu"):
+        st.session_state.show_menu = True
     page = st.radio("Town", ("Places", "Market & recipes", "Contracts", "Deliveries", "Businesses", "Landmarks"))
     seconds = int(town.market_elapsed % DAY_SECONDS)
     st.caption(f"{DAY_SECONDS - seconds}s until market reset")
@@ -382,3 +426,6 @@ if town.won and not town.milestone_acknowledged:
     "Places": places, "Market & recipes": market, "Contracts": contract_board,
     "Deliveries": deliveries, "Businesses": manage_businesses, "Landmarks": landmarks,
 }[page]()
+
+if st.session_state.get("show_menu", True):
+    start_menu()

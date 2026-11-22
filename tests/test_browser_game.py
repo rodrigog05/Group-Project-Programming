@@ -16,6 +16,26 @@ def choose_place(app, name):
     click(app, f"Visit {name}")
 
 
+def test_start_menu_can_resume_and_requires_confirmation_to_replace_save(tmp_path, monkeypatch):
+    path = tmp_path / "game.sqlite3"
+    monkeypatch.setenv("FOUNDRY_LOCAL_DB", str(path))
+    store = LocalSave(path)
+    town, revision = store.load()
+    town.cash = 95
+    store.save(town, revision)
+    app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
+    click(app, "Continue")
+    assert app.metric[0].value == "$95"
+    click(app, "Start menu")
+    click(app, "New Game")
+    click(app, "Keep my progress")
+    assert store.load()[0].cash == 95
+    click(app, "New Game")
+    click(app, "Replace progress")
+    assert app.metric[0].value == "$60"
+    assert store.load()[0].cash == 60
+
+
 def test_browser_trade_loop_rejection_restart_and_session_isolation(tmp_path, monkeypatch):
     monkeypatch.setenv("FOUNDRY_LOCAL_DB", str(tmp_path / "game.sqlite3"))
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
