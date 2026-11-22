@@ -181,6 +181,7 @@ def play_street():
         key="street_map", on_change=play, x=town.x, y=town.y, ack=ack,
         night=town.market_elapsed % DAY_SECONDS >= 180, facing=town.facing,
         vehicle=town.vehicle, hint=hint, message=town.message,
+        speed=town.movement_speed,
         locations=[
             {"name": site.name, "x": site.door[0], "y": site.door[1], "color": site.color}
             for site in SITES
@@ -336,7 +337,7 @@ def manage_businesses():
 
 
 def landmarks():
-    st.image(str(ROOT / "street" / "world_100_day.png"), caption="Foundry Town · Lisboa and Almada")
+    st.image(str(ROOT / "street" / "world_100_day.webp"), caption="Foundry Town · Lisboa and Almada")
     monument = st.selectbox("Landmark", LANDMARKS, format_func=lambda item: item.name)
     st.write(monument_description(monument, SITES))
     if monument.kind == "monastery":

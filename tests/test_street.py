@@ -47,3 +47,40 @@ def test_street_ferry_and_invalid_input():
     assert (town.x, town.y, town.cash) == (*origin.position, 60)
     assert street_input(town, input_event(action="interact"))
     assert (town.x, town.y, town.cash) == (*destination.position, 58)
+
+
+def test_batched_turns_match_sequential_validation_and_save(tmp_path):
+    batch, sequential = Town(), Town()
+    segments = [input_event(dx=1, seconds=.2), input_event(dy=1, seconds=.15),
+                input_event(dx=-1, seconds=.1)]
+    for segment in segments:
+        assert street_input(sequential, segment)
+    assert street_input(batch, {"segments": segments, "action": None})
+    assert (batch.x, batch.y, batch.elapsed) == (sequential.x, sequential.y, sequential.elapsed)
+    store = LocalSave(tmp_path / "batch.sqlite3")
+    store.load()
+    store.save(batch, 0)
+    restored, _ = store.load()
+    assert (restored.x, restored.y) == (batch.x, batch.y)
+
+
+@pytest.mark.parametrize("segments", [
+    [], [input_event(seconds=.2), input_event(dx=9, seconds=.1)],
+    [input_event(seconds=.25)] * 9, [input_event(seconds=float("nan"))],
+    [input_event(seconds=.01)] * 121,
+])
+def test_invalid_batch_cannot_move_trade_or_advance_time(segments):
+    town = Town()
+    before = vars(town).copy()
+    assert not street_input(town, {"segments": segments, "action": "bulk"})
+    assert vars(town) == before
+
+
+def test_batch_collision_precedes_trade():
+    town = Town()
+    farm = next(site for site in SITES if site.name == "Goldenfield Farm")
+    town.x, town.y = entrance(farm)
+    assert street_input(town, {"segments": [input_event(dy=-1, seconds=.25)] * 2,
+                               "action": "bulk"})
+    assert town.can_walk(town.x, town.y)
+    assert town.supplies[3] == 4 and town.cash == 44

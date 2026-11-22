@@ -43,6 +43,8 @@ The market clock, production, deliveries, research, and contracts run while the 
 
 The street view includes the original map art and collision rules. Animated traffic, building interiors, soundtrack, and desktop save services are outside this port.
 
+Street movement and camera tracking render immediately in the browser. Movement is batched approximately every 200 ms, with one request in flight, and Python validates collisions before trading or saving. The browser reconciles each reply and replays unsent movement. Prediction buffers at most two seconds during a slow response. The compressed night map loads only when night is first shown.
+
 ## Keep local progress
 
 Run a private instance bound to loopback:
@@ -91,6 +93,8 @@ Expected result: `222 passed`. The tests need no network, accounts or secrets.
 - One local save slot per `FOUNDRY_LOCAL_DB` path, meant for one player.
 
 ## Project structure
+
+With Node.js installed, run `node --test tests/street_prediction.cjs` for browser prediction, delayed-response reconciliation, action ordering and deferred night-map checks.
 
 - `streamlit_app.py` contains game screens and event handlers.
 - `browser_game.py` adapts navigation, time, and persistence for the browser.
