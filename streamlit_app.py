@@ -409,7 +409,7 @@ def start_menu_card():
         if can_continue:
             st.session_state.confirm_restart = True
         else:
-            enter_game()
+            enter_game(new_game=True)
     if resume.button("Continue", width="stretch", disabled=not can_continue):
         enter_game()
     if st.session_state.get("confirm_restart"):
@@ -417,7 +417,7 @@ def start_menu_card():
         confirm, cancel = st.columns(2)
         if confirm.button("Replace progress"):
             if save_town(Town()):
-                enter_game()
+                enter_game(new_game=True)
             st.error(st.session_state.save_error)
         if cancel.button("Keep my progress"):
             st.session_state.confirm_restart = False
@@ -428,7 +428,9 @@ def start_menu_card():
         st.write("Reach $500, then keep growing through research, contracts, and business ownership.")
 
 
-def enter_game():
+def enter_game(*, new_game=False):
+    if new_game:
+        st.session_state.town_page = "Game"
     st.session_state.started = True
     st.session_state.show_menu = False
     st.session_state.confirm_restart = False
@@ -524,26 +526,78 @@ st.html(f"""
     position: static;
     transform: none;
   }}
+  .st-key-foundry_hud {{
+    background: #101f28;
+    border: 1px solid #31515d;
+    border-radius: 8px;
+    padding: 0.55rem 0.85rem;
+    color: #fff3dc;
+  }}
+  .st-key-foundry_hud h1 {{
+    color: #ffda86;
+    font-size: clamp(1.15rem, 2vw, 1.6rem);
+    padding: 0;
+  }}
+  .st-key-foundry_hud [data-testid="stMetricLabel"] p {{ color: #b7cacb; }}
+  .st-key-foundry_hud [data-testid="stMetricValue"] {{
+    color: #ffda86;
+    font-size: 1.15rem;
+    font-weight: 700;
+  }}
+  .st-key-foundry_hud [data-testid="stBaseButton-secondary"] {{
+    color: #fff3dc;
+    background: #16303a;
+    border-color: #577480;
+  }}
+  .st-key-foundry_nav [data-testid="stBaseButton-primary"] {{
+    background: #ffc66c;
+    border-color: #b38239;
+    color: #101f28;
+  }}
+  @media (max-width: 760px) {{
+    .st-key-foundry_hud [data-testid="stHorizontalBlock"],
+    .st-key-foundry_nav [data-testid="stHorizontalBlock"] {{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      align-items: center;
+      gap: 0.55rem;
+    }}
+    .st-key-foundry_hud [data-testid="stColumn"],
+    .st-key-foundry_nav [data-testid="stColumn"] {{ width: auto !important; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:first-child {{ grid-column: 1 / -1; }}
+    .st-key-foundry_nav [data-testid="stHorizontalBlock"] {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+  }}
   body:has(.st-key-foundry_start) #foundry-fullscreen-game {{ display: none; }}
 </style>
 """)
-title, cash, cargo, day, menu, display = st.columns((2, 1, 1, 1, 1, 1), vertical_alignment="center")
-title.title("Foundry Town")
-cash.metric("Cash", f"${town.cash:,}")
-cargo.metric("Cargo + reserved", f"{town.cargo + town.reserved} / {town.carry_capacity}")
-day.metric("Market day", town.day)
-menu.button("Start menu", on_click=st.session_state.update, kwargs={"show_menu": True})
-with display:
-    fullscreen_control("game")
+with st.container(key="foundry_hud"):
+    title, cash, cargo, day, menu, display = st.columns(
+        (2, 1, 1, 1, 1, 1), vertical_alignment="center"
+    )
+    title.title("Foundry Town")
+    cash.metric("Cash", f"${town.cash:,}")
+    cargo.metric("Bag + reserved", f"{town.cargo + town.reserved} / {town.carry_capacity}")
+    day.metric("Day", town.day)
+    menu.button("Start menu", on_click=st.session_state.update, kwargs={"show_menu": True})
+    with display:
+        fullscreen_control("game")
 
-navigation, settings = st.columns((5, 1), vertical_alignment="center")
-page = navigation.radio(
-    "Town",
-    ("Places", "Market & recipes", "Contracts", "Deliveries", "Businesses", "Landmarks"),
-    horizontal=True,
-    label_visibility="collapsed",
-)
-with settings.popover("Time & progress"):
+page = st.session_state.get("town_page", "Game")
+with st.container(key="foundry_nav"):
+    game, recipes, advanced, settings = st.columns(4, vertical_alignment="center")
+    for column, label in ((game, "Game"), (recipes, "Market & recipes")):
+        column.button(
+            label, type="primary" if page == label else "secondary", width="stretch",
+            on_click=st.session_state.update, kwargs={"town_page": label},
+        )
+    with advanced.popover("More", width="stretch"):
+        for label in ("Contracts", "Deliveries", "Businesses", "Landmarks"):
+            st.button(
+                label, type="primary" if page == label else "secondary", width="stretch",
+                on_click=st.session_state.update, kwargs={"town_page": label},
+            )
+
+with settings.popover("Time & progress", width="stretch"):
     seconds = int(town.market_elapsed % DAY_SECONDS)
     st.caption(f"{DAY_SECONDS - seconds}s until market reset")
     step = st.select_slider("Time to advance", (5, 15, 30, 60), value=15, format_func=lambda value: f"{value}s")
@@ -566,7 +620,7 @@ if town.won and not town.milestone_acknowledged:
     button("Continue building", Town.continue_after_milestone)
 
 {
-    "Places": places, "Market & recipes": market, "Contracts": contract_board,
+    "Game": places, "Market & recipes": market, "Contracts": contract_board,
     "Deliveries": deliveries, "Businesses": manage_businesses, "Landmarks": landmarks,
 }[page]()
 

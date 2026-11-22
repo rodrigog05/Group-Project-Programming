@@ -39,6 +39,8 @@ Open the local URL printed by Streamlit. You start with $60 and 12 cargo slots. 
 
 The Lisbon start menu fills the browser with a looping waterfront scene from Core Edition. Boats and bridge traffic move through a 60-second day–night cycle. The browser plays the muted backdrop while the menu is open and displays a still image when reduced motion is enabled. Choose **New Game**, **Continue**, or **Rules & How to Play**. Open it again from **Start menu** above the map. Replacing your progress requires confirmation. Use **Fullscreen** from the menu or game and **Exit Fullscreen** or **Esc** to return to the browser window.
 
+**Game** opens the map. **Market & recipes** shows trading information. Open **More** for contracts, deliveries, businesses, and landmarks. The bar above the map shows cash, bag use including reserved slots, and the current market day.
+
 Click or tab into the street map. Walk with **WASD** or the **arrow keys**. Use **E** at a marked entrance to trade and at a ferry pier to cross the Tejo. At suppliers, **Q** buys up to four units. At farms, **F** buys one egg and **R** buys up to four. The buttons below the map provide touch controls. For garages, the warehouse, the exchange, research, and the casino, **E** selects the building's controls below the map.
 
 The market clock, production, deliveries, research, and contracts run while the map has focus. Click outside the map to pause street play. Open **Time & progress** above the map and use **Advance time** to move the clock from any screen. The market settles every 300 game seconds and the map switches to night after 180 seconds. Use **Visit** below the map for direct travel. On foot, the ferry costs $2. With a vehicle, bridges charge a $3 toll toward Lisboa.

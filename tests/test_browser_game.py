@@ -81,8 +81,10 @@ def test_pages_and_service_controls(monkeypatch):
     for place in ("Nova SBE · Carcavelos", "Bolsa de Lisboa", "Foundry Warehouse", "Foundry Casino"):
         choose_place(app, place)
     for page in ("Market & recipes", "Contracts", "Deliveries", "Businesses", "Landmarks"):
-        app.radio[0].set_value(page).run()
-        assert not app.exception
+        click(app, page)
+        assert app.session_state.town_page == page
+    click(app, "Game")
+    assert app.session_state.town_page == "Game"
 
 
 def test_crossing_rejects_unaffordable_ferry_and_charges_return_toll():
