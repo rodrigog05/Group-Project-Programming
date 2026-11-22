@@ -243,34 +243,61 @@ def test_market_shows_four_route_cards_and_the_goal_bar(monkeypatch):
 
 # ----- Next-move hint and the production countdown -----
 
-def test_hints_say_where_to_go_then_which_key_to_press_on_a_new_route():
+def test_hints_say_where_to_go_then_go_in_then_which_key_to_press():
     from browser_game import next_move
     named = lambda name: next(site for site in SITES if site.name == name)
     town = Town()
     assert next_move(town)["text"] == "Go to Goldenfield Farm and buy Wheat ($4 each)."
     town.x, town.y = entrance(named("Goldenfield Farm"))
-    assert next_move(town)["text"].startswith("Press Q to buy up to 4 Wheat")  # At the farm: the key
+    # At the door, still outside: go in (Q on the street would buy without entering).
+    assert next_move(town)["text"] == "Press E to go into Goldenfield Farm."
+    assert next_move(town, "Goldenfield Farm")["text"].startswith("Press Q to buy up to 4 Wheat")
     town.interact(bulk=True)
-    assert next_move(town) == {"text": "Now go to Sunrise Bakery to turn your Wheat into Bread.",
-                               "target": "Sunrise Bakery"}
+    assert next_move(town, "Goldenfield Farm") == {"text": "Now go to Sunrise Bakery to turn your Wheat into Bread.",
+                                                   "target": "Sunrise Bakery"}
     town.x, town.y = entrance(named("Sunrise Bakery"))
-    assert next_move(town)["text"] == "Press E to drop off your Wheat and make Bread."
+    assert next_move(town)["text"] == "Press E to go into Sunrise Bakery."
+    assert next_move(town, "Sunrise Bakery")["text"] == "Press E to drop off your Wheat and make Bread."
     town.interact()
-    assert "ready in 4s" in next_move(town)["text"]
+    assert "ready in 4s" in next_move(town, "Sunrise Bakery")["text"]
     town.elapsed += 5
-    assert next_move(town)["text"] == "Press E to collect your Bread."
+    assert next_move(town, "Sunrise Bakery")["text"] == "Press E to collect your Bread."
     town.interact()
-    assert next_move(town)["text"] == "Sell your 4 Bread at Daily Bread Market."
+    assert next_move(town, "Sunrise Bakery")["text"] == "Sell your 4 Bread at Daily Bread Market."
     town.x, town.y = entrance(named("Daily Bread Market"))
-    assert next_move(town)["text"] == "Press E to sell your Bread."
+    assert next_move(town, "Daily Bread Market")["text"] == "Press E to sell your Bread."
     town.interact()
-    # Bread is learned: suggest exploring, and stay quiet while making bread again.
-    assert next_move(town) == {
+    # Bread is learned: a general invitation to explore, and quiet while making bread again.
+    assert next_move(town, "Daily Bread Market") == {
         "text": "Nice work! Now explore the other buildings: each coloured sign is a new way to earn.",
         "target": None}
     town.x, town.y = entrance(named("Goldenfield Farm"))
     town.interact(bulk=True)
-    assert next_move(town) is None
+    assert next_move(town, "Goldenfield Farm") is None
+
+
+def test_hints_guide_a_new_route_from_whichever_of_its_stores_you_enter():
+    from browser_game import next_move
+    named = lambda name: next(site for site in SITES if site.name == name)
+    town = Town()
+    town.total_sold[3] = 4  # Bread already learned
+    town.x, town.y = entrance(named("Redbank Clay Pit"))
+    assert next_move(town)["text"] == "Press E to go into Redbank Clay Pit."
+    assert next_move(town, "Redbank Clay Pit")["text"] == "Press Q to buy up to 4 Clay ($6 each)."
+    town.interact(bulk=True)
+    assert next_move(town, "Redbank Clay Pit")["text"] == "Now go to Ember Kiln to turn your Clay into Pottery."
+    other = Town()
+    other.total_sold[3] = 4
+    other.x, other.y = entrance(named("Ember Kiln"))
+    assert next_move(other, "Ember Kiln") == {
+        "text": "Ember Kiln makes Pottery from Clay. Start by buying Clay at Redbank Clay Pit.",
+        "target": "Redbank Clay Pit"}
+    for supplier, supply in (("Pine Mill", "Timber"), ("Iron Hill Mine", "Iron ore")):
+        other.x, other.y = entrance(named(supplier))
+        assert next_move(other, supplier)["text"].startswith(f"Press Q to buy up to 4 {supply}")
+    other.supplies[3] = 4  # Busy with bread, but a new route's store still explains itself
+    other.x, other.y = entrance(named("Pine Mill"))
+    assert next_move(other, "Pine Mill")["text"].startswith("Press Q to buy up to 4 Timber")
 
 
 def test_building_hints_and_no_hints_once_every_route_is_learned():
