@@ -114,8 +114,16 @@ function predict({ dx, dy, seconds }) {
     const nextX = Math.max(17, Math.min(width - 17, player.x + dx * distance));
     const nextY = Math.max(mapTop + 15, Math.min(bottom - 15, player.y + dy * distance));
     if (canWalk(nextX, player.y)) player.x = nextX;
-    if (canWalk(player.x, nextY)) player.y = nextY;
+    if (!tollBlocks(nextY) && canWalk(player.x, nextY)) player.y = nextY;
   }
+}
+
+// Mirrors Town.toll_blocks: no driving onto a bridge from Almada without the toll in cash.
+function tollBlocks(nextY) {
+  const { radius: r, river, toll } = state.collision;
+  const south = river[1] + r;
+  return Boolean(state.vehicle) && !state.on_bridge && state.cash < toll &&
+    player.y >= south && nextY < south && onBridge(player.x, nextY, r);
 }
 
 function update(now) {
@@ -171,6 +179,8 @@ function draw() {
   context.setTransform(ratio * scale, 0, 0, ratio * scale, -left * ratio * scale, -top * ratio * scale);
   context.drawImage(state.night && night.naturalWidth ? night : day, 0, 0);
 
+  drawStreetLife(performance.now() / 1000, left, top, viewWidth, viewHeight);
+
   for (const site of state.locations) {
     const near = Math.hypot(site.x - player.x, site.y - player.y) < 170;
     context.beginPath();
@@ -217,6 +227,113 @@ function draw() {
     context.fillRect(4, -27, 6, 3);
   }
   context.restore();
+}
+
+// Decorative street life from the desktop game. Nothing here blocks the player.
+function seen(x, y, left, top, width, height) {
+  return x > left - 60 && x < left + width + 60 && y > top - 60 && y < top + height + 60;
+}
+
+function drawTram(t, left, top, width, height) {
+  const [from, to, period] = state.life.tram;
+  const phase = t % period;
+  const half = period / 2;
+  // Run, then wait at each end, like the desktop tram.
+  const fraction = phase < half ? Math.min(1, phase / (half - 3)) : Math.max(0, 1 - (phase - half) / (half - 3));
+  const x = from + (to - from) * fraction;
+  if (!seen(x, 680, left, top, width, height)) return;
+  context.fillStyle = "#b4ac92";
+  context.beginPath();
+  context.ellipse(x + 2, 697, 36, 5, 0, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = "#d8a32f";
+  context.strokeStyle = "#a47931";
+  context.lineWidth = 1;
+  context.beginPath();
+  context.roundRect(x - 34, 655, 68, 41, 7);
+  context.fill();
+  context.stroke();
+  context.fillStyle = "#f7e8c3";
+  context.fillRect(x - 30, 660, 60, 5);
+  context.fillStyle = state.night ? "#f2d69a" : "#55777c";
+  context.strokeStyle = "#f4e7bd";
+  for (const offset of [-25, -10, 5, 20]) {
+    context.fillRect(x + offset, 668, 10, 13);
+    context.strokeRect(x + offset, 668, 10, 13);
+  }
+  context.strokeStyle = "#f4e4b4";
+  context.lineWidth = 2;
+  context.beginPath();
+  context.moveTo(x - 30, 684);
+  context.lineTo(x + 30, 684);
+  context.stroke();
+  context.beginPath();
+  context.moveTo(x - 8, 655);
+  context.lineTo(x + 2, 645);
+  context.lineTo(x + 12, 655);
+  context.strokeStyle = "#4a5d5e";
+  context.stroke();
+  context.fillStyle = "#3c4c4f";
+  for (const wheel of [-20, 20]) {
+    context.beginPath();
+    context.arc(x + wheel, 694, 4.5, 0, Math.PI * 2);
+    context.fill();
+  }
+  context.font = "bold 7px system-ui";
+  context.textAlign = "center";
+  context.fillStyle = "#fff5dc";
+  context.fillText("TEJO", x, 690);
+}
+
+function drawStreetLife(t, left, top, width, height) {
+  if (!state.life) return;
+  drawTram(t, left, top, width, height);
+  const [tunnelLeft, tunnelRight, tunnelY, tunnelHalf] = state.life.tunnel;
+  for (const [start, y, end, speed, phase, direction, color] of state.life.cars) {
+    const length = end - start;
+    const progress = (t * speed / length + phase) % 1;
+    const x = direction > 0 ? start + length * progress : end - length * progress;
+    const underground = x > tunnelLeft && x < tunnelRight && Math.abs(y - tunnelY) <= tunnelHalf;
+    if (underground || !seen(x, y, left, top, width, height)) continue;
+    context.save();
+    context.translate(x, y);
+    context.scale(direction, 1);
+    context.fillStyle = color;
+    context.strokeStyle = "#435c5c";
+    context.lineWidth = 1;
+    context.beginPath();
+    context.roundRect(-15, -8, 30, 16, 5);
+    context.fill();
+    context.stroke();
+    context.fillStyle = state.night ? "#f2d69a" : "#aac5c8";
+    context.fillRect(-7, -5, 14, 9);
+    if (state.night) {
+      context.fillStyle = "#fff1b8";
+      context.fillRect(13, -6, 3, 3);
+      context.fillRect(13, 3, 3, 3);
+    }
+    context.restore();
+  }
+  for (const [x1, y1, x2, y2, speed, offset, color] of state.life.people) {
+    const length = Math.max(1, Math.hypot(x2 - x1, y2 - y1));
+    let progress = (t * speed / length + offset) % 2;
+    progress = progress <= 1 ? progress : 2 - progress;
+    const x = x1 + (x2 - x1) * progress;
+    const y = y1 + (y2 - y1) * progress + Math.sin(t * 8 + offset) * 0.8;
+    if (!seen(x, y, left, top, width, height)) continue;
+    context.fillStyle = "#8c947d88";
+    context.beginPath();
+    context.ellipse(0.5 + x, 5.5 + y, 5.5, 2.5, 0, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = color;
+    context.beginPath();
+    context.ellipse(x, y - 1, 4, 6, 0, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = "#dfbb93";
+    context.beginPath();
+    context.arc(x, y - 9.5, 3.2, 0, Math.PI * 2);
+    context.fill();
+  }
 }
 
 function frame(now) {

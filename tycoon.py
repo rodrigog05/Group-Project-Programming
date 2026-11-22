@@ -636,7 +636,10 @@ class Town:
         next_y = min(WORLD_BOTTOM - 15, max(MAP_TOP + 15, self.y + dy * distance))
         if self.can_walk(next_x, self.y):
             self.x = next_x
-        if self.can_walk(self.x, next_y):
+        if self.toll_blocks(next_y):
+            self.message = (f"The portagem toward Lisboa costs ${BRIDGE_TOLL}. "
+                            "You need more cash to cross the bridge.")
+        elif self.can_walk(self.x, next_y):
             self.y = next_y
         elif (self.vehicle is None and RIVER_TOP-PLAYER_RADIUS < next_y < RIVER_BOTTOM+PLAYER_RADIUS
               and bridge_at(self.x, next_y, PLAYER_RADIUS)):
@@ -646,6 +649,12 @@ class Town:
                             f"or Cacilhas (${FERRY_FARE}), or buy a vehicle at a garage.")
         self.check_bridge_crossing(old_y)
         self.collect_power_up()
+
+    def toll_blocks(self, next_y):
+        """Driving onto a bridge from Almada needs the toll in cash before you start."""
+        south = RIVER_BOTTOM+PLAYER_RADIUS
+        return (self.vehicle is not None and self.bridge_journey is None and self.cash < BRIDGE_TOLL
+                and self.y >= south > next_y and bridge_at(self.x, next_y, PLAYER_RADIUS) is not None)
 
     def check_bridge_crossing(self, old_y):
         north, south = RIVER_TOP-PLAYER_RADIUS, RIVER_BOTTOM+PLAYER_RADIUS

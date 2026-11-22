@@ -86,3 +86,14 @@ def test_local_save_rejects_stale_write_and_restores_market_clock(tmp_path):
     assert revision == 1
     assert reloaded.elapsed == reloaded.market_elapsed == 301
     assert reloaded.day == 2
+
+
+def test_visit_by_vehicle_rejects_unaffordable_toll():
+    town = Town()
+    mine = next(site for site in SITES if site.name == "Iron Hill Mine")
+    town.vehicle = "car"
+    town.x, town.y = entrance(mine)
+    town.cash = 2
+    visit(town, (480, 321), "Lisboa")
+    assert (town.x, town.y, town.cash) == (*entrance(mine), 2)
+    assert "portagem" in town.message.lower()
