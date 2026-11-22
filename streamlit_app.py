@@ -93,7 +93,7 @@ def act(operation, *args):
         # The purchase was refused: show a red warning at the top of the game view.
         previous = st.session_state.get("alert", {}).get("id", 0)
         st.session_state.alert = {"id": previous + 1,
-                                  "text": "Your bag is full: you can't buy more. Make or sell your products first."}
+                                  "text": "Your bag is full"}  # The hint says what to make or sell
     moving_between_banks = (before.y >= RIVER_BOTTOM) != (candidate.y >= RIVER_BOTTOM)
     map_tick = operation is street_event and not args[0].get("action") and not moving_between_banks
     saved = save_town(candidate, checkpoint=map_tick)

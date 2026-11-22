@@ -740,8 +740,9 @@ function drawHint(where) {
   context.font = "600 14px system-ui, sans-serif";
   const lines = wrapLines(state.next_move.text, boxWidth - 62);
   const boxHeight = 22 + lines.length * 19;
-  // On the street: top right. Inside: top left under the building name, clear of the vendor's bubble.
-  const x = where === "street" ? width - boxWidth - 14 : 14;
+  // Always on the left, so it doesn't jump sides when entering or leaving; inside it sits under the
+  // building name, clear of the vendor's speech bubble.
+  const x = 14;
   const y = where === "street" ? 14 : 52;
   card(x, y, boxWidth, boxHeight, "#ffd072");
   // The light bulb.

@@ -373,8 +373,7 @@ def test_buying_with_a_full_bag_raises_the_red_warning_only_then(monkeypatch):
         click(app, "Buy up to 4 Wheat")
     assert app.metric[1].value == "12 / 12" and "alert" not in app.session_state  # Room until now
     click(app, "Buy up to 4 Wheat")
-    assert app.session_state.alert == {
-        "id": 1, "text": "Your bag is full: you can't buy more. Make or sell your products first."}
+    assert app.session_state.alert == {"id": 1, "text": "Your bag is full"}
     assert app.metric[1].value == "12 / 12"
     assert app.session_state.reply is None  # The farmer keeps his greeting; the banner explains
 
