@@ -4,8 +4,7 @@ const hint = document.querySelector("#hint");
 const feedback = document.querySelector("#feedback");
 const day = new Image();
 const night = new Image();
-day.src = "world_100_day.png";
-night.src = "world_100_night.png";
+day.src = "world_100_day.webp";
 
 const directions = {
   arrowleft: "left", a: "left", arrowright: "right", d: "right",
@@ -19,7 +18,11 @@ let player;
 let pending = false;
 let queuedAction = null;
 let eventId = 0;
-let lastUpdate = 0;
+let lastFrame = 0;
+let lastSend = 0;
+let segments = [];
+let bufferedSeconds = 0;
+let facing = 1;
 
 function send(type, data = {}) {
   window.parent.postMessage({ isStreamlitMessage: true, type, ...data }, parentOrigin);
@@ -33,39 +36,63 @@ window.addEventListener("message", (event) => {
   if (event.source !== window.parent || event.origin !== parentOrigin ||
       event.data?.type !== "streamlit:render") return;
   const next = event.data.args;
-  if (!player || Math.hypot(next.x - player.x, next.y - player.y) > 155) {
-    player = { x: next.x, y: next.y };
-  }
+  // Ignore rerenders while an older request is still in flight.
+  if (pending && next.ack !== eventId) return;
+  if (next.night && !night.getAttribute("src")) night.src = "world_100_night.webp";
+  player = { x: next.x, y: next.y };
+  facing = next.facing;
   state = next;
   if (next.ack === eventId) pending = false;
   if (!pending && Number.isInteger(next.ack)) eventId = Math.max(eventId, next.ack);
+  // Replay only movement accumulated after the acknowledged batch.
+  // Teleports (ferry/Visit) use the new authoritative origin.
+  for (const segment of segments) predict(segment);
   if (hint.textContent !== state.hint) hint.textContent = state.hint;
   if (feedback.textContent !== state.message) feedback.textContent = state.message;
   frameHeight();
 });
 
+function predict({ dx, dy, seconds }) {
+  const length = Math.hypot(dx, dy);
+  if (!length) return;
+  const distance = state.speed * seconds / length;
+  player.x = Math.max(10, Math.min(2390, player.x + dx * distance));
+  player.y = Math.max(114, Math.min(1770, player.y + dy * distance));
+  if (dx) facing = dx < 0 ? -1 : 1;
+}
+
 function update(now) {
-  if (!state || pending || document.hidden || !document.hasFocus()) return;
-  const focused = document.activeElement === canvas;
-  const values = new Set(held.values());
-  const dx = Number(values.has("right")) - Number(values.has("left"));
-  const dy = Number(values.has("down")) - Number(values.has("up"));
-  const moving = dx || dy;
-  if (!focused && !moving && !queuedAction) {
-    lastUpdate = 0;
-    return;
+  const seconds = lastFrame ? Math.min(0.05, (now - lastFrame) / 1000) : 0;
+  lastFrame = now;
+  if (!state) return;
+  const active = !document.hidden && document.hasFocus() && document.activeElement === canvas;
+  if (active && !queuedAction && seconds && bufferedSeconds < 2 && segments.length < 120) {
+    const values = new Set(held.values());
+    const dx = Number(values.has("right")) - Number(values.has("left"));
+    const dy = Number(values.has("down")) - Number(values.has("up"));
+    const duration = Math.min(seconds, 2 - bufferedSeconds);
+    const segment = { dx, dy, seconds: duration };
+    const previous = segments.at(-1);
+    if (previous && previous.dx === dx && previous.dy === dy && previous.seconds + duration <= 0.25) {
+      previous.seconds += duration;
+    } else {
+      segments.push({ ...segment });
+    }
+    bufferedSeconds += duration;
+    predict(segment);
   }
-  const elapsed = lastUpdate ? now - lastUpdate : moving ? 35 : 0;
-  if (!lastUpdate && !moving && !queuedAction) {
-    lastUpdate = now;
-    return;
-  }
-  if (!queuedAction && elapsed < (moving ? 100 : 240) && lastUpdate) return;
-  lastUpdate = now;
+  // One request at a time. Continue predicting while Python handles the batch.
+  // Freeze at an action boundary so trades happen at the validated location.
+  if (pending || (!segments.length && !queuedAction)) return;
+  if (!queuedAction && active && now - lastSend < 200) return;
+  const batch = segments.length ? segments : [{ dx: 0, dy: 0, seconds: 0 }];
+  segments = [];
+  bufferedSeconds = 0;
+  lastSend = now;
   pending = true;
   send("streamlit:setComponentValue", {
     dataType: "json",
-    value: { dx, dy, seconds: Math.min(0.25, elapsed / 1000), action: queuedAction, id: ++eventId },
+    value: { segments: batch, action: queuedAction, id: ++eventId },
   });
   queuedAction = null;
 }
@@ -80,8 +107,6 @@ function draw() {
     canvas.height = Math.round(height * ratio);
   }
   const scale = Math.min(1.15, Math.max(0.55, width / 1000));
-  player.x += (state.x - player.x) * 0.26;
-  player.y += (state.y - player.y) * 0.26;
   const viewWidth = width / scale;
   const viewHeight = height / scale;
   const left = Math.max(0, Math.min(day.naturalWidth - viewWidth, player.x - viewWidth / 2));
@@ -90,7 +115,7 @@ function draw() {
   context.drawImage(state.night && night.naturalWidth ? night : day, 0, 0);
 
   for (const site of state.locations) {
-    const near = Math.hypot(site.x - state.x, site.y - state.y) < 170;
+    const near = Math.hypot(site.x - player.x, site.y - player.y) < 170;
     context.beginPath();
     context.arc(site.x, site.y + 4, near ? 6 : 4, 0, Math.PI * 2);
     context.fillStyle = site.color;
@@ -110,7 +135,7 @@ function draw() {
 
   context.save();
   context.translate(player.x, player.y);
-  context.scale(state.facing < 0 ? -1 : 1, 1);
+  context.scale(facing < 0 ? -1 : 1, 1);
   context.fillStyle = "#1b292788";
   context.beginPath();
   context.ellipse(0, 2, 14, 5, 0, 0, Math.PI * 2);
@@ -154,7 +179,8 @@ canvas.addEventListener("keydown", (event) => {
 window.addEventListener("keyup", (event) => held.delete(event.key.toLowerCase()));
 function pause() {
   held.clear();
-  lastUpdate = 0;
+  lastFrame = 0;
+  queuedAction = null;
 }
 window.addEventListener("blur", pause);
 canvas.addEventListener("blur", pause);

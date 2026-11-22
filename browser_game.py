@@ -64,19 +64,31 @@ def street_input(town, event):
     """Apply a small, validated movement batch using the desktop collision rules."""
     if not isinstance(event, dict):
         return False
-    dx, dy, seconds, action = (event.get(key) for key in ("dx", "dy", "seconds", "action"))
-    if (type(dx) is not int or dx not in (-1, 0, 1)
-            or type(dy) is not int or dy not in (-1, 0, 1)
-            or type(seconds) not in (int, float) or not 0 <= seconds <= 0.25
+    action = event.get("action")
+    segments = event.get("segments", [event])
+    if (not isinstance(segments, list) or not 1 <= len(segments) <= 120
             or action not in (None, "interact", "bulk", "egg", "eggs")):
         return False
-
-    steps = max(1, math.ceil(seconds * 60))
-    for _ in range(steps):
-        if dx or dy:
-            town.move(dx, dy, seconds / steps)
-        if seconds:
-            advance_clock(town, seconds / steps)
+    total = 0
+    for segment in segments:
+        if not isinstance(segment, dict):
+            return False
+        dx, dy, seconds = (segment.get(key) for key in ("dx", "dy", "seconds"))
+        if (type(dx) is not int or dx not in (-1, 0, 1)
+                or type(dy) is not int or dy not in (-1, 0, 1)
+                or type(seconds) not in (int, float) or not 0 <= seconds <= 0.25):
+            return False
+        total += seconds
+    if total > 2.000001:
+        return False
+    for segment in segments:
+        dx, dy, seconds = (segment[key] for key in ("dx", "dy", "seconds"))
+        steps = max(1, math.ceil(seconds * 60))
+        for _ in range(steps):
+            if dx or dy:
+                town.move(dx, dy, seconds / steps)
+            if seconds:
+                advance_clock(town, seconds / steps)
     if action == "interact" and nearby_pier(town.x, town.y):
         ride_ferry(town)
     elif action in ("interact", "bulk"):
