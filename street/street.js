@@ -38,6 +38,20 @@ function send(type, data = {}) {
   window.parent.postMessage({ isStreamlitMessage: true, type, ...data }, parentOrigin);
 }
 
+function tradeAvailable(action) {
+  if (!["bulk", "egg", "eggs"].includes(action)) return true;
+  if (!state || state.free_slots <= 0) return false;
+  const supplier = (state.suppliers || []).find(site => Math.hypot(site.x-player.x, site.y-player.y) <= 35);
+  if (!supplier) return false;
+  return action === "bulk" ? state.cash >= supplier.cost : supplier.trade === 3 && state.cash >= 2;
+}
+
+function updateTradeButtons() {
+  for (const button of document.querySelectorAll('[data-action="bulk"], [data-action="egg"], [data-action="eggs"]')) {
+    button.hidden = !tradeAvailable(button.dataset.action);
+  }
+}
+
 function frameHeight() {
   if (parentOrigin === location.origin && Number.isFinite(window.parent.innerHeight)) {
     const height = Math.max(350, Math.floor(window.parent.innerHeight * 0.8));
@@ -70,6 +84,7 @@ window.addEventListener("message", (event) => {
   player = { x: next.x, y: next.y };
   facing = next.facing;
   state = next;
+  updateTradeButtons();
   for (const button of document.querySelectorAll('[data-action="dismount"]')) {
     button.hidden = !state.vehicle;
   }
@@ -199,6 +214,7 @@ function update(now) {
   const seconds = lastFrame ? Math.min(0.05, (now - lastFrame) / 1000) : 0;
   lastFrame = now;
   if (!state) return;
+  updateTradeButtons();
   const active = !ferry && !document.hidden && document.hasFocus() && document.activeElement === canvas;
   if (active && !queuedAction && seconds && bufferedSeconds < 2 && segments.length < 120) {
     const values = new Set(held.values());
@@ -251,6 +267,18 @@ function draw() {
   const top = Math.max(0, Math.min(day.naturalHeight - viewHeight, player.y - viewHeight / 2));
   context.setTransform(ratio * scale, 0, 0, ratio * scale, -left * ratio * scale, -top * ratio * scale);
   context.drawImage(state.night && night.naturalWidth ? night : day, 0, 0);
+
+  if (state.route?.points?.length > 1) {
+    context.save();
+    context.beginPath();
+    state.route.points.forEach(([x, y], index) => index ? context.lineTo(x, y) : context.moveTo(x, y));
+    context.strokeStyle = "#89e3ff";
+    context.lineWidth = 4;
+    context.lineCap = "round";
+    context.setLineDash([11, 9]);
+    context.stroke();
+    context.restore();
+  }
 
   drawStreetLife(performance.now() / 1000, left, top, viewWidth, viewHeight);
 
@@ -579,7 +607,7 @@ canvas.addEventListener("keydown", (event) => {
   if (!Object.hasOwn(directions, key) && !Object.hasOwn(actions, key)) return;
   event.preventDefault();
   if (directions[key]) held.set(key, directions[key]);
-  if (actions[key] && !event.repeat) queuedAction = actions[key];
+  if (actions[key] && !event.repeat && tradeAvailable(actions[key])) queuedAction = actions[key];
 });
 
 window.addEventListener("keyup", (event) => held.delete(event.key.toLowerCase()));

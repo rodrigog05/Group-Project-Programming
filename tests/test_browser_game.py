@@ -11,9 +11,16 @@ def click(app, label):
 
 
 def choose_place(app, name):
+    # AppTest does not run keyboard movement. Stage arrival, then send the same E event.
+    from browser_game import entrance, street_event
+    site = next(site for site in SITES if site.name == name)
     app.selectbox[0].select(name).run()
+    app.session_state.town.x, app.session_state.town.y = entrance(site)
+    app.session_state.inside = street_event(app.session_state.town,
+        {"dx": 0, "dy": 0, "seconds": 0, "action": "interact"})
+    app.run()
     assert not app.exception
-    click(app, f"Visit {name}")
+
 
 
 def test_start_menu_can_resume_and_requires_confirmation_to_replace_save(tmp_path, monkeypatch):

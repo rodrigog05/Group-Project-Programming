@@ -62,6 +62,22 @@ test("night image is deferred and only requested at night", () => {
   assert.equal(b.run("night.src"), "world_100_night.webp");
 });
 
+test("trade controls are available only within reach with cash and cargo room", () => {
+  const b = browser();
+  assert.equal(b.run('tradeAvailable("bulk")'), false);
+  b.receive({ cash: 60, free_slots: 12, suppliers: [{ x: 480, y: 321, trade: 3, cost: 4 }] });
+  for (const action of ["bulk", "egg", "eggs"]) assert.equal(b.run(`tradeAvailable("${action}")`), true);
+  b.run("player.x += 36");
+  assert.equal(b.run('tradeAvailable("bulk")'), false);
+  b.receive({ cash: 60, free_slots: 0, suppliers: [{ x: 480, y: 321, trade: 3, cost: 4 }] });
+  assert.equal(b.run('tradeAvailable("egg")'), false);
+  b.receive({ cash: 1, free_slots: 12, suppliers: [{ x: 480, y: 321, trade: 3, cost: 4 }] });
+  assert.equal(b.run('tradeAvailable("eggs")'), false);
+  b.receive({ cash: 60, free_slots: 12, suppliers: [{ x: 480, y: 321, trade: 0, cost: 4 }] });
+  assert.equal(b.run('tradeAvailable("bulk")'), true);
+  assert.equal(b.run('tradeAvailable("egg")'), false);
+});
+
 test("an action waits behind movement and pause excludes inactive time", () => {
   const b = browser();
   b.run('held.set("d", "right"); update(100); update(300); queuedAction="interact"; update(320);');
