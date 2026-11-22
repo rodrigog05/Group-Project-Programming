@@ -12,7 +12,7 @@ from streamlit.components.v1 import declare_component
 import businesses
 import exchange
 import innovation
-from browser_game import (COLLISION_MAP, MONASTERY, OPEN_SITES, STREET_LIFE, LocalSave, building_at, greeting, scene_for,
+from browser_game import (COLLISION_MAP, MONASTERY, OPEN_SITES, next_move, STREET_LIFE, LocalSave, building_at, greeting, scene_for,
                           SaveConflict, entrance, place_vehicle_on_road, street_event, street_input)
 from journal_market import market_snapshot
 from journal_recipes import RECIPE_BY_KEY
@@ -218,6 +218,7 @@ def play_street(site_inside=None):
         speed=town.movement_speed, collision=COLLISION_MAP, life=STREET_LIFE,
         cash=town.cash, on_bridge=town.bridge_journey is not None, ferry=st.session_state.get("ferry"),
         interior=interior_view(site_inside) if site_inside is not None else None,
+        next_move=next_move(town) if st.session_state.get("show_hints", True) else None,
         route=directions(town, destination_point(st.session_state.get("destination", "Goldenfield Farm"))),
         suppliers=[{"x": site.door[0], "y": site.door[1], "trade": site.trade,
                     "cost": town.costs[site.trade]} for site in OPEN_SITES if site.role == "SUPPLIER"],
@@ -250,9 +251,15 @@ def places():
     name = st.session_state.get("inside")
     if not (name and building_at(town) == name):
         st.session_state.inside = name = None
-    destination = st.selectbox("Destination", [*PLACES, MONASTERY],
-                              index=list(PLACES).index("Goldenfield Farm"),
-                              key="destination")
+    pick, hints = st.columns((4, 1), vertical_alignment="bottom")
+    destination = pick.selectbox("Destination", [*PLACES, MONASTERY],
+                                 index=list(PLACES).index("Goldenfield Farm"),
+                                 key="destination")
+    hints.toggle("💡 Show hints", value=True, key="show_hints")
+    hint = next_move(town)
+    if st.session_state.show_hints and hint["target"] and hint["target"] != destination:
+        st.button(f"Show route to {hint['target']}", on_click=st.session_state.update,
+                  kwargs={"destination": hint["target"]})
     site_inside = PLACES.get(name, MONASTERY) if name else None
     # The game view stays on screen inside buildings too, so it keeps the keyboard (see street.js).
     play_street(site_inside)
@@ -343,6 +350,13 @@ def interior_view(site):
     if site != MONASTERY and site.role == "CASINO":
         view["casino"] = {"spin": st.session_state.get("spin"), "chip": st.session_state.get("chip") or 10,
                           "luck": town.casino_luck}
+    if site != MONASTERY and site.role == "FACTORY":
+        # Countdown in the corner while a batch is being made here.
+        trade = town.business_site(site).trade
+        order = town.orders[trade]
+        if order is not None:
+            view["timer"] = {"product": TRADES[trade].product, "quantity": order.quantity,
+                             "seconds": max(0.0, order.ready_at - town.elapsed)}
     return view
 
 
@@ -559,7 +573,13 @@ TUTORIAL = (
 )
 
 
-@st.dialog("Basics", width="large")
+def dismiss_tutorial():
+    """The dialog's X: forget the tutorial too, or the next rerun would open it again."""
+    st.session_state.show_tutorial = False
+    st.session_state.tutorial_step = 0
+
+
+@st.dialog("Basics", width="large", on_dismiss=dismiss_tutorial)
 def tutorial():
     step = min(st.session_state.get("tutorial_step", 0), len(TUTORIAL) - 1)
     title, image, text = TUTORIAL[step]

@@ -94,6 +94,8 @@ window.addEventListener("message", (event) => {
     // Going inside: bring the whole store view to the middle of the screen.
     requestAnimationFrame(() => canvas.scrollIntoView({ block: "center", behavior: "smooth" }));
   }
+  timerBase = next.interior && next.interior.timer
+    ? { seconds: next.interior.timer.seconds, at: performance.now() } : null;
   controls.hidden = Boolean(next.interior);
   // Inside, the scene shows the vendor's reply (and the casino reveals results when the ball stops).
   feedback.hidden = Boolean(next.interior);
@@ -382,6 +384,7 @@ function draw() {
     drawWalker();
   }
   context.restore();
+  drawHint("street");
 }
 
 // Decorative street life from the desktop game. Nothing here blocks the player.
@@ -638,6 +641,89 @@ function drawInterior() {
   context.fillRect(0, height - 20 * unit, width, 20 * unit);
   context.fillStyle = "#fff3dc";
   context.fillText(room.casino ? `Chip $${room.casino.chip} (← →)   ·   ${hint}` : hint, width / 2, height - 7 * unit);
+  drawTimer();
+  drawHint("interior");
+}
+
+// ----- Overlays in screen pixels: the production countdown and the next-move hint -----
+let timerBase = null;
+
+function screenSpace() {
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  context.setTransform(ratio, 0, 0, ratio, 0, 0);
+  return { width: canvas.clientWidth, height: canvas.clientHeight };
+}
+
+function card(x, y, width, height, border) {
+  context.fillStyle = "#101f28e6";
+  context.strokeStyle = border;
+  context.lineWidth = 2;
+  context.beginPath();
+  context.roundRect(x, y, width, height, 10);
+  context.fill();
+  context.stroke();
+}
+
+function drawTimer() {
+  const timer = state.interior && state.interior.timer;
+  if (!timer || !timerBase) return;
+  // Python sends the remaining time with every update; count down smoothly in between.
+  const left = Math.max(0, timerBase.seconds - (performance.now() - timerBase.at) / 1000);
+  const { width } = screenSpace();
+  const ready = left <= 0;
+  const text = ready ? timer.product + " ready! Press E" : timer.quantity + " " + timer.product + " · " + Math.ceil(left) + "s";
+  context.font = "bold 17px system-ui, sans-serif";
+  const boxWidth = context.measureText(text).width + 62;
+  const x = width - boxWidth - 14;
+  card(x, 14, boxWidth, 46, ready ? "#7ee0a1" : "#ffc66c");
+  // A small clock whose hand sweeps once per second.
+  const cx = x + 24;
+  const cy = 37;
+  context.strokeStyle = ready ? "#7ee0a1" : "#ffc66c";
+  context.lineWidth = 2.5;
+  context.beginPath();
+  context.arc(cx, cy, 11, 0, Math.PI * 2);
+  context.stroke();
+  const angle = ready ? -Math.PI / 2 : (left % 1) * Math.PI * 2 - Math.PI / 2;
+  context.beginPath();
+  context.moveTo(cx, cy);
+  context.lineTo(cx + 8 * Math.cos(angle), cy + 8 * Math.sin(angle));
+  context.stroke();
+  context.fillStyle = "#fff3dc";
+  context.textAlign = "left";
+  context.textBaseline = "middle";
+  context.fillText(text, x + 44, 38);
+  context.textBaseline = "alphabetic";
+}
+
+function drawHint(where) {
+  if (!state.next_move || ferry) return;
+  const { width } = screenSpace();
+  const boxWidth = Math.min(340, width * 0.42);
+  context.font = "600 14px system-ui, sans-serif";
+  const lines = wrapLines(state.next_move.text, boxWidth - 62);
+  const boxHeight = 22 + lines.length * 19;
+  // On the street: top right. Inside: top left under the building name, clear of the vendor's bubble.
+  const x = where === "street" ? width - boxWidth - 14 : 14;
+  const y = where === "street" ? 14 : 52;
+  card(x, y, boxWidth, boxHeight, "#ffd072");
+  // The light bulb.
+  const bx = x + 24;
+  const by = y + 22;
+  context.fillStyle = "#ffd072";
+  context.beginPath();
+  context.arc(bx, by, 10, Math.PI * 0.8, Math.PI * 2.2);
+  context.lineTo(bx + 5, by + 12);
+  context.lineTo(bx - 5, by + 12);
+  context.closePath();
+  context.fill();
+  context.fillStyle = "#c9cfd2";
+  context.fillRect(bx - 5, by + 13, 10, 5);
+  context.fillStyle = "#fff3dc";
+  context.textAlign = "left";
+  context.textBaseline = "middle";
+  lines.forEach((line, index) => context.fillText(line, x + 46, y + 20 + index * 19));
+  context.textBaseline = "alphabetic";
 }
 
 function drawWheel(casino) {

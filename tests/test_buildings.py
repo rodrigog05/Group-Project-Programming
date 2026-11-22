@@ -239,3 +239,53 @@ def test_market_shows_four_route_cards_and_the_goal_bar(monkeypatch):
         assert product in text
     assert "Profit \\$10 per bread" in text and "Goldenfield Farm" in text
     assert "Pastéis" not in text
+
+
+# ----- Next-move hint and the production countdown -----
+
+def test_next_move_follows_a_whole_bread_run():
+    from browser_game import next_move
+    town = Town()
+    assert next_move(town) == {"text": "Go to Goldenfield Farm and buy Wheat ($4 each).", "target": "Goldenfield Farm"}
+    farm = next(site for site in SITES if site.name == "Goldenfield Farm")
+    town.x, town.y = entrance(farm)
+    town.interact(bulk=True)
+    hint = next_move(town)
+    assert hint["target"] == "Sunrise Bakery" and "Now you should go to Sunrise Bakery" in hint["text"]
+    bakery = next(site for site in SITES if site.name == "Sunrise Bakery")
+    town.x, town.y = entrance(bakery)
+    town.interact()
+    assert "ready in 4s" in next_move(town)["text"]
+    town.elapsed += 5
+    assert next_move(town)["text"].startswith("Your Bread is ready")
+    town.interact()
+    assert next_move(town) == {"text": "Sell your 4 Bread at Daily Bread Market.", "target": "Daily Bread Market"}
+
+
+def test_hints_can_be_hidden_and_show_route_sets_the_destination(monkeypatch):
+    app = new_app(monkeypatch)
+    app.selectbox[0].select("Tool Market").run()
+    click(app, "Show route to Goldenfield Farm")
+    assert app.selectbox[0].value == "Goldenfield Farm"
+    assert "Show route to Goldenfield Farm" not in labels(app)  # Already the destination
+    app.toggle[0].set_value(False).run()
+    app.selectbox[0].select("Tool Market").run()
+    assert not any(label.startswith("Show route") for label in labels(app))
+
+
+def test_bakery_shows_a_countdown_while_bread_is_made(monkeypatch):
+    app = new_app(monkeypatch)
+    choose_place(app, "Goldenfield Farm")
+    click(app, "Buy up to 4 Wheat")
+    choose_place(app, "Sunrise Bakery")
+    assert "timer" not in streamlit_interior(app)
+    click(app, "Produce or collect")
+    timer = streamlit_interior(app)["timer"]
+    assert timer["product"] == "Bread" and timer["quantity"] == 4 and 0 < timer["seconds"] <= 4
+
+
+def streamlit_interior(app):
+    """The interior data the app sends to the game view (street.js draws it)."""
+    import json
+    component = next(iter(app.get("component_instance")))
+    return json.loads(component.proto.json_args).get("interior") or {}
