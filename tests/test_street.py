@@ -163,3 +163,15 @@ def test_street_life_cars_drive_on_roads_and_people_never_step_onto_one():
         for x in range(x1, x2 + 1, 2):
             assert not any(on_road(x + dx, y + dy) for dx in (-5, 5) for dy in PEDESTRIAN_BODY), (x, y)
     assert len(STREET_LIFE["cars"]) == 24 and len(STREET_LIFE["people"]) == 45
+
+
+def test_traffic_uses_right_hand_lanes_in_both_directions():
+    from browser_game import STREET_LIFE
+    lanes = {}
+    for _, y, _, _, _, direction, _ in STREET_LIFE["cars"]:
+        lanes.setdefault(y, set()).add(direction)
+    positions = list(lanes)
+    for upper, lower in zip(positions[::2], positions[1::2]):
+        assert upper < lower
+        assert lanes[upper] == {-1}  # Facing west, the right side is north/above.
+        assert lanes[lower] == {1}   # Facing east, the right side is south/below.

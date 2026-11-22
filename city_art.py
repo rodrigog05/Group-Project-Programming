@@ -9,6 +9,7 @@ from pathlib import Path
 
 from lisbon_scene import SCENERY_PLOTS
 from tycoon import SITES
+from place_names import localize_place_names
 
 COMPACT_ROLES = frozenset({"SUPPLIER", "FACTORY", "PUBLIC SHOP", "WAREHOUSE", "TIER2"})
 CLOSED = frozenset({"Motorworks Garage", "Armazém do Seixal", "Pastéis de Belém"})
@@ -34,6 +35,7 @@ class Drawing:
         self.add(f'<ellipse cx="{x}" cy="{y}" rx="{rx}" ry="{ry}" fill="{fill}"/>')
 
     def text(self, x, y, value, size=8, color="#f7edda", weight="bold", anchor="middle"):
+        value = localize_place_names(value)
         self.add(f'<text x="{x}" y="{y}" text-anchor="{anchor}" font-family="Arial,sans-serif" '
                  f'font-size="{size}" font-weight="{weight}" fill="{color}">{escape(value)}</text>')
 
@@ -62,14 +64,14 @@ def roof(d, x, y, w, color="#a8654e"):
 
 def sidewalk(d, x, y, night, east=False, south=False):
     # Clear just the old building and its signage. Roads, curbs and trees stay intact.
-    ground = ("#586466" if night else "#c5c9a6") if south else (
-        "#656b67" if night else "#d9d7bf" if east else "#dfd5bd")
+    ground = ("#546464" if night else "#c5c9a6") if south else (
+        ("#5c696e" if east else "#5e696d") if night else "#dad7bf" if east else "#dfd5bd")
+    if south and y < 1300:
+        ground = "#586668" if night else "#cfceb0"
+    if (x, y) == (1280, 530):
+        # The old farm painted its entire city block green, beyond the building.
+        d.rect(1245, 508, 230, 134, ground)
     d.rect(x-4, y-24, 192, 132, ground)
-    d.rect(x+1, y-19, 180, 126, "#6e736b" if night else "#e7dec7", 5)
-    for row in range(-12, 106, 12):
-        d.path(f'M{x+3} {y+row}h176', stroke="#76796f" if night else "#d9d0b9", width=.6)
-    for col in range(8, 181, 16):
-        d.path(f'M{x+col} {y-17}v121', stroke="#76796f" if night else "#d9d0b9", width=.5)
 
 
 def planter(d, x, y, night):
@@ -81,11 +83,11 @@ def planter(d, x, y, night):
 
 def signs(d, site, night):
     x, y = site.x, site.y
-    badge, color = {"SUPPLIER": ("BUY MATERIALS", "#a67324"),
-                    "FACTORY": ("MAKE PRODUCTS", "#376b88"),
-                    "PUBLIC SHOP": ("SELL PRODUCTS", "#377e68"),
-                    "TIER2": ("MAKE & SELL", "#72618f"),
-                    "WAREHOUSE": ("STORAGE", "#65727f")}[site.role]
+    badge, color = {"SUPPLIER": ("COMPRAR MATERIAIS", "#a67324"),
+                    "FACTORY": ("FABRICAR PRODUTOS", "#376b88"),
+                    "PUBLIC SHOP": ("VENDER PRODUTOS", "#377e68"),
+                    "TIER2": ("FABRICAR E VENDER", "#72618f"),
+                    "WAREHOUSE": ("ARMAZENAMENTO", "#65727f")}[site.role]
     d.rect(x+20, y-14, 136, 13, color, 2)
     d.path(f'M{x+24} {y-12}h128', stroke="#e8d7af", width=.7)
     d.text(x+88, y-4, badge, 8)
@@ -112,7 +114,7 @@ def shell(d, site, wall, night, roof_color="#a8654e"):
 def tool_shop(d, site, night):
     x, y = shell(d, site, "#acb6b3" if night else "#e6d7ac", night, "#656d6e")
     d.rect(x+8, y+25, 107, 12, "#315e67", 1)
-    d.text(x+61, y+33.5, "FERRAGENS · TOOLS", 7)
+    d.text(x+61, y+33.5, "FERRAGENS", 7)
     for wx in (x+9, x+83):
         window(d, wx, y+44, 29, 27, night)
         # Wall-mounted spanners and drills distinguish the hardware windows.
@@ -178,7 +180,7 @@ def factory(d, site, night):
     trade = 0 if site.role == "TIER2" else site.trade
     wall = "#8a8980" if night else colors[trade]
     x, y = shell(d, site, wall, night, "#716f67" if trade == 0 else "#a76b50")
-    name = "PRECISION WORKS" if site.role == "TIER2" else ("METALWORK", "CARPINTARIA", "CERÂMICA", "PADARIA")[trade]
+    name = "OFICINA DE PRECISÃO" if site.role == "TIER2" else ("SERRALHARIA", "CARPINTARIA", "CERÂMICA", "PADARIA")[trade]
     d.rect(x+10, y+25, 104, 12, ("#4b6972", "#806548", "#9f6046", "#a88045")[trade], 1)
     d.text(x+62, y+34, name, 7)
     for wx in (x+9, x+84):
@@ -212,7 +214,7 @@ def supplier(d, site, night):
     # Urban depots keep the material identity without open mines, forests or fields in a city block.
     walls = ("#b2bfc0", "#d7bc96", "#dfb49c", "#e6d4a3")
     x, y = shell(d, site, "#888e87" if night else walls[site.trade], night)
-    labels = ("MINERAL DEPOT", "MADEIRAS", "BARROS · ARGILAS", "CEREAIS")
+    labels = ("MINÉRIOS", "MADEIRAS", "BARROS · ARGILAS", "CEREAIS")
     d.rect(x+8, y+25, 107, 12, "#6b604b", 1)
     d.text(x+61, y+33.5, labels[site.trade], 7)
     for wx in (x+9, x+84):
@@ -248,7 +250,7 @@ def supplier(d, site, night):
 def warehouse(d, site, night):
     x, y = shell(d, site, "#838e90" if night else "#c1ccca", night, "#677c7e")
     d.rect(x+15, y+24, 95, 11, "#64757b", 1)
-    d.text(x+62, y+32.5, "ARMAZÉM · STORAGE", 6.8)
+    d.text(x+62, y+32.5, "ARMAZÉM", 6.8)
     d.rect(x+8, y+43, 35, 32, "#627981")
     d.rect(x+83, y+43, 32, 32, "#627981")
     for row in range(46, 75, 4):
@@ -317,7 +319,34 @@ def city_svg(night=False):
     locations += [(site.x, site.y) for site in SITES if site.name in CLOSED]
     for index, (x,y) in enumerate(locations):
         apartments(d, x, y, index, night)
+    # The dealership keeps its own building model; replace its old English sign.
+    dealer = next(site for site in SITES if site.name == "Cacilhas Dealership")
+    d.rect(dealer.x+9, dealer.y+4, 158, 15, "#a5443d")
+    d.text(dealer.x+88, dealer.y+15, "CONCESSIONÁRIO DE CACILHAS", 6.8)
+    casino = next(site for site in SITES if site.role == "CASINO")
+    d.rect(casino.x+43, casino.y+43, 90, 13, "#523457", 2)
+    d.text(casino.x+88, casino.y+52, "Casino de Lisboa", 7.5, "#ffe7bd" if night else "#f6dca9")
     return d.svg()
+
+
+def seated_audience(d, x, y, scale, jacket, hair):
+    """Back view: shoulders, bent arms and chair all face the screen above."""
+    d.add(f'<g data-facing="presentation" transform="translate({x} {y}) scale({scale})">')
+    # Hands reach forward onto the far side of the desk, away from the viewer.
+    d.path('M-22-23-30-27-27-38M22-23 30-27 27-38', stroke=jacket, width=12)
+    for sign in (-1, 1):
+        d.ellipse(sign*27, -39, 6, 2, "#cea07d")
+    d.path('M-23-27Q0-38 23-27L27 28H-27Z', jacket, "#34484e", 1.5)
+    d.path('M-8-28Q0-22 8-28M0-19V16', stroke="#455865", width=1.2)
+    d.rect(-6, -41, 12, 13, "#c49b7c", 2)
+    d.ellipse(0, -55, 18, 22, hair)
+    d.path('M-11-65Q0-73 11-65', stroke="#ffffff", width=.6)
+    # The chair back is closest to the camera and covers the lower back.
+    d.rect(-34, -1, 68, 42, "#506970", 6)
+    d.rect(-29, 3, 58, 30, "#71878a", 4)
+    d.path('M-29 17h58', stroke="#637e83", width=1)
+    d.path('M-28 40v13m56-13v13', stroke="#4c6267", width=4)
+    d.add('</g>')
 
 
 def person(d, x, y, scale=1, jacket="#344f60", hair="#433f37", skin="#d1a582", presenting=False, back=False):
@@ -421,18 +450,16 @@ def presentation_svg():
             d.path(f'M{x} 661q{dx-32}-56 {dx} {dy-65}q34 22 {-dx} 65',"#6b8d6c")
     # Seated professors and students in two staggered rows of lecture desks.
     for row,(py,people) in enumerate(((865,(190,425,1090,1310)),(1050,(165,470,819,1190)))):
+        # Desks and laptops are in front of their bodies toward the presentation.
+        d.path(f'M28 {py-79}H1420l-18 29H40Z',"#e1d6be")
+        d.path(f'M40 {py-50}H1402v8H40Z',"#a59e86")
         for i,px in enumerate(people):
-            d.rect(px-57,py-45,114,102,"#546c72",10)
-            d.rect(px-49,py-38,98,80,"#71878a",8)
-            person(d,px,py-38,1.35 if row==0 else 1.6,
+            d.path(f'M{px-31} {py-63}l-4-27h54l8 27Z',"#51747e","#36555e",1.4)
+            d.path(f'M{px-25} {py-70}h36m-33-6h25',stroke="#b8d4c9",width=2)
+            d.path(f'M{px-34} {py-62}h65',stroke="#b6c1b8",width=4)
+            seated_audience(d,px,py-8,1.35 if row==0 else 1.6,
                    ("#5b6574","#8f7f70","#456477","#978f82")[i],
-                   ("#655747","#665c4c","#3e4139","#8c8170")[i],back=True)
-        d.path(f'M28 {py+10}H1420l-18 33H40Z',"#e1d6be")
-        d.path(f'M40 {py+43}H1402v10H40Z',"#a59e86")
-        for px in people:
-            d.path(f'M{px-31} {py+15}l-4-27h54l8 27Z',"#7a8d90","#566e73",1.4)
-            d.path(f'M{px-34} {py+16}h65',stroke="#b6c1b8",width=4)
-            d.rect(px+43,py+8,23,14,"#f3ead4",1)
+                   ("#655747","#665c4c","#3e4139","#8c8170")[i])
     return d.svg()
 
 
@@ -448,6 +475,50 @@ def export(presentation=False):
         fonts = [str(Path("C:/Windows/Fonts/arial.ttf"))] if Path("C:/Windows/Fonts/arial.ttf").exists() else []
         png = resvg_py.svg_to_bytes(svg_string=presentation_svg(), font_files=fonts)
         Image.open(BytesIO(png)).save(root / "scenes" / "nova_presentation.webp", "WEBP", lossless=True)
+        for name in ("goal", "buy", "make", "sell", "garage"):
+            png = resvg_py.svg_to_bytes(svg_string=tutorial_svg(name), font_files=fonts)
+            Image.open(BytesIO(png)).save(root / "tutorial" / f"{name}.webp", "WEBP", lossless=True)
+
+
+def tutorial_svg(name):
+    """Render tutorial map views from the same building art, without stale baked-in labels."""
+    from base64 import b64encode
+    root = Path(__file__).resolve().parent / "street"
+    base = b64encode((root / "world_100_day.webp").read_bytes()).decode("ascii")
+    overlay = city_svg().split('>', 1)[1].rsplit('</svg>', 1)[0]
+    campus = b64encode((root / "nova_presentation_signs.svg").read_bytes()).decode("ascii")
+    world = (f'<image width="2400" height="1780" href="data:image/webp;base64,{base}"/>'
+             f'{overlay}<image x="27" y="508" width="178" height="110" href="data:image/svg+xml;base64,{campus}"/>')
+    d = Drawing(650, 406)
+    d.rect(0, 0, 650, 406, "#193941")
+    if name == "goal":
+        d.text(325, 45, "Start with $60 · Reach $500", 25, "#edca80")
+        d.add('<svg x="0" y="120" width="650" height="155" viewBox="240 490 1480 353">' + world)
+        for n, x in ((1, 1368), (2, 1628), (3, 356)):
+            d.ellipse(x, 643, 32, 32, "#eccc85")
+            d.text(x, 655, str(n), 30, "#26454d")
+        d.add('</svg>')
+        d.text(325, 378, "1 Buy materials  ›  2 Make products  ›  3 Sell them", 17)
+    else:
+        identifier, caption = {
+            "buy": ("Goldenfield Farm", "Walk to a yellow COMPRAR MATERIAIS store"),
+            "make": ("Sunrise Bakery", "Turn materials into products at FABRICAR PRODUTOS"),
+            "sell": ("Daily Bread Market", "Sell finished goods at VENDER PRODUTOS"),
+            "garage": ("Cacilhas Dealership", "Concessionário de Cacilhas: take the ferry"),
+        }[name]
+        site = next(site for site in SITES if site.name == identifier)
+        left, top = site.x+88-260, site.y-103
+        d.add(f'<svg width="650" height="368" viewBox="{left} {top} 520 294.4">{world}')
+        # The tutorial's walking player, in the same compact style as street.js.
+        x, y = site.x-32, site.y+119
+        d.ellipse(x, y+2, 11, 4, "#88977c")
+        d.path(f'M{x-4} {y-9}v10m8-10v10', stroke="#334c58", width=5)
+        d.rect(x-7, y-23, 14, 15, "#427e9c", 3)
+        d.ellipse(x, y-31, 6, 7, "#d7b084")
+        d.rect(x-8, y-38, 16, 5, "#edc575", 2)
+        d.add('</svg>')
+        d.text(325, 393, caption, 16)
+    return d.svg()
 
 
 if __name__ == "__main__":

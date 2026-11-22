@@ -99,6 +99,24 @@ def test_nova_sbe_presentation_has_only_exit_and_preserves_progress(monkeypatch)
     assert app.session_state.inside is None
 
 
+def test_portuguese_names_are_visible_without_changing_saved_identifiers(monkeypatch):
+    import json
+    from browser_game import OPEN_SITES
+    from place_names import PLACE_NAMES, place_name
+    app = new_app(monkeypatch)
+    options = app.selectbox[0].options
+    assert {place_name(site.name) for site in OPEN_SITES} <= set(options)
+    assert not {name for name, label in PLACE_NAMES.items() if name != label} & set(options)
+    choose_place(app, "Goldenfield Farm")
+    room = streamlit_interior(app)
+    assert room["title"] == "Armazém de Cereais"
+    assert app.session_state.inside == "Goldenfield Farm"
+    assert not app.subheader  # The translated name stays in the scene, not repeated below it.
+    component = next(iter(app.get("component_instance")))
+    locations = json.loads(component.proto.json_args)["locations"]
+    assert {item["name"] for item in locations} >= {place_name(site.name) for site in OPEN_SITES}
+
+
 def test_browser_clock_leaves_retired_research_untouched():
     from copy import deepcopy
     from browser_game import advance_clock
@@ -247,7 +265,9 @@ def test_closed_buildings_cannot_be_entered_and_are_not_destinations(monkeypatch
     assert "apartments" in town.message and town.cash == 60
     app = new_app(monkeypatch)
     options = set(app.selectbox[0].options)
-    assert not CLOSED_SITES & options and {"Cacilhas Dealership", "Foundry Warehouse"} <= options
+    from place_names import place_name
+    assert not {place_name(name) for name in CLOSED_SITES} & options
+    assert {"Concessionário de Cacilhas", "Armazém Central"} <= options
 
 
 def test_warehouse_has_a_scene_and_the_farm_sells_only_wheat():
@@ -267,7 +287,8 @@ def test_market_shows_four_route_cards_and_the_goal_bar(monkeypatch):
     text = " ".join(markdown.value for markdown in app.markdown)
     for product in ("Tools", "Furniture", "Pottery", "Bread"):
         assert product in text
-    assert "Profit \\$10 per bread" in text and "Goldenfield Farm" in text
+    assert "Profit \\$10 per bread" in text and "Armazém de Cereais" in text
+    assert "Goldenfield Farm" not in text
     assert "Pastéis" not in text
 
 
@@ -346,7 +367,7 @@ def test_hints_can_be_hidden_and_show_route_sets_the_destination(monkeypatch):
         return next(button for button in app.button if button.label.startswith("Show route"))
     app = new_app(monkeypatch)
     app.selectbox[0].select("Tool Market").run()
-    assert route_button(app).label == "Show route to Goldenfield Farm" and not route_button(app).disabled
+    assert route_button(app).label == "Show route to Armazém de Cereais" and not route_button(app).disabled
     route_button(app).click().run()
     assert app.selectbox[0].value == "Goldenfield Farm"
     assert route_button(app).disabled  # Already the destination; the button stays, so nothing moves

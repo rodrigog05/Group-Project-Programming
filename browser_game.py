@@ -83,11 +83,11 @@ def street_life():
         # Lanes that would cross a park start beside it; the tunnel lane runs under the Almada park.
         start = max([15] + [right+20 for left, top, right, bottom in ROAD_EXCLUSIONS
                             if top < y < bottom and not (left == scene.SOUTH_PARK_BOUNDS[0] and tunnel_covers_y(y))])
-        # Paired lanes carry traffic in opposite directions.
+        # Right-hand traffic: westbound on the upper lane, eastbound on the lower.
         phase = rng.random()
         for extra in (0, .5):  # Two cars per lane, half a lap apart
             cars.append([start, y, scene.WORLD_WIDTH-20, rng.uniform(*CAR_SPEED_RANGE), (phase+extra) % 1,
-                         -1 if index % 2 else 1,
+                         1 if index % 2 else -1,
                          rng.choice(("#9b584e", "#c6c5b5", "#759ca5", "#b89b62", "#e8455a", "#86caff"))])
     left, _, right, _ = scene.SOUTH_PARK_BOUNDS
     _, _, tunnel_y, tunnel_half = scene.SOUTH_PARK_TUNNEL
