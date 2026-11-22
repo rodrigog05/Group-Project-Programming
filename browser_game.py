@@ -147,7 +147,7 @@ BUILDING_HINTS = {
     "WAREHOUSE": "Press E to add 12 storage slots, so you can carry bigger batches.",
     "EXCHANGE": "Buy and sell shares with the controls below the game view.",
     "RESEARCH": "Our team is presenting Foundry Town to our professors at Nova SBE.",
-    MONASTERY: "Each visit adds 5 points of casino luck, up to +20.",
+    MONASTERY: "Each visit adds 5% casino luck (better odds on every bet), up to +20%.",
 }
 
 
@@ -293,7 +293,7 @@ def scene_for(town, site):
 def greeting(town, site):
     """What the person behind the counter says when you walk in, as in the desktop game."""
     if site == MONASTERY:
-        return "Peace be with you. Each visit adds 5 percentage points of casino luck, up to 20."
+        return "Peace be with you. Each visit improves your casino luck by 5%, up to 20%."
     role = site.role
     if role == "RESEARCH":
         return BUILDING_HINTS[role]

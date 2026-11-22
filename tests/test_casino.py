@@ -66,3 +66,38 @@ class RouletteBetTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MonasteryLuckOddsTest(unittest.TestCase):
+    """Luck scales each bet's own chance, so green stays a long shot."""
+
+    def win_chance(self, luck, choice, monkeypatch_random):
+        # roulette_pocket picks a winner when random() < chance: find the threshold by bisection.
+        town = Town()
+        town.monastery_visits = luck // 5
+        low, high = 0.0, 1.0
+        for _ in range(40):
+            middle = (low + high) / 2
+            monkeypatch_random.random = lambda value=middle: value
+            if roulette_color(ROULETTE_POCKETS[town.roulette_pocket(choice)]) == choice:
+                low = middle
+            else:
+                high = middle
+        return low
+
+    def test_luck_scales_the_chance_of_each_bet(self):
+        import tycoon
+        original = tycoon.random.random
+        try:
+            for luck in (0, 5, 10, 15, 20):
+                for choice, base in (("red", 18 / 37), ("black", 18 / 37), ("green", 1 / 37)):
+                    expected = base * (1 + luck / 100)
+                    self.assertAlmostEqual(self.win_chance(luck, choice, tycoon.random), expected, places=6)
+        finally:
+            tycoon.random.random = original
+
+    def test_full_luck_keeps_green_a_long_shot(self):
+        for choice, base in (("red", 18 / 37), ("black", 18 / 37), ("green", 1 / 37)):
+            expected_return = base * 1.2 * ROULETTE_PAYOUTS[choice]
+            self.assertLess(base * 1.2, 0.6)
+            self.assertLess(expected_return, 1.2)  # At most +17% per bet, never a sure profit

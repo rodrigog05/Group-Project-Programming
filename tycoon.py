@@ -991,14 +991,16 @@ class Town:
 
     def visit_monastery(self):
         self.monastery_visits = min(self.monastery_visits + 1, 4)
-        self.message = f"Monastery visited · Casino win chance +{self.casino_luck} percentage points."
+        self.message = f"Monastery visited · Casino odds +{self.casino_luck}%."
 
     def roulette_pocket(self, choice):
         winners = [index for index, number in enumerate(ROULETTE_POCKETS)
                    if roulette_color(number) == choice]
         losers = [index for index, number in enumerate(ROULETTE_POCKETS)
                   if roulette_color(number) != choice]
-        chance = len(winners) / len(ROULETTE_POCKETS) + self.casino_luck / 100
+        # Luck scales each bet's own chance (+20 luck: red 48.6% -> 58.4%, green 2.7% -> 3.2%), so the
+        # 36x green bet stays a long shot instead of becoming a sure profit.
+        chance = len(winners) / len(ROULETTE_POCKETS) * (1 + self.casino_luck / 100)
         return random.choice(winners if random.random() < chance else losers)
 
     def bet_roulette(self, choice, stake, number):
