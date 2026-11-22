@@ -227,6 +227,7 @@ def play_street(site_inside=None):
         vehicle=town.vehicle, stowed_vehicle=town.stowed_vehicle, hint=hint, message=town.message,
         speed=town.movement_speed, collision=COLLISION_MAP, life=STREET_LIFE,
         cash=town.cash, on_bridge=town.bridge_journey is not None, ferry=st.session_state.get("ferry"),
+        station_bounds=ORIENTE_BOUNDS,
         alert=st.session_state.get("alert"),
         interior=interior_view(site_inside) if site_inside is not None else None,
         next_move=next_move(town, st.session_state.get("inside")) if st.session_state.get("show_hints", True) else None,

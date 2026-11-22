@@ -343,7 +343,7 @@ function draw() {
   context.setTransform(ratio * scale, 0, 0, ratio * scale, -left * ratio * scale, -top * ratio * scale);
   context.drawImage(state.night && night.naturalWidth ? night : day, 0, 0);
   const station = state.night && night.naturalWidth ? stationArt.night : stationArt.day;
-  if (station.complete && station.naturalWidth) context.drawImage(station, 1780, 170, 250, 94);
+  if (station.complete && station.naturalWidth && state.station_bounds) context.drawImage(station, ...state.station_bounds);
 
   if (state.route?.points?.length > 1) {
     context.save();
