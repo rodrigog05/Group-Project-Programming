@@ -536,11 +536,17 @@ menu.button("Start menu", on_click=st.session_state.update, kwargs={"show_menu":
 with display:
     fullscreen_control("game")
 
-with st.sidebar:
-    page = st.radio("Town", ("Places", "Market & recipes", "Contracts", "Deliveries", "Businesses", "Landmarks"))
+navigation, settings = st.columns((5, 1), vertical_alignment="center")
+page = navigation.radio(
+    "Town",
+    ("Places", "Market & recipes", "Contracts", "Deliveries", "Businesses", "Landmarks"),
+    horizontal=True,
+    label_visibility="collapsed",
+)
+with settings.popover("Time & progress"):
     seconds = int(town.market_elapsed % DAY_SECONDS)
     st.caption(f"{DAY_SECONDS - seconds}s until market reset")
-    step = st.selectbox("Time to advance", (5, 15, 30, 60), index=1, format_func=lambda value: f"{value}s")
+    step = st.select_slider("Time to advance", (5, 15, 30, 60), value=15, format_func=lambda value: f"{value}s")
     button("Advance time", advance_turn, step)
     if store:
         st.caption("Local progress autosaves.")
