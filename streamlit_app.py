@@ -24,6 +24,7 @@ from supabase_saves import CloudSave, SignupError, Supabase
 from tycoon import DAY_SECONDS, EGG_COST, INDUSTRIES, SITES, TRADES, ROULETTE_POCKETS, Town, roulette_color
 from vehicles import VEHICLES
 from navigation import directions
+from oriente_station import BOUNDS as ORIENTE_BOUNDS, station_svg
 
 
 PLACES = {site.name: site for site in OPEN_SITES}
@@ -528,7 +529,14 @@ def market():
 
 
 def landmarks():
-    st.image(str(ROOT / "street" / "world_100_day.webp"), caption="Foundry Town · Lisboa and Almada")
+    map_art = b64encode((ROOT / "street" / "world_100_day.webp").read_bytes()).decode("ascii")
+    station = b64encode(station_svg().encode()).decode("ascii")
+    x, y, width, height = ORIENTE_BOUNDS
+    st.html(f'<div style="position:relative"><img src="data:image/webp;base64,{map_art}" '
+            'alt="Foundry Town · Lisboa and Almada" style="width:100%;display:block">'
+            f'<img src="data:image/svg+xml;base64,{station}" alt="Gare do Oriente" '
+            f'style="position:absolute;left:{x/2400*100}%;top:{y/1780*100}%;width:{width/2400*100}%;'
+            f'height:{height/1780*100}%"></div>')
     monument = st.selectbox("Landmark", LANDMARKS, format_func=lambda item: item.name)
     st.write(monument_description(monument, SITES))
     if monument.kind == "monastery":

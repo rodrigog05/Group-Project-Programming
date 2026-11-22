@@ -132,3 +132,4 @@ With Node.js installed, run `node --test tests/street_prediction.cjs` for browse
 - `browser_game.py` adapts navigation, time, and persistence for the browser.
 - `tycoon.py` and the adjacent simulation modules hold game rules and state.
 - `street/` contains the browser map component and original day/night artwork; `street/scenes/` holds the building, casino, monastery and ferry scenes, drawn from the desktop game's own scene code (kept on the `desktop-game` branch).
+- `oriente_station.py` draws the station's branching steel canopy and glass platforms for day and night. Run `python oriente_station.py` to rebuild `street/oriente_day.svg` and `street/oriente_night.svg`; the street view and landmark map share this artwork.
