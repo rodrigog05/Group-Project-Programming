@@ -21,7 +21,7 @@ from ferry import FERRY_PIERS, nearby_pier
 from lisbon_scene import RIVER_BOTTOM
 from tourism import monument_description
 from supabase_saves import CloudSave, SignupError, Supabase
-from tycoon import DAY_SECONDS, DAYLIGHT_SECONDS, EGG_COST, INDUSTRIES, SITES, TRADES, ROULETTE_POCKETS, Town, roulette_color
+from tycoon import BODY_COLORS, COSTUMES, DAY_SECONDS, DAYLIGHT_SECONDS, EGG_COST, HAIR_COLORS, INDUSTRIES, SITES, TRADES, ROULETTE_POCKETS, Town, roulette_color
 from vehicles import VEHICLES
 from navigation import directions
 from oriente_station import BOUNDS as ORIENTE_BOUNDS, station_svg
@@ -202,6 +202,9 @@ def play_street(site_inside=None):
     street_map(
         key="street_map", on_change=play, x=town.x, y=town.y, ack=ack,
         night=town.market_elapsed % DAY_SECONDS >= DAYLIGHT_SECONDS, facing=town.facing,
+        appearance={"skin": BODY_COLORS[town.profile["body"]], "hair": HAIR_COLORS[town.profile["hair"]],
+                    "outfit": COSTUMES[town.profile["costume"]][0],
+                    "accent": COSTUMES[town.profile["costume"]][1], "costume": town.profile["costume"]},
         vehicle=town.vehicle, stowed_vehicle=town.stowed_vehicle, hint=hint,
         speed=town.movement_speed, collision=COLLISION_MAP, life=STREET_LIFE,
         cash=town.cash, on_bridge=town.bridge_journey is not None, ferry=st.session_state.get("ferry"),
@@ -636,6 +639,55 @@ def start_menu():
         start_menu_card()
 
 
+def character_choices(prefix, current):
+    name, skin, hair, outfit = st.columns((1.5, 1, 1, 1))
+    name.text_input("Name", value=current["name"], max_chars=24, key=f"{prefix}_name")
+    for column, key, label, choices in (
+        (skin, "body", "Skin", BODY_COLORS),
+        (hair, "hair", "Hair", HAIR_COLORS),
+        (outfit, "costume", "Outfit", COSTUMES),
+    ):
+        column.selectbox(label, choices, index=list(choices).index(current[key]), key=f"{prefix}_{key}")
+    skin_color = BODY_COLORS[st.session_state[f"{prefix}_body"]]
+    hair_color = HAIR_COLORS[st.session_state[f"{prefix}_hair"]]
+    clothing, accent = COSTUMES[st.session_state[f"{prefix}_costume"]]
+    preview = f"""<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Character preview"
+        width="72" height="92" viewBox="0 0 72 92">
+        <ellipse cx="36" cy="83" rx="17" ry="4" fill="#62747a"/>
+        <path d="M30 67v15m12-15v15" stroke="#344854" stroke-width="6"/>
+        <ellipse cx="36" cy="59" rx="15" ry="18" fill="{clothing}"/>
+        <path d="M21 55l-4 13m34-13 4 13" stroke="{clothing}" stroke-width="7"/>
+        <circle cx="36" cy="29" r="13" fill="{skin_color}"/>
+        <path d="M23 28q1-23 13-23 13 0 13 23-11-10-26 0" fill="{hair_color}"/>
+        <path d="M28 47h16" stroke="{accent}" stroke-width="4"/>
+    </svg>"""
+    st.image(f"data:image/svg+xml;base64,{b64encode(preview.encode()).decode()}", width=72)
+
+
+def character_values(prefix):
+    return {key: st.session_state[f"{prefix}_{key}"] for key in ("name", "body", "hair", "costume")}
+
+
+def new_character():
+    player = Town()
+    player.set_profile(character_values("new_profile"))
+    return player
+
+
+@st.dialog("Edit character")
+def character_editor():
+    character_choices("edit_profile", st.session_state.town.profile)
+    save, cancel = st.columns(2)
+    if save.button("Save character", type="primary"):
+        if act(Town.set_profile, character_values("edit_profile")):
+            st.session_state.show_character_editor = False
+            st.rerun()
+        st.error(st.session_state.save_error)
+    if cancel.button("Cancel"):
+        st.session_state.show_character_editor = False
+        st.rerun()
+
+
 def start_menu_card():
     st.title("Foundry Town")
     st.caption("Lisbon · Build your fortune along the Tagus")
@@ -644,11 +696,13 @@ def start_menu_card():
     town = st.session_state.town
     can_continue = bool(st.session_state.revision or st.session_state.get("started"))
     st.caption(f"Continue with ${town.cash:,} in cash." if can_continue else "Start with $60 and a 12-slot bag.")
+    st.markdown("**Choose your character**")
+    character_choices("new_profile", Town().profile)
     new, resume = st.columns(2)
     if new.button("New Game", width="stretch", type="primary"):
         if can_continue:
             st.session_state.confirm_restart = True
-        elif not cloud_store or save_town(Town()):
+        elif save_town(new_character()):
             enter_game(new_game=True)
         else:
             st.error(st.session_state.save_error)
@@ -658,7 +712,7 @@ def start_menu_card():
         st.warning("Start over and replace your current progress?")
         confirm, cancel = st.columns(2)
         if confirm.button("Replace progress"):
-            if save_town(Town()):
+            if save_town(new_character()):
                 enter_game(new_game=True)
             st.error(st.session_state.save_error)
         if cancel.button("Keep my progress"):
@@ -827,7 +881,7 @@ st.html(f"""
     position: relative;
     z-index: 1;
     width: min(100%, 38rem);
-    margin: clamp(2rem, 50dvh - 6rem, 26rem) auto 2rem;
+    margin: 3.5rem auto 1rem;
     max-height: calc(100dvh - 3rem);
     overflow-y: auto;
     transition: margin-top 0.2s;
@@ -976,6 +1030,11 @@ with st.container(key="foundry_hud"):
                       on_click=st.session_state.update, kwargs={"town_page": label})
         st.button("Start menu", width="stretch",
                   on_click=st.session_state.update, kwargs={"show_menu": True})
+        if st.button("Edit character", width="stretch"):
+            for key, value in town.profile.items():
+                st.session_state[f"edit_profile_{key}"] = value
+            st.session_state.show_character_editor = True
+            st.rerun()
         if store:
             if cloud_store and st.button("Save progress", width="stretch"):
                 if save_town(town):
@@ -1010,3 +1069,5 @@ if st.session_state.get("show_menu", True):
     start_menu()
 elif st.session_state.get("show_tutorial"):
     tutorial()
+elif st.session_state.get("show_character_editor"):
+    character_editor()

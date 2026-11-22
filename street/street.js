@@ -395,7 +395,8 @@ function draw() {
   if (state.route?.points?.length > 1) {
     context.save();
     context.beginPath();
-    state.route.points.forEach(([x, y], index) => index ? context.lineTo(x, y) : context.moveTo(x, y));
+    visibleRoute(state.route.points, player).forEach(([x, y], index) =>
+      index ? context.lineTo(x, y) : context.moveTo(x, y));
     context.strokeStyle = "#89e3ff";
     context.lineWidth = 4;
     context.lineCap = "round";
@@ -610,17 +611,56 @@ function drawStreetLife(t, left, top, width, height) {
   }
 }
 
+function visibleRoute(points, position) {
+  let closest = { distance: Infinity, segment: 0, x: points[0][0], y: points[0][1] };
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const [x, y] = points[index];
+    const [nextX, nextY] = points[index + 1];
+    const dx = nextX - x;
+    const dy = nextY - y;
+    const progress = Math.max(0, Math.min(1,
+      ((position.x - x) * dx + (position.y - y) * dy) / (dx * dx + dy * dy || 1)));
+    const projectedX = x + progress * dx;
+    const projectedY = y + progress * dy;
+    const distance = Math.hypot(position.x - projectedX, position.y - projectedY);
+    if (distance < closest.distance) {
+      closest = { distance, segment: index, x: projectedX, y: projectedY };
+    }
+  }
+  return [[position.x, position.y], [closest.x, closest.y], ...points.slice(closest.segment + 1)];
+}
+
 function drawWalker() {
+  const appearance = state.appearance;
+  const stride = held.size ? Math.sin(performance.now() / 1000 * 13) * 3 : 0;
   context.fillStyle = "#192c39";
-  context.fillRect(-6, -8, 5, 9);
-  context.fillRect(2, -8, 5, 9);
-  context.fillStyle = "#397fa0";
-  context.fillRect(-8, -19, 16, 12);
-  context.fillStyle = "#eeb181";
-  context.fillRect(-5, -27, 11, 9);
-  context.fillStyle = "#ffd072";
-  context.fillRect(-7, -30, 13, 5);
-  context.fillRect(4, -27, 6, 3);
+  context.fillRect(-7, -8 + stride, 5, 10);
+  context.fillRect(2, -8 - stride, 5, 10);
+  context.fillStyle = appearance.outfit;
+  context.fillRect(-8, -19, 16, 13);
+  context.fillRect(-12, -17 - stride * 0.4, 5, 10);
+  context.fillRect(7, -17 + stride * 0.4, 5, 10);
+  context.fillStyle = appearance.skin;
+  context.beginPath();
+  context.arc(0, -22, 7, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = appearance.hair;
+  context.beginPath();
+  context.arc(0, -25, 8, Math.PI, 2 * Math.PI);
+  context.fill();
+  context.fillStyle = appearance.accent;
+  context.fillRect(-6, -12, 12, 3);
+  if (appearance.costume === "Builder" || appearance.costume === "Chef" ||
+      appearance.costume === "Explorer" || appearance.costume === "Wizard") {
+    context.fillRect(-9, -32, 18, 4);
+  }
+  if (appearance.costume === "Wizard") {
+    context.beginPath();
+    context.moveTo(-7, -32);
+    context.lineTo(2, -43);
+    context.lineTo(8, -32);
+    context.fill();
+  }
 }
 
 // ----- Inside a building: the desktop game's scene, the vendor's words and the keys -----

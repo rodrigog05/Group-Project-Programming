@@ -2,7 +2,7 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from browser_game import LocalSave, SaveConflict, advance_clock, entrance, street_input, visit
-from tycoon import SITES, Town
+from tycoon import SITES, Town, pack_save, unpack_save
 from scene_buttons import click_scene, press
 
 
@@ -42,6 +42,42 @@ def test_start_menu_can_resume_and_requires_confirmation_to_replace_save(tmp_pat
     click(app, "Replace progress")
     assert app.metric[0].value == "$60"
     assert store.load()[0].cash == 60
+
+
+def test_character_choice_edit_and_save(tmp_path, monkeypatch):
+    path = tmp_path / "game.sqlite3"
+    monkeypatch.setenv("FOUNDRY_LOCAL_DB", str(path))
+    app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
+    app.text_input[0].set_value("Rodrigo").run()
+    next(box for box in app.selectbox if box.label == "Skin").select("Mint").run()
+    next(box for box in app.selectbox if box.label == "Hair").select("Chestnut").run()
+    next(box for box in app.selectbox if box.label == "Outfit").select("Wizard").run()
+    click(app, "New Game")
+    assert app.session_state.town.profile == store_profile(path, "Rodrigo", "Mint", "Wizard")
+    click(app, "Skip")
+    click(app, "Start playing")
+    click(app, "Edit character")
+    next(box for box in app.selectbox if box.label == "Skin").select("Amber").run()
+    click(app, "Save character")
+    assert app.session_state.town.profile["body"] == "Amber"
+    assert LocalSave(path).load()[0].profile["body"] == "Amber"
+
+
+def store_profile(path, name, body, costume):
+    profile = LocalSave(path).load()[0].profile
+    assert profile["name"] == name
+    assert profile["body"] == body
+    assert profile["costume"] == costume
+    return profile
+
+
+def test_character_save_validation_and_legacy_default():
+    saved = pack_save(Town(), 1_000)
+    saved["state"].pop("profile")
+    assert unpack_save(saved)[0].profile == Town().profile
+    saved["state"]["profile"] = {"name": "X", "body": [], "hair": "Chestnut", "costume": "Builder"}
+    with pytest.raises(ValueError, match="Invalid character"):
+        unpack_save(saved)
 
 
 def test_waterfront_video_is_muted_and_only_in_the_start_menu(monkeypatch):

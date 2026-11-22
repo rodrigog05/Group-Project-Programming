@@ -1177,6 +1177,13 @@ def unpack_save(data):
     state["contracts"] = contracts.normalize_state(state.get("contracts"))
     state.setdefault("milestone_acknowledged", False)
     state.setdefault("monastery_visits", 0)
+    profile = state.setdefault("profile", deepcopy(town.profile))
+    if (not isinstance(profile, dict) or not isinstance(profile.get("name"), str)
+            or any(not isinstance(profile.get(key), str) or profile[key] not in choices
+                   for key, choices in (("body", BODY_COLORS), ("hair", HAIR_COLORS), ("costume", COSTUMES)))):
+        raise ValueError("Invalid character in save")
+    town.set_profile(profile)
+    state["profile"] = deepcopy(town.profile)
     if type(state["monastery_visits"]) is not int or not 0 <= state["monastery_visits"] <= 4:
         raise ValueError("Invalid monastery visit bonus in save")
     if type(state["milestone_acknowledged"]) is not bool:
