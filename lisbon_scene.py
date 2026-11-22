@@ -701,7 +701,7 @@ class LisbonScene:
         self.rect(x+3, bottom+13, right-3, bottom+32, "#ede4cf")
         self.rect(x-1, y-22, right+1, y-4, guide.color)
         self.rect(x+2, y-20, right-2, y-18, "#a4d6d4")
-        self.text(x+88, y-12, "APRESENTAÇÃO", 9, "#ffffff", True, "center")
+        self.text(x+88, y-12, "PRESENTATION", 9, "#ffffff", True, "center")
 
     def light_research_building(self, site, glow):
         """Cool glazing and lit campus signs use the same cached night pass."""
@@ -715,7 +715,7 @@ class LisbonScene:
                           fill="#a3c9ca", width=1, tags="night_lights")
         c.create_rectangle(x-1, y-22, x+177, y-4,
                            fill="#246b80", outline="", tags="night_lights")
-        self.game.label(x+88, y-12, "APRESENTAÇÃO", 9, "#d9fff1", True,
+        self.game.label(x+88, y-12, "PRESENTATION", 9, "#d9fff1", True,
                         anchor="center", tag="night_lights")
         self.game.label(x+11, y+23, "NOVA SBE", 11, "#e2fff3", True,
                         anchor="w", tag="night_lights")

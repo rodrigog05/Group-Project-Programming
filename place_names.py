@@ -10,6 +10,15 @@ PLACE_NAMES = {
     "Bolsa de Lisboa": "Lisbon Stock Exchange",
 }
 
+DISPLAY_TERMS = {
+    "Portagem": "Toll",
+    "portagem": "toll",
+    "Lisboa": "Lisbon",
+    "Tejo": "Tagus",
+    "Pastéis": "Pastries",
+    "pastéis": "pastries",
+}
+
 
 def place_name(identifier):
     return PLACE_NAMES.get(identifier, identifier)
@@ -18,4 +27,6 @@ def place_name(identifier):
 def localize_place_names(text):
     for identifier in sorted(PLACE_NAMES, key=len, reverse=True):
         text = text.replace(identifier, PLACE_NAMES[identifier])
+    for source, english in DISPLAY_TERMS.items():
+        text = text.replace(source, english)
     return text

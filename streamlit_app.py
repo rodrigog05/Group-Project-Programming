@@ -329,7 +329,7 @@ def building_actions(site):
         "FACTORY": "Produce or collect",
         "PUBLIC SHOP": "Stock shop" if businesses.is_owned(town, site) else "Sell carried goods",
         "TIER2": "Craft, collect or sell machinery",
-        "PASTELARIA": "Bake, collect or sell pastéis",
+        "PASTELARIA": "Bake, collect or sell pastries",
         "SHIPYARD": "Start repair or collect payment",
     }
     return [("e", labels[role], interact, ())]
@@ -493,7 +493,7 @@ def landmarks():
     campus = b64encode((ROOT / "street" / "nova_presentation_signs.svg").read_bytes()).decode("ascii")
     x, y, width, height = ORIENTE_BOUNDS
     st.html(f'<div style="position:relative"><img src="data:image/webp;base64,{map_art}" '
-            'alt="Foundry Town · Lisboa and Almada" style="width:100%;display:block">'
+            'alt="Foundry Town · Lisbon and Almada" style="width:100%;display:block">'
             f'<img src="data:image/svg+xml;base64,{city}" alt="City buildings" '
             'style="position:absolute;inset:0;width:100%;height:100%">'
             f'<img src="data:image/svg+xml;base64,{station}" alt="Gare do Oriente" '
@@ -540,7 +540,7 @@ def fullscreen_control(name):
 
 TUTORIAL = (
     ("Your goal", "goal.webp",
-     "You start in Lisboa with **$60** and a 12-slot bag. Grow your business to **$500** by running trade routes: "
+     "You start in Lisbon with **$60** and a 12-slot bag. Grow your business to **$500** by running trade routes: "
      "buy materials, turn them into products, and sell the products for more than they cost."),
     ("1 · Buy materials", "buy.webp",
      "Walk with **WASD** or the **arrow keys** to a store with a yellow **BUY MATERIALS** sign and press **E** at "
@@ -552,8 +552,8 @@ TUTORIAL = (
      "Bring the products to a green **SELL PRODUCTS** market and press **E** to sell everything you carry. Bread "
      "made from $4 wheat sells for $14. Repeat with bigger batches to grow faster."),
     ("Getting around", "garage.webp",
-     "The only car **DEALERSHIP** is in Cacilhas, across the Tejo: take the ferry ($2) from Cais do Sodré "
-     "to get there. Vehicles are faster and carry more, and by car the bridges charge a $3 toll toward Lisboa. "
+     "The only car **DEALERSHIP** is in Cacilhas, across the Tagus: take the ferry ($2) from Cais do Sodré "
+     "to get there. Vehicles are faster and carry more, and by car the bridges charge a $3 toll toward Lisbon. "
      "Pick a **Destination** above the map to see the route, and press **Esc** to leave any building."),
 )
 
@@ -607,7 +607,7 @@ def close_tutorial():
     st.session_state.tutorial_step = 0
 
 
-@st.dialog("Foundry Town · Lisboa", width="large", dismissible=False)
+@st.dialog("Foundry Town · Lisbon", width="large", dismissible=False)
 def start_menu():
     with st.container(key="foundry_waterfront"):
         st.video(
@@ -624,7 +624,7 @@ def start_menu():
 
 def start_menu_card():
     st.title("Foundry Town")
-    st.caption("Lisboa · Build your fortune along the Tejo")
+    st.caption("Lisbon · Build your fortune along the Tagus")
     if notice := st.session_state.pop("sign_out_notice", ""):
         st.warning(notice)
     town = st.session_state.town
@@ -661,8 +661,8 @@ def start_menu_card():
             "to leave. Inside: **E** buys, makes or sells, **Q** buys up to four.\n\n"
             "**Trade route** · Buy materials at a yellow store, make products at a blue store, sell them at a green "
             "market. Example: wheat at Goldenfield Farm → bread at Sunrise Bakery → Daily Bread Market.\n\n"
-            "**Getting around** · The ferry crosses the Tejo for $2 on foot; with a vehicle the bridges charge "
-            "$3 toward Lisboa. Choose a **Destination** above the map to see the route.".replace("$", "\\$"))
+            "**Getting around** · The ferry crosses the Tagus for $2 on foot; with a vehicle the bridges charge "
+            "$3 toward Lisbon. Choose **Route options → Destination** to see the route.".replace("$", "\\$"))
     if cloud:
         cloud_account()
 

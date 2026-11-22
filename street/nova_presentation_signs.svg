@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="178" height="110" viewBox="0 0 178 110">
   <rect width="178" height="18" fill="#246b80"/>
   <path d="M3 3H175" stroke="#a4d6d4" stroke-width="2"/>
-  <text x="89" y="13" text-anchor="middle" font-family="Arial,sans-serif" font-size="9" font-weight="bold" fill="#efffff">APRESENTAÇÃO</text>
+  <text x="89" y="13" text-anchor="middle" font-family="Arial,sans-serif" font-size="9" font-weight="bold" fill="#efffff">PRESENTATION</text>
   <rect x="9" y="92" width="156" height="18" fill="#244b5b"/>
   <text x="87" y="104" text-anchor="middle" font-family="Arial,sans-serif" font-size="8" font-weight="bold" fill="#f1f8eb">E  Present Foundry Town</text>
 </svg>
