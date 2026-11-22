@@ -4,7 +4,7 @@ Run this file to rebuild the two SVG assets. No image libraries are required.
 """
 from pathlib import Path
 
-BOUNDS = (1780, 170, 250, 94)
+BOUNDS = (1780, 150, 250, 132)
 
 
 def station_svg(night=False):
@@ -13,7 +13,17 @@ def station_svg(night=False):
     ribs = "#cda266" if night else "#96aaa4"
     glass = "#546963" if night else "#c1d9d1"
     shade = "#33474d" if night else "#77948f"
-    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300">'
+    road = "#354650" if night else "#747a77"
+    curb = "#4e5a60" if night else "#b4ac98"
+    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 750 396">'
+             f'<rect width="750" height="396" fill="{ground}"/>'
+             # Restore the road edges obscured by the old baked-in station.
+             f'<path d="M0 0H28.5V396H0ZM721.5 0H750V396H721.5Z" fill="{road}"/>'
+             f'<path d="M28.5 0H43.5V379.5H28.5ZM706.5 0H721.5V379.5H706.5Z" fill="{curb}"/>'
+             f'<path d="M28.5 379.5H721.5V394.5H28.5Z" fill="{curb}"/>'
+             f'<path d="M0 394.5H750V396H0Z" fill="{road}"/>'
+             # All building geometry stays inside the plot, with space for its name.
+             '<g transform="translate(60 30) scale(.875)">'
              f'<path d="M32 0H688V64H720V287H688V300H32V287H0V64H32Z" fill="{ground}"/>',
              '<ellipse cx="365" cy="269" rx="344" ry="20" fill="#243b40" opacity=".2"/>',
              f'<path d="M8 185 42 154H706V240H8Z" fill="{shade}"/>']
@@ -71,7 +81,9 @@ def station_svg(night=False):
     for y in (259, 276, 293):
         spread = (y-246)*1.12 + 40
         parts.append(f'<path d="M{359-spread:.1f} {y}H{359+spread:.1f}" stroke="{steel}" stroke-width="1"/>')
-    parts.append('</svg>')
+    parts.append('</g><rect x="110" y="323" width="530" height="39" rx="7" fill="#304b54"/>')
+    parts.append('<text x="375" y="350" text-anchor="middle" font-family="Arial,sans-serif" '
+                 'font-size="26" font-weight="700" letter-spacing="1" fill="#fff3d4">GARE DO ORIENTE</text></svg>')
     return ''.join(parts)
 
 
