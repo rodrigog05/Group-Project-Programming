@@ -135,6 +135,10 @@ def button(label, operation, *args, key=None, **options):
 
 def interact(town, bulk=False):
     town.interact(bulk)
+    # Production timing belongs to the corner timer, not the action acknowledgement.
+    message, timing, _ = town.message.partition(". Ready in ")
+    if timing:
+        town.message = f"{message}."
 
 
 def warehouse(town):
@@ -246,6 +250,9 @@ def play_street(site_inside=None):
 
 
 def site_status(site):
+    if site.role == "FACTORY":
+        trade = TRADES[town.business_site(site).trade]
+        return f"{trade.supply} → {trade.product}"
     status = town.site_status(site).replace(f" · Eggs ${EGG_COST}", "")
     for shortcut in (" · B Manage", " · L Deliveries", " (F / R)", "E · ", "E "):
         status = status.replace(shortcut, "")
@@ -384,6 +391,7 @@ def interior_view(site):
         trade = town.business_site(site).trade
         order = town.orders[trade]
         if order is not None:
+            view["speech"] = greeting(town, site)
             view["timer"] = {"product": TRADES[trade].product, "quantity": order.quantity,
                              "seconds": max(0.0, order.ready_at - town.elapsed)}
     return view
