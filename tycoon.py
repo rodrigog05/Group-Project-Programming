@@ -625,7 +625,7 @@ class Town:
             self.won = True
             self.message = f"Goal reached on Day {self.day}! Keep trading to grow your business."
 
-    def move(self, dx, dy, seconds):
+    def move(self, dx, dy, seconds, *, roads_only=False):
         old_y = self.y
         length = math.hypot(dx, dy)
         if not length:
@@ -636,12 +636,12 @@ class Town:
         distance = speed * seconds / length
         next_x = min(WORLD_WIDTH - 17, max(17, self.x + dx * distance))
         next_y = min(WORLD_BOTTOM - 15, max(MAP_TOP + 15, self.y + dy * distance))
-        if self.can_walk(next_x, self.y):
+        if self.can_walk(next_x, self.y, roads_only=roads_only):
             self.x = next_x
         if self.toll_blocks(next_y):
             self.message = (f"The portagem toward Lisboa costs ${BRIDGE_TOLL}. "
                             "You need more cash to cross the bridge.")
-        elif self.can_walk(self.x, next_y):
+        elif self.can_walk(self.x, next_y, roads_only=roads_only):
             self.y = next_y
         elif (self.vehicle is None and RIVER_TOP-PLAYER_RADIUS < next_y < RIVER_BOTTOM+PLAYER_RADIUS
               and bridge_at(self.x, next_y, PLAYER_RADIUS)):
@@ -684,9 +684,12 @@ class Town:
         elif self.y >= south:
             self.bridge_journey = None
 
-    def can_walk(self, x, y):
+    def can_walk(self, x, y, *, roads_only=False):
         from lisbon_scene import vehicle_park_blocked
-        if self.vehicle and vehicle_park_blocked(x, y, PLAYER_RADIUS):
+        if self.vehicle and (
+            vehicle_park_blocked(x, y, PLAYER_RADIUS)
+            or roads_only and not on_road(x, y)
+        ):
             return False
         return (PLAYER_RADIUS <= x <= WORLD_WIDTH-PLAYER_RADIUS and MAP_TOP+PLAYER_RADIUS <= y <= WORLD_BOTTOM-PLAYER_RADIUS
                 and walkable_terrain(x, y, PLAYER_RADIUS, on_foot=self.vehicle is None)) and not any(

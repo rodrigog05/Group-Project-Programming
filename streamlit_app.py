@@ -17,7 +17,7 @@ import exchange
 import innovation
 import logistics
 from browser_game import (COLLISION_MAP, MONASTERY, STREET_LIFE, LocalSave, building_at, greeting, scene_for,
-                          SaveConflict, entrance, street_event, street_input, visit)
+                          SaveConflict, entrance, place_vehicle_on_road, street_event, street_input, visit)
 from journal_market import market_snapshot
 from journal_recipes import RECIPE_BY_KEY
 from lisbon_landmarks import LANDMARKS
@@ -175,6 +175,7 @@ def district_exchange():
 
 
 def play_street():
+    place_vehicle_on_road(town)
     nearby = town.nearby()
     pier = nearby_pier(town.x, town.y)
     hint = "Follow the marked entrances to buy, make, and sell."

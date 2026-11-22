@@ -143,9 +143,22 @@ function parkBlocked(x, y, r) {
   return insideAny(state.collision.parks, x, y, r);
 }
 
+function onRoad(x, y) {
+  const { roads, road_exclusions, tunnel } = state.collision;
+  const [left, right, center, half] = tunnel;
+  const inTunnel = left <= x && x <= right && Math.abs(y - center) <= half;
+  if (!inTunnel && insideAny(road_exclusions, x, y, 0)) return false;
+  return roads.some(([x1, y1, x2, y2, width]) => {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const fraction = Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy)));
+    return (x - (x1 + fraction * dx)) ** 2 + (y - (y1 + fraction * dy)) ** 2 <= width ** 2;
+  });
+}
+
 function canWalk(x, y) {
   const { radius: r, world: [width, mapTop, bottom], boxes } = state.collision;
-  if (state.vehicle && parkBlocked(x, y, r)) return false;
+  if (state.vehicle && (parkBlocked(x, y, r) || !onRoad(x, y))) return false;
   return r <= x && x <= width - r && mapTop + r <= y && y <= bottom - r &&
     walkableTerrain(x, y, r, !state.vehicle) && !insideAny(boxes, x, y, r);
 }

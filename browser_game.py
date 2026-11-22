@@ -11,7 +11,10 @@ from ferry import FERRY_FARE, FERRY_PIERS, nearby_pier, ride_ferry
 import businesses
 import lisbon_scene as scene
 from lisbon_landmarks import LANDMARKS
-from vehicles import VEHICLES, CAR_SPEED_RANGE, ROAD_EXCLUSIONS, in_tunnel, on_road, tunnel_covers_y
+from vehicles import (
+    VEHICLES, CAR_SPEED_RANGE, ROAD_EXCLUSIONS, ROAD_SEGMENTS, in_tunnel, on_road,
+    road_projection, tunnel_covers_y,
+)
 from tycoon import (BRIDGE_TOLL, COLLISION_BOUNDS, EGG_COST, MAP_TOP, PLAYER_RADIUS, RIVER_BOTTOM, TRADES, Town,
                     pack_save, unpack_save)
 
@@ -27,6 +30,8 @@ COLLISION_MAP = {
     "sand": [scene.SAND_WEST, scene.SAND_EAST, scene.SAND_BOTTOM],
     "tower": [90, 735, 190, 850],  # Belém Tower on the beach (left, top, right, bottom), as in walkable_terrain
     "toll": BRIDGE_TOLL,
+    "roads": ROAD_SEGMENTS,
+    "road_exclusions": ROAD_EXCLUSIONS,
 }
 
 
@@ -214,6 +219,30 @@ def advance_clock(town, seconds):
     town.sync_market(town.market_elapsed + seconds)
 
 
+def place_vehicle_on_road(town):
+    """Return an active vehicle to the road when leaving a building or loading an old save."""
+    if not town.vehicle or town.can_walk(town.x, town.y, roads_only=True):
+        return
+    x, y = town.x, town.y
+
+    def same_bank(py):
+        if y < scene.RIVER_TOP:
+            return py < scene.RIVER_TOP
+        if y >= RIVER_BOTTOM:
+            return py >= RIVER_BOTTOM
+        return scene.RIVER_TOP <= py < RIVER_BOTTOM
+
+    closest = None
+    for segment in ROAD_SEGMENTS:
+        px, py = road_projection(x, y, segment)
+        if same_bank(py) and town.can_walk(px, py, roads_only=True):
+            distance = math.hypot(x - px, y - py)
+            if closest is None or distance < closest[0]:
+                closest = distance, px, py
+    if closest is not None:
+        _, town.x, town.y = closest
+
+
 def toggle_vehicle(town):
     if town.vehicle:
         if in_tunnel(town.x, town.y) or town.bridge_journey or not scene.walkable_terrain(
@@ -226,7 +255,7 @@ def toggle_vehicle(town):
             town.stowed_vehicle, town.vehicle = town.vehicle, None
             town.message = "You’re on foot. Press V to bring your vehicle back."
     elif town.stowed_vehicle:
-        if scene.vehicle_park_blocked(town.x, town.y, PLAYER_RADIUS) or not scene.walkable_terrain(
+        if not on_road(town.x, town.y) or scene.vehicle_park_blocked(town.x, town.y, PLAYER_RADIUS) or not scene.walkable_terrain(
             town.x, town.y, PLAYER_RADIUS
         ):
             town.message = "Move to a street before bringing your vehicle back."
@@ -256,12 +285,13 @@ def street_input(town, event):
         total += seconds
     if total > 2.000001:
         return False
+    place_vehicle_on_road(town)
     for segment in segments:
         dx, dy, seconds = (segment[key] for key in ("dx", "dy", "seconds"))
         steps = max(1, math.ceil(seconds * 60))
         for _ in range(steps):
             if dx or dy:
-                town.move(dx, dy, seconds / steps)
+                town.move(dx, dy, seconds / steps, roads_only=True)
             if seconds:
                 advance_clock(town, seconds / steps)
     if action == "interact" and nearby_pier(town.x, town.y):
