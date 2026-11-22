@@ -22,6 +22,7 @@ from lisbon_landmarks import LANDMARKS
 from ferry import FERRY_PIERS, nearby_pier
 from lisbon_scene import RIVER_BOTTOM
 from tourism import monument_description
+from supabase_saves import CloudSave, Supabase
 from tycoon import DAY_SECONDS, INDUSTRIES, SITES, TRADES, ROULETTE_POCKETS, Town, roulette_color
 from vehicles import VEHICLES
 from navigation import directions
@@ -35,7 +36,27 @@ SAVE_ERRORS = (OSError, sqlite3.Error, ValueError, KeyError, TypeError)
 
 st.set_page_config(page_title="Foundry Town", layout="wide")
 save_path = os.environ.get("FOUNDRY_LOCAL_DB")
-store = LocalSave(save_path) if save_path else None
+
+
+def cloud_client():
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_PUBLISHABLE_KEY")
+    if not url and not key:
+        return None
+    if not url or not key:
+        st.warning("Cloud saves need the Supabase project URL and publishable key.")
+        return None
+    try:
+        return Supabase(url, key)
+    except ValueError:
+        st.warning("Cloud saves need a valid HTTPS project URL and a Supabase publishable key.")
+        return None
+
+
+cloud = None if save_path else cloud_client()
+cloud_session = st.session_state.get("cloud_session")
+cloud_store = CloudSave(cloud, cloud_session) if cloud and cloud_session else None
+store = LocalSave(save_path) if save_path else cloud_store
 
 
 def load_game():
@@ -45,13 +66,15 @@ def load_game():
     st.session_state.town = town
     st.session_state.revision = revision
     st.session_state.save_error = ""
+    st.session_state.cloud_conflict = False
+    st.session_state.next_cloud_checkpoint = monotonic() + 15
 
 
 if "town" not in st.session_state:
     try:
         load_game()
     except SAVE_ERRORS:
-        st.error("Could not open the local save. Check file permissions or restore the database, then reload.")
+        st.error("Could not open your save. Reload to try again.")
         st.stop()
 
 
@@ -64,23 +87,34 @@ def act(operation, *args):
     if result is False and operation is street_input:
         return
     before = st.session_state.town
-    if (before.y >= RIVER_BOTTOM) != (candidate.y >= RIVER_BOTTOM) and before.vehicle is None:
+    moving_between_banks = (before.y >= RIVER_BOTTOM) != (candidate.y >= RIVER_BOTTOM)
+    map_tick = operation is street_event and not args[0].get("action") and not moving_between_banks
+    saved = save_town(candidate, checkpoint=map_tick)
+    if saved and moving_between_banks and before.vehicle is None:
         # On foot, changing banks means a ferry ride: the street map plays the crossing.
         previous = st.session_state.get("ferry", {}).get("id", 0)
         st.session_state.ferry = {"id": previous + 1, "heading": 1 if candidate.y >= RIVER_BOTTOM else -1}
-    saved = save_town(candidate)
     return result if operation is street_event and saved else saved
 
 
-def save_town(candidate):
+def save_town(candidate, *, checkpoint=False):
+    if cloud_store and st.session_state.get("cloud_conflict"):
+        return False
+    if cloud_store and checkpoint and monotonic() < st.session_state.get("next_cloud_checkpoint", 0):
+        # Avoid a network write on every movement update.
+        st.session_state.town = candidate
+        return True
+    if cloud_store:
+        st.session_state.next_cloud_checkpoint = monotonic() + 15
     try:
         if store:
             st.session_state.revision = store.save(candidate, st.session_state.revision)
     except SaveConflict:
+        st.session_state.cloud_conflict = bool(cloud_store)
         st.session_state.save_error = "Another tab updated this save. Reload progress before continuing."
         return
     except SAVE_ERRORS:
-        st.session_state.save_error = "Could not save this action. Check local storage and try again."
+        st.session_state.save_error = "Could not save this action. Check your connection or save settings and try again."
         return
     st.session_state.town = candidate
     st.session_state.save_error = ""
@@ -596,6 +630,8 @@ def start_menu():
 def start_menu_card():
     st.title("Foundry Town")
     st.caption("Lisboa · Build your fortune along the Tejo")
+    if notice := st.session_state.pop("sign_out_notice", ""):
+        st.warning(notice)
     town = st.session_state.town
     can_continue = bool(st.session_state.revision or st.session_state.get("started"))
     st.caption(f"Continue with ${town.cash:,} in cash." if can_continue else "Start with $60 and a 12-slot bag.")
@@ -603,8 +639,10 @@ def start_menu_card():
     if new.button("New Game", width="stretch", type="primary"):
         if can_continue:
             st.session_state.confirm_restart = True
-        else:
+        elif not cloud_store or save_town(Town()):
             enter_game(new_game=True)
+        else:
+            st.error(st.session_state.save_error)
     if resume.button("Continue", width="stretch", disabled=not can_continue):
         enter_game()
     if st.session_state.get("confirm_restart"):
@@ -621,6 +659,61 @@ def start_menu_card():
         st.write("Click the map to focus it. Move with WASD or the arrow keys and press E to interact.")
         st.write("Buy wheat at Goldenfield Farm, make bread at Sunrise Bakery, then sell it at Daily Bread Market.")
         st.write("Reach $500, then keep growing through research, contracts, and business ownership.")
+    if cloud:
+        cloud_account()
+
+
+def cloud_account():
+    if cloud_store:
+        st.caption("Cloud saves are active.")
+        if st.button("Sign out"):
+            saved = save_town(st.session_state.town)
+            st.session_state.clear()
+            if not saved:
+                st.session_state.sign_out_notice = "Signed out. Your last cloud save is still available."
+            st.rerun()
+        return
+
+    with st.expander("Sign in for cloud saves"):
+        st.caption("Signing in opens your cloud save. A new account can save your current guest game.")
+        with st.form("cloud_account", clear_on_submit=True):
+            email = st.text_input("Email")
+            password = st.text_input("Password", type="password")
+            sign_in = st.form_submit_button("Sign in")
+            sign_up = st.form_submit_button("Create account")
+        if not (sign_in or sign_up):
+            return
+        if not email.strip() or not password:
+            st.error("Enter your email and password.")
+            return
+        if sign_up:
+            try:
+                cloud.sign_up(email.strip(), password)
+            except SAVE_ERRORS:
+                st.error("Could not create an account. Check your email and password or try again.")
+            else:
+                st.success("Check your email to confirm your account, then sign in here.")
+            return
+        try:
+            session = cloud.sign_in(email.strip(), password)
+        except SAVE_ERRORS:
+            st.error("Could not sign in. Check your details and confirm your email first.")
+            return
+        try:
+            remote = CloudSave(cloud, session)
+            town, revision = remote.load()
+            if not revision and st.session_state.get("started"):
+                town = st.session_state.town
+                revision = remote.save(town, 0)
+        except (SaveConflict, *SAVE_ERRORS):
+            st.error("Could not open your cloud save. Your guest game is still available.")
+            return
+        st.session_state.clear()
+        st.session_state.update(
+            cloud_session=session, town=town, revision=revision, save_error="",
+            next_cloud_checkpoint=monotonic() + 15,
+        )
+        st.rerun()
 
 
 def enter_game(*, new_game=False):
@@ -790,12 +883,16 @@ with st.container(key="foundry_nav"):
                 label, type="primary" if page == label else "secondary", width="stretch",
                 on_click=st.session_state.update, kwargs={"town_page": label},
             )
-        if store and st.button("Reload local progress", width="stretch"):
+        if cloud_store and st.button("Save progress", width="stretch"):
+            if save_town(town):
+                st.toast("Progress saved.")
+        reload_label = "Reload cloud progress" if cloud_store else "Reload local progress"
+        if store and st.button(reload_label, width="stretch"):
             try:
                 load_game()
                 st.rerun()
             except SAVE_ERRORS:
-                st.session_state.save_error = "Could not read local progress. Check the save file."
+                st.session_state.save_error = "Could not reload progress. Check your save settings and try again."
 
 if st.session_state.save_error:
     st.error(st.session_state.save_error)
