@@ -8,10 +8,12 @@ import sqlite3
 
 from exchange import advance_city
 from ferry import FERRY_FARE, FERRY_PIERS, nearby_pier, ride_ferry
+import businesses
 import lisbon_scene as scene
-from vehicles import CAR_SPEED_RANGE, ROAD_EXCLUSIONS, tunnel_covers_y
-from tycoon import (BRIDGE_TOLL, COLLISION_BOUNDS, MAP_TOP, PLAYER_RADIUS, RIVER_BOTTOM, Town, pack_save,
-                    unpack_save)
+from lisbon_landmarks import LANDMARKS
+from vehicles import VEHICLES, CAR_SPEED_RANGE, ROAD_EXCLUSIONS, on_road, tunnel_covers_y
+from tycoon import (BRIDGE_TOLL, COLLISION_BOUNDS, EGG_COST, MAP_TOP, PLAYER_RADIUS, RIVER_BOTTOM, TRADES, Town,
+                    pack_save, unpack_save)
 
 # The browser predicts movement with the same walls as Town.can_walk. Python still checks every step.
 COLLISION_MAP = {
@@ -28,19 +30,46 @@ COLLISION_MAP = {
 }
 
 
+PEDESTRIAN_BODY = (-13, 0, 8)  # Head, body and feet relative to a walker's position in street.js
+
+
+def off_road(x, y):
+    """A pedestrian here stands on dry land with their whole body clear of every traffic lane.
+    Their head may overlap a shop front behind them, as on the desktop game's pavements."""
+    return scene.walkable_terrain(x, y, 0, on_foot=True) and not any(
+        on_road(x+dx, y+dy) for dx in (-5, 5) for dy in PEDESTRIAN_BODY)
+
+
+def pavement_walks():
+    """Pavement stretches beside each street, split at crossings so nobody walks into traffic."""
+    south = scene.south
+    walks = []
+    for base in (280, 465, 647, south(1090), south(1395), scene.WORLD_BOTTOM-55):
+        # The desktop routes ran on the kerb; move each one onto the nearest clear pavement.
+        y = min((y for y in range(base-40, base+41)
+                 if sum(off_road(x, y) for x in range(40, scene.WORLD_WIDTH, 40)) > 30),
+                key=lambda y: abs(y-base))
+        start = None
+        for x in range(0, scene.WORLD_WIDTH+4, 4):
+            clear = x < scene.WORLD_WIDTH and off_road(x, y)
+            if clear and start is None:
+                start = x
+            elif not clear and start is not None:
+                if x-start >= 80:
+                    walks.append((start+6, x-10, y))
+                start = None
+    return walks
+
+
 def street_life():
     """Decorative pedestrians, cars and the waterfront tram, with the desktop game's routes."""
     rng = random.Random(2815)
     south = scene.south
-    walks = (((32, 280), (1160, 280)), ((40, 465), (1160, 465)), ((50, 647), (1150, 647)),
-             ((1260, 280), (scene.WORLD_WIDTH-70, 280)), ((1260, 465), (scene.WORLD_WIDTH-90, 465)),
-             ((1270, 645), (scene.WORLD_WIDTH-80, 645)), ((90, south(1090)), (scene.WORLD_WIDTH-120, south(1090))),
-             ((85, south(1395)), (scene.WORLD_WIDTH-130, south(1395))),
-             ((65, scene.WORLD_BOTTOM-55), (scene.WORLD_WIDTH-110, scene.WORLD_BOTTOM-55)))
     people = []
+    walks = pavement_walks()
     for index in range(45):
-        (x1, y1), (x2, y2) = walks[index % len(walks)]
-        people.append([x1, y1, x2, y2, rng.uniform(20, 34), rng.random()*2,
+        x1, x2, y = walks[index % len(walks)]
+        people.append([x1, y, x2, y, rng.uniform(20, 34), rng.random()*2,
                        rng.choice(("#b37262", "#547d8b", "#81926f", "#ba9d61", "#8a7195"))])
     cars = []
     lanes = (291, 308, 476, 493, 650, 666, south(1101), south(1119), south(1362), south(1378),
@@ -57,11 +86,86 @@ def street_life():
                          rng.choice(("#9b584e", "#c6c5b5", "#759ca5", "#b89b62", "#e8455a", "#86caff"))])
     left, _, right, _ = scene.SOUTH_PARK_BOUNDS
     _, _, tunnel_y, tunnel_half = scene.SOUTH_PARK_TUNNEL
-    return {"people": people, "cars": cars, "tunnel": [left, right, tunnel_y, tunnel_half],
+    north_pier, south_pier = FERRY_PIERS
+    # The cacilheiro shuttles between the two piers, as on the desktop map.
+    shuttle = [north_pier.x+30, scene.RIVER_TOP+80, south_pier.x-30, scene.RIVER_BOTTOM-80, 45]
+    return {"people": people, "cars": cars, "tunnel": [left, right, tunnel_y, tunnel_half], "ferry": shuttle,
             "tram": [80, scene.WORLD_WIDTH-100, 40]}  # From x, to x, seconds for a round trip
 
 
 STREET_LIFE = street_life()
+
+
+# ----- Buildings: what is at the door, which illustrated scene to show and what the vendor says -----
+
+MONASTERY = "Mosteiro dos Jerónimos"
+INTERIOR_ROLES = ("SUPPLIER", "FACTORY", "PUBLIC SHOP", "PASTELARIA", "SHIPYARD", "TIER2")
+# Scenes from the desktop game, as drawn in street/scenes. Boxes are in each scene's own pixels.
+SCENES = {
+    "interior": {"size": (640, 400), "bubble": (250, 20, 470, 130), "board": (336, 318, 500, 384)},
+    "garage": {"size": (800, 400), "bubble": (460, 10, 790, 80), "board": None},
+    "monastery": {"size": (640, 400), "bubble": None, "board": None},
+    "casino": {"size": (1200, 700), "bubble": None, "board": None},
+}
+
+
+def building_at(town):
+    """The building or monastery whose door the player stands at, by name. Ferry piers come first."""
+    if nearby_pier(town.x, town.y):
+        return None
+    site = town.nearby()
+    if site:
+        return site.name
+    left, _, right, bottom = LANDMARKS[0].bounds
+    if math.hypot(town.x-(left+right)/2, town.y-(bottom+16)) <= 40:
+        return MONASTERY
+    return None
+
+
+def scene_for(town, site):
+    """(image name, layout) for a building, or None when it has no illustrated scene."""
+    if site == MONASTERY:
+        return "monastery", SCENES["monastery"]
+    if site.role in INTERIOR_ROLES:
+        trade = town.business_site(site).trade if site.role in ("FACTORY", "PUBLIC SHOP") else max(site.trade, 0)
+        return f"{site.role.replace(' ', '_').lower()}_{trade}", SCENES["interior"]
+    if site.role in ("GARAGE", "CASINO"):
+        return site.role.lower(), SCENES[site.role.lower()]
+    return None
+
+
+def greeting(town, site):
+    """What the person behind the counter says when you walk in, as in the desktop game."""
+    if site == MONASTERY:
+        return "Peace be with you. Each visit adds 5 percentage points of casino luck, up to 20."
+    role = site.role
+    if role == "SUPPLIER":
+        trade = TRADES[site.trade]
+        opener = ("Freshly mined", "Cut this morning", "Dug from the pit today", "Harvested at dawn")[site.trade]
+        text = f"{opener}! {trade.supply} for ${town.costs[site.trade]} each."
+        return text + f" Eggs are ${EGG_COST}." if site.trade == 3 else text
+    if role == "PUBLIC SHOP":
+        trade = town.business_site(site).trade
+        if businesses.is_owned(town, site):
+            return f"Welcome back, boss! Shall I put your {TRADES[trade].product} on the shelves?"
+        return f"I buy your {TRADES[trade].product} for ${town.prices[trade]} each!"
+    if role == "FACTORY":
+        trade = TRADES[town.business_site(site).trade]
+        return f"Bring me {trade.supply} and I'll turn it into {trade.product}."
+    if role == "PASTELARIA":
+        return "Pastéis de nata, fresh from the oven! 1 Wheat + 1 Egg makes one."
+    if role == "SHIPYARD":
+        return "This boat won't fix itself! Bring 2 Timber + 2 Iron ore and the job is yours."
+    if role == "TIER2":
+        return "Precision work only! 1 Tools + 1 Furniture makes one Precision Machinery."
+    if role == "GARAGE":
+        ride = VEHICLES.get(town.vehicle)
+        if ride is None:
+            return "Tired of walking? The bridges are for vehicles only. Pick a ride and I'll hand you the keys!"
+        return f"How's the {ride.label.lower()} running? Trade up for a bigger trunk any time."
+    if role == "CASINO":
+        return "Welcome to the casino. Pick a chip, then bet on a colour."
+    return f"Welcome to {site.name}."
 
 
 def entrance(site):
@@ -149,6 +253,21 @@ def street_input(town, event):
     elif action in ("egg", "eggs"):
         town.buy_eggs(bulk=action == "eggs")
     return True
+
+
+def street_event(town, event):
+    """Apply one map event. E at a building's door walks there and returns the building to open
+    (trading happens inside); every other event is applied by street_input as usual."""
+    if isinstance(event, dict) and event.get("action") == "interact":
+        moved = street_input(town, {**event, "action": None})
+        name = building_at(town) if moved else None
+        if name:
+            return name
+        if not moved:
+            return None
+        event = {"segments": [{"dx": 0, "dy": 0, "seconds": 0}], "action": "interact"}
+    street_input(town, event)
+    return None
 
 
 class SaveConflict(Exception):

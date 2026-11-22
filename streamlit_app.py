@@ -1,6 +1,8 @@
 """Foundry Town's Streamlit interface."""
 from base64 import b64encode
 from copy import deepcopy
+from functools import lru_cache
+from html import escape
 import os
 from pathlib import Path
 import sqlite3
@@ -13,7 +15,8 @@ import contracts
 import exchange
 import innovation
 import logistics
-from browser_game import COLLISION_MAP, STREET_LIFE, LocalSave, SaveConflict, entrance, street_input, visit
+from browser_game import (COLLISION_MAP, MONASTERY, STREET_LIFE, LocalSave, building_at, greeting, scene_for,
+                          SaveConflict, entrance, street_event, street_input, visit)
 from journal_market import market_snapshot
 from journal_recipes import RECIPE_BY_KEY
 from lisbon_landmarks import LANDMARKS
@@ -53,12 +56,20 @@ if "town" not in st.session_state:
 
 
 def act(operation, *args):
+    """Apply an action to a copy of the town and save it. A map event returns the building to open."""
     candidate = deepcopy(st.session_state.town)
-    if operation is not street_input:
+    if operation not in (street_input, street_event):
         candidate.message = ""
-    if operation(candidate, *args) is False and operation is street_input:
+    result = operation(candidate, *args)
+    if result is False and operation is street_input:
         return
-    return save_town(candidate)
+    before = st.session_state.town
+    if (before.y >= RIVER_BOTTOM) != (candidate.y >= RIVER_BOTTOM) and candidate.vehicle is None:
+        # On foot, changing banks means a ferry ride: the street map plays the crossing.
+        previous = st.session_state.get("ferry", {}).get("id", 0)
+        st.session_state.ferry = {"id": previous + 1, "heading": 1 if candidate.y >= RIVER_BOTTOM else -1}
+    saved = save_town(candidate)
+    return result if operation is street_event and saved else saved
 
 
 def save_town(candidate):
@@ -100,18 +111,15 @@ def warehouse(town):
     town.message = f"Warehouse expanded. Total capacity is {town.carry_capacity}."
 
 
-def roulette(town, choice, stake):
-    if town.cash < stake:
-        town.message = f"You need ${stake} for this bet."
-        return
-    number = ROULETTE_POCKETS[town.roulette_pocket(choice)]
-    payout = town.bet_roulette(choice, stake, number)
-    if payout:
-        town.add_cash(payout)
-    town.message = f"The wheel landed on {number} ({roulette_color(number)}). Payout ${payout:,}."
+def visit_and_enter(position, label):
+    ferry = st.session_state.get("ferry")
+    act(visit, position, label)
+    # After a ferry ride, stay on the street so the map can play the crossing.
+    if building_at(st.session_state.town) == label and st.session_state.get("ferry") == ferry:
+        enter_building(label)
 
 
-def travel(position, label, *, key):
+def travel(position, label, *, key, enter=False):
     if (town.x, town.y) == position:
         return True
     if (town.y >= RIVER_BOTTOM) != (position[1] >= RIVER_BOTTOM):
@@ -119,7 +127,10 @@ def travel(position, label, *, key):
             st.caption("Ponte 25 de Abril · $3 toll toward Lisboa, free toward Almada.")
         else:
             st.caption("Cross the Tejo by ferry for $2.")
-    button(f"Visit {label}", visit, position, label, key=key)
+    if enter:
+        st.button(f"Visit {label}", key=key, on_click=visit_and_enter, args=(position, label))
+    else:
+        button(f"Visit {label}", visit, position, label, key=key)
     return False
 
 
@@ -175,11 +186,9 @@ def play_street():
         event = st.session_state.get("street_map")
         if not isinstance(event, dict):
             return
-        act(street_input, event)
-        if event.get("action") == "interact":
-            site = st.session_state.town.nearby()
-            if site and site.role in ("GARAGE", "WAREHOUSE", "EXCHANGE", "RESEARCH", "CASINO"):
-                st.session_state.destination = site.name
+        name = act(street_event, event)
+        if name:
+            enter_building(name)
 
     last_input = st.session_state.get("street_map")
     ack = last_input.get("id") if isinstance(last_input, dict) else None
@@ -188,7 +197,7 @@ def play_street():
         night=town.market_elapsed % DAY_SECONDS >= 180, facing=town.facing,
         vehicle=town.vehicle, hint=hint, message=town.message,
         speed=town.movement_speed, collision=COLLISION_MAP, life=STREET_LIFE,
-        cash=town.cash, on_bridge=town.bridge_journey is not None,
+        cash=town.cash, on_bridge=town.bridge_journey is not None, ferry=st.session_state.get("ferry"),
         locations=[
             {"name": site.name, "x": site.door[0], "y": site.door[1], "color": site.color}
             for site in SITES
@@ -207,33 +216,121 @@ def site_status(site):
 
 
 def places():
-    play_street()
+    name = st.session_state.get("inside")
+    if not (name and building_at(town) == name):
+        st.session_state.inside = name = None
+    if name is None:
+        play_street()
     site = PLACES[st.selectbox("Destination", list(PLACES), index=list(PLACES).index("Goldenfield Farm"),
                               key="destination")]
-    st.write(site_status(site))
-    if town.nearby() != site and not travel(entrance(site), site.name, key="visit-site"):
+    st.caption(site_status(site))
+    if travel(entrance(site), site.name, key="visit-site", enter=True) and name is None:
+        st.button(f"Enter {site.name}", on_click=enter_building, args=(site.name,), type="primary")
+    if name:
+        building(PLACES.get(name, MONASTERY))
+
+
+def enter_building(name):
+    st.session_state.inside = name
+    st.session_state.reply = None
+    if name == MONASTERY:
+        act(Town.visit_monastery)
+        st.session_state.reply = st.session_state.town.message
+
+
+def leave_building():
+    st.session_state.inside = None
+
+
+def inside(operation, *args):
+    """Run a building action; the vendor answers with the result."""
+    act(operation, *args)
+    st.session_state.reply = st.session_state.town.message
+
+
+def action(label, operation, *args, key=None, shortcut=None, primary=True, **options):
+    st.button(label, key=key, on_click=inside, args=(operation, *args), shortcut=shortcut,
+              type="primary" if primary else "secondary", **options)
+
+
+@lru_cache(maxsize=32)
+def scene_image(name):
+    return b64encode((ROOT / "street" / "scenes" / f"{name}.webp").read_bytes()).decode("ascii")
+
+
+def scene(name, layout, speech="", board="", overlay=""):
+    """An illustrated scene from the desktop game, with the speech bubble and chalkboard text on top."""
+    width, height = layout["size"]
+
+    def box(bounds, text, size, color, extra=""):
+        if not bounds or not text:
+            return ""
+        left, top, right, bottom = bounds
+        return (f'<div style="position:absolute;left:{left/width*100}%;top:{top/height*100}%;'
+                f'width:{(right-left)/width*100}%;height:{(bottom-top)/height*100}%;display:flex;'
+                f'align-items:center;justify-content:center;text-align:center;padding:0 2%;box-sizing:border-box;'
+                f'font:700 {size/width*100}cqw system-ui,sans-serif;color:{color};{extra}">{escape(text)}</div>')
+
+    board_box = layout["board"] and (layout["board"][0] + 6, layout["board"][1] + 22,
+                                     layout["board"][2] - 6, layout["board"][3] - 4)
+    st.html(f"""
+      <div style="position:relative;container-type:inline-size;max-width:1100px;margin:auto;border-radius:10px;
+                  overflow:hidden;box-shadow:0 6px 18px #0005">
+        <img src="data:image/webp;base64,{scene_image(name)}" alt="" style="display:block;width:100%">
+        {box(layout["bubble"], speech, 12, "#1f2a30")}
+        {box(board_box, board, 8.5, "#eef3ea", "font-weight:500")}
+        {overlay}
+      </div>""")
+
+
+def building(site):
+    """Inside a building: its illustrated scene, the vendor's answer and the building's actions."""
+    head, leave = st.columns((4, 1), vertical_alignment="center")
+    head.subheader(site if site == MONASTERY else site.name)
+    leave.button("Leave", on_click=leave_building, shortcut="Escape", width="stretch")
+    speech = st.session_state.get("reply") or greeting(town, site)
+    found = scene_for(town, site)
+    if site != MONASTERY and site.role == "CASINO":
+        casino(found)
         return
-    if site.role == "RESEARCH":
-        research()
-    elif site.role == "EXCHANGE":
-        district_exchange()
-    elif site.role == "GARAGE":
-        for key, vehicle in VEHICLES.items():
-            button(f"Buy {vehicle.label} · ${vehicle.price:,} · +{vehicle.trunk} slots",
-                   Town.purchase_vehicle, key, key=f"vehicle-{key}")
-    elif site.role == "WAREHOUSE":
-        button(f"Add 12 slots · ${300 + town.warehouse_level * 250:,}", warehouse)
-    elif site.role == "CASINO":
-        choice = st.selectbox("Color", ("red", "black", "green"))
-        stake = st.selectbox("Stake ($)", (5, 10, 25, 50, 100))
-        button("Spin", roulette, choice, stake)
-    elif site.role == "SUPPLIER":
+    if found:
+        board = site_status(site) if site != MONASTERY else ""
+        scene(*found, speech=speech, board=board)
+    else:
+        st.info(speech)
+    if site == MONASTERY:
+        st.caption(f"Casino luck +{town.casino_luck} percentage points · Maximum +20")
+        return
+    role = site.role
+    if role == "SUPPLIER":
         trade = TRADES[site.trade]
-        button(f"Buy 1 {trade.supply}", interact)
-        button(f"Buy up to 4 {trade.supply}", interact, True)
+        cols = st.columns(4 if site.trade == 3 else 2)
+        with cols[0]:
+            action(f"Buy 1 {trade.supply}", interact, shortcut="e", width="stretch")
+        with cols[1]:
+            action(f"Buy up to 4 {trade.supply}", interact, True, shortcut="q", width="stretch")
         if site.trade == 3:
-            button("Buy 1 egg", eggs)
-            button("Buy up to 4 eggs", eggs, True)
+            with cols[2]:
+                action("Buy 1 egg", eggs, shortcut="f", width="stretch")
+            with cols[3]:
+                action("Buy up to 4 eggs", eggs, True, shortcut="Shift+F", width="stretch")
+    elif role == "GARAGE":
+        for column, (key, ride) in zip(st.columns(len(VEHICLES)), VEHICLES.items()):
+            with column:
+                current = town.vehicle == key
+                st.markdown(f"**{ride.label}** · {'Your ride' if current else f'${ride.price:,}'}")
+                st.caption(f"Trunk +{ride.trunk} · {town.bag_size + ride.trunk} cargo · "
+                           f"Road {ride.road_speed} · Off-road {ride.offroad_speed}")
+                number = str(list(VEHICLES).index(key) + 1)
+                action(f"Buy {ride.label} · ${ride.price:,} · +{ride.trunk} slots", Town.purchase_vehicle, key,
+                       key=f"vehicle-{key}", shortcut=number, disabled=current, width="stretch")
+    elif role == "WAREHOUSE":
+        st.write(f"Personal storage {town.bag_size} · Total cargo {town.carry_capacity}")
+        action(f"Add 12 slots · ${300 + town.warehouse_level * 250:,}", warehouse, shortcut="e")
+    elif role == "RESEARCH":
+        research()
+    elif role == "EXCHANGE":
+        district_exchange()
     else:
         labels = {
             "FACTORY": "Produce or collect",
@@ -242,7 +339,105 @@ def places():
             "PASTELARIA": "Bake, collect or sell pastéis",
             "SHIPYARD": "Start repair or collect payment",
         }
-        button(labels[site.role], interact)
+        action(labels[role], interact, shortcut="e")
+
+
+CHIPS = (5, 10, 25, 50, 100)
+POCKET_COLORS = {"red": "#c8313c", "black": "#1b1d22", "green": "#1f8a4c"}
+
+
+def spin(choice):
+    """Bet the chosen chip; the wheel animation lands on the result."""
+    stake = st.session_state.get("chip") or 10
+    landed = {}
+
+    def bet(town):
+        if town.cash < stake:
+            town.message = f"You need ${stake} in cash for that chip."
+            return
+        number = ROULETTE_POCKETS[town.roulette_pocket(choice)]
+        payout = town.bet_roulette(choice, stake, number)
+        if payout:
+            town.add_cash(payout)
+        result = f"You win ${payout - stake}!" if payout else f"You lose ${stake}."
+        town.message = f"{number} {roulette_color(number).upper()} · {result}"
+        landed["number"] = number
+
+    inside(bet)
+    if landed:
+        previous = st.session_state.get("spin") or {"id": 0, "angle": 0}
+        pocket = ROULETTE_POCKETS.index(landed["number"])
+        # Turn the wheel at least three times and stop with the winning pocket under the ball.
+        target = previous["angle"] - (previous["angle"] % 360) - 3 * 360 - pocket * 360 / len(ROULETTE_POCKETS)
+        st.session_state.spin = {"id": previous["id"] + 1, "angle": target, "from": previous["angle"],
+                                 "number": landed["number"], "shown": False}
+
+
+def wheel_svg(spin_state):
+    """European roulette wheel. A new spin animates once from the last angle to the winning pocket."""
+    from math import cos, radians, sin
+    seg = 360 / len(ROULETTE_POCKETS)
+    parts = []
+    for index, number in enumerate(ROULETTE_POCKETS):
+        a0, a1 = radians(index * seg - seg / 2 - 90), radians(index * seg + seg / 2 - 90)
+        outer, inner = 190, 140
+        path = (f"M{200 + outer * cos(a0):.1f},{200 + outer * sin(a0):.1f} "
+                f"A{outer},{outer} 0 0 1 {200 + outer * cos(a1):.1f},{200 + outer * sin(a1):.1f} "
+                f"L{200 + inner * cos(a1):.1f},{200 + inner * sin(a1):.1f} "
+                f"A{inner},{inner} 0 0 0 {200 + inner * cos(a0):.1f},{200 + inner * sin(a0):.1f} Z")
+        parts.append(f'<path d="{path}" fill="{POCKET_COLORS[roulette_color(number)]}" stroke="#c9a24a" '
+                     'stroke-width="1"/>')
+        mid = radians(index * seg - 90)
+        parts.append(f'<text x="{200 + 166 * cos(mid):.1f}" y="{200 + 166 * sin(mid):.1f}" fill="#fff" '
+                     f'font-size="13" font-weight="700" text-anchor="middle" dominant-baseline="central" '
+                     f'transform="rotate({index * seg:.1f} {200 + 166 * cos(mid):.1f} {200 + 166 * sin(mid):.1f})">'
+                     f'{number}</text>')
+    angle = spin_state["angle"] if spin_state else 0
+    animate = spin_state and not spin_state["shown"]
+    css = ".wheel,.ball{transform-box:view-box;transform-origin:200px 200px}"
+    if animate:
+        css += (f"@keyframes wheel{{from{{transform:rotate({spin_state['from']}deg)}}to{{transform:rotate({angle}deg)}}}}"
+                "@keyframes ball{from{transform:rotate(1440deg)}to{transform:rotate(0deg)}}"
+                ".wheel{animation:wheel 4.5s cubic-bezier(.12,.6,.2,1) both}"
+                ".ball{animation:ball 4.5s cubic-bezier(.2,.5,.25,1) both}")
+        spin_state["shown"] = True
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><style>{css}</style>
+        <circle cx="200" cy="200" r="198" fill="#4a2614"/><circle cx="200" cy="200" r="192" fill="#7a4424"/>
+        <g class="wheel" style="transform:rotate({angle}deg)">{''.join(parts)}
+          <circle cx="200" cy="200" r="140" fill="#6b3d22" stroke="#c9a24a"/>
+          <circle cx="200" cy="200" r="100" fill="#8a5a33"/><circle cx="200" cy="200" r="55" fill="#b07a45"/>
+          <path d="M200 140V260M140 200H260" stroke="#ffc66c" stroke-width="6" stroke-linecap="round"/>
+          <circle cx="200" cy="200" r="16" fill="#ffc66c"/></g>
+        <g class="ball"><circle cx="200" cy="{200 - 152 if spin_state else 200 - 178}" r="7" fill="#f7f7f2"
+           stroke="#9aa3a6"/></g>
+        <path d="M192 4 L208 4 L200 18 Z" fill="#ffc66c"/></svg>"""
+    # Streamlit's HTML sanitiser drops inline SVG, so the wheel is an SVG image (CSS animation still runs).
+    return f'<img alt="Roulette wheel" style="width:100%;display:block" src="data:image/svg+xml;base64,{b64encode(svg.encode()).decode()}">'
+
+
+def casino(found):
+    name, layout = found
+    spin_state = st.session_state.get("spin")
+    animating = spin_state and not spin_state["shown"]
+    wheel = wheel_svg(spin_state)
+    message = st.session_state.get("reply") or greeting(town, PLACES["Foundry Casino"])
+    # The result appears when the ball stops.
+    reveal = "animation:reveal 0s 4.5s both;" if animating else ""
+    result = (f'<style>@keyframes reveal{{from{{opacity:0}}to{{opacity:1}}}}</style>'
+              f'<div style="position:absolute;left:0;right:0;top:82%;{reveal}'
+              f'text-align:center;font:700 2.6cqw system-ui;color:#fff7e6;text-shadow:0 2px 4px #000">'
+              f'{escape(message)}</div>')
+    overlay = f'<div style="position:absolute;left:30%;top:4%;width:40%">{wheel}</div>{result}'
+    scene(name, layout, overlay=overlay)
+    st.caption(f"Monastery luck +{town.casino_luck} percentage points")
+    st.segmented_control("Chip", CHIPS, default=10, key="chip", format_func=lambda value: f"${value}")
+    red, black, green = st.columns(3)
+    with red:
+        st.button("Red · pays 2×", on_click=spin, args=("red",), shortcut="1", width="stretch", type="primary")
+    with black:
+        st.button("Black · pays 2×", on_click=spin, args=("black",), shortcut="2", width="stretch")
+    with green:
+        st.button("Green 0 · pays 36×", on_click=spin, args=("green",), shortcut="3", width="stretch")
 
 
 def market():
