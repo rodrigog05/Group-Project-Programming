@@ -90,6 +90,10 @@ window.addEventListener("message", (event) => {
   const spinId = spin ? spin.id : 0;
   if (lastSpinId !== null && spinId !== lastSpinId && spin) spinAnimation = { start: performance.now(), spin };
   lastSpinId = spinId;
+  if (next.interior && !(state && state.interior)) {
+    // Going inside: bring the whole store view to the middle of the screen.
+    requestAnimationFrame(() => canvas.scrollIntoView({ block: "center", behavior: "smooth" }));
+  }
   controls.hidden = Boolean(next.interior);
   // Inside, the scene shows the vendor's reply (and the casino reveals results when the ball stops).
   feedback.hidden = Boolean(next.interior);
@@ -161,14 +165,20 @@ function typingOnPage() {
   });
 }
 
+function dialogOpen() {
+  // The start menu and Basics are dialogs; their buttons keep the keyboard.
+  return pageDocuments().some((page) => page.querySelector('[role="dialog"]'));
+}
+
 function claimKeyboard() {
+  if (dialogOpen()) return;
   // A page update the player caused (Continue, Visit, Leave, a page button) resumes play.
   userPaused = false;
   if (!typingOnPage() && !document.hidden) canvas.focus({ preventScroll: true });
 }
 
 function focusMap() {
-  if (keyboardIsFree()) canvas.focus({ preventScroll: true });
+  if (keyboardIsFree() && !dialogOpen()) canvas.focus({ preventScroll: true });
 }
 
 setInterval(focusMap, 300);

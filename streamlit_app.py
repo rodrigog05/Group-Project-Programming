@@ -612,6 +612,64 @@ def fullscreen_control(name):
     """, unsafe_allow_javascript=True)
 
 
+TUTORIAL = (
+    ("Your goal", "goal.webp",
+     "You start in Lisboa with **$60** and a 12-slot bag. Grow your business to **$500** by running trade routes: "
+     "buy materials, turn them into products, and sell the products for more than they cost."),
+    ("1 · Buy materials", "buy.webp",
+     "Walk with **WASD** or the **arrow keys** to a store with a yellow **BUY MATERIALS** sign and press **E** at "
+     "its door. Inside, **E** buys one unit and **Q** buys up to four. Goldenfield Farm sells wheat for $4."),
+    ("2 · Make products", "make.webp",
+     "Take the materials to a store with a blue **MAKE PRODUCTS** sign. Press **E** to drop them off. Production "
+     "takes a few seconds while you play; press **E** again to collect the finished products."),
+    ("3 · Sell products", "sell.webp",
+     "Bring the products to a green **SELL PRODUCTS** market and press **E** to sell everything you carry. Bread "
+     "made from $4 wheat sells for $14. Repeat with bigger batches to grow faster."),
+    ("Getting around", "garage.webp",
+     "Grey **BUY VEHICLES** garages sell rides that are faster and carry more. On foot, cross the Tejo by ferry "
+     "($2); by car, the bridges charge a $3 toll toward Lisboa. Pick a **Destination** above the map to see the "
+     "route, and press **Esc** to leave any building."),
+)
+
+
+@st.dialog("Basics", width="large")
+def tutorial():
+    step = min(st.session_state.get("tutorial_step", 0), len(TUTORIAL) - 1)
+    title, image, text = TUTORIAL[step]
+    # Keep the slide, its text and the buttons on one screen.
+    st.html("""<style>
+        .st-key-tutorial_slide img {max-height: 46dvh; width: auto !important; max-width: 100%; margin: 0 auto;
+                                    display: block; border-radius: 8px;}
+        .st-key-tutorial_slide [data-testid="stImage"],
+        .st-key-tutorial_slide [data-testid="stImageContainer"] {width: 100%; display: flex; justify-content: center;}
+    </style>""")
+    st.subheader(title)
+    with st.container(key="tutorial_slide"):
+        st.image(str(ROOT / "street" / "tutorial" / image))
+    st.markdown(text.replace("$", "\\$"))  # A plain $ would start a maths formula in Markdown
+    st.caption(f"{step + 1} / {len(TUTORIAL)}")
+    back, skip, forward = st.columns(3)
+    back.button("Back", disabled=step == 0, width="stretch", on_click=st.session_state.update,
+                kwargs={"tutorial_step": step - 1})
+    skip.button("Skip", width="stretch", on_click=close_tutorial)
+    if step < len(TUTORIAL) - 1:
+        forward.button("Next", type="primary", width="stretch", on_click=st.session_state.update,
+                       kwargs={"tutorial_step": step + 1})
+    else:
+        forward.button("Start playing", type="primary", width="stretch", on_click=close_tutorial)
+
+
+def open_tutorial():
+    st.session_state.show_menu = False
+    st.session_state.show_tutorial = True
+    st.session_state.tutorial_step = 0
+
+
+def close_tutorial():
+    st.session_state.show_tutorial = False
+    st.session_state.tutorial_step = 0
+
+
 @st.dialog("Foundry Town · Lisboa", width="large", dismissible=False)
 def start_menu():
     with st.container(key="foundry_waterfront"):
@@ -655,10 +713,19 @@ def start_menu_card():
         if cancel.button("Keep my progress"):
             st.session_state.confirm_restart = False
             st.rerun()
+    if st.button("Basics · how to play in 5 slides", width="stretch"):
+        open_tutorial()
+        st.rerun()
     with st.expander("Rules & How to Play"):
-        st.write("Click the map to focus it. Move with WASD or the arrow keys and press E to interact.")
-        st.write("Buy wheat at Goldenfield Farm, make bread at Sunrise Bakery, then sell it at Daily Bread Market.")
-        st.write("Reach $500, then keep growing through research, contracts, and business ownership.")
+        st.markdown(
+            "**Goal** · Start with $60 and grow to $500, then keep growing through research, contracts and "
+            "business ownership.\n\n"
+            "**Controls** · Move with **WASD** or the **arrow keys**. Press **E** at a door to go inside and **Esc** "
+            "to leave. Inside: **E** buys, makes or sells, **Q** buys up to four.\n\n"
+            "**Trade route** · Buy materials at a yellow store, make products at a blue store, sell them at a green "
+            "market. Example: wheat at Goldenfield Farm → bread at Sunrise Bakery → Daily Bread Market.\n\n"
+            "**Getting around** · The ferry crosses the Tejo for $2 on foot; with a vehicle the bridges charge "
+            "$3 toward Lisboa. Choose a **Destination** above the map to see the route.".replace("$", "\\$"))
     if cloud:
         cloud_account()
 
@@ -719,6 +786,8 @@ def cloud_account():
 def enter_game(*, new_game=False):
     if new_game:
         st.session_state.town_page = "Game"
+        st.session_state.show_tutorial = True
+        st.session_state.tutorial_step = 0
     st.session_state.started = True
     st.session_state.show_menu = False
     st.session_state.confirm_restart = False
@@ -774,6 +843,9 @@ st.html(f"""
     z-index: 1;
     width: min(100%, 38rem);
     margin: clamp(2rem, 50dvh - 6rem, 26rem) auto 2rem;
+    max-height: calc(100dvh - 3rem);
+    overflow-y: auto;
+    transition: margin-top 0.2s;
     padding: clamp(1rem, 3vw, 2rem);
     border: 2px solid #ffc66c;
     border-radius: 12px;
@@ -781,6 +853,9 @@ st.html(f"""
     color: #fff7e6;
     color-scheme: dark;
   }}
+  .st-key-foundry_start:has(details[open]) {{ margin-top: 1.5rem; }}
+  .st-key-foundry_start details p {{ color: #fff7e6; line-height: 1.5; }}
+  .st-key-foundry_start details strong {{ color: #ffc66c; }}
   .st-key-foundry_start h1 {{ color: #ffc66c; }}
   .st-key-foundry_start [data-testid="stCaptionContainer"] p {{ color: #a9e2ce; }}
   .st-key-foundry_start button[data-testid^="stBaseButton"] {{
@@ -910,3 +985,5 @@ if town.message:
 
 if st.session_state.get("show_menu", True):
     start_menu()
+elif st.session_state.get("show_tutorial"):
+    tutorial()
