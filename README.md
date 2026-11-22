@@ -57,7 +57,7 @@ Street movement and camera tracking render immediately in the browser. Movement 
 
 ## Keep local progress
 
-Vehicles use the same side-view skins in the garage selection and on the street. All four player vehicles drive 30% slower than before, on roads and off-road. Press **V** or **Leave vehicle** below the map to park your vehicle and walk; on a street, **V** or **Bring back vehicle** gets you back in. Owned rides remain available at the garage through **Drive · Free**, including after restoring a local save. Empty excess cargo and finish reserved orders before switching to your smaller walking bag. Leave bridges before dismounting.
+Vehicles use the same side-view skins in the dealership and on the street. All four player vehicles drive 30% slower than before, on roads and off-road. Press **V** or **Leave vehicle** below the map to park your vehicle and walk; on a street, **V** or **Bring back vehicle** gets you back in. Owned rides remain available at the garage through **Drive · Free**, including after restoring a local save. Empty excess cargo and finish reserved orders before switching to your smaller walking bag. Leave bridges before dismounting.
 
 Run a private instance bound to loopback:
 
@@ -119,7 +119,7 @@ The tests need no network, accounts or secrets.
 
 - Guest games reset on reload or when the server restarts. Players with cloud saves can sign in again to resume.
 - The soundtrack from the desktop version is not in the browser version. The exchange and research centre use plain controls, as they had no illustrated scene on desktop.
-- To keep the town simple, the only garage is Cacilhas Garage (your first vehicle needs a ferry ride), Foundry Warehouse is the only warehouse, and eggs and Pastéis de Belém were removed. The engine keeps these buildings for older saves; on the map their plots show apartment blocks and they cannot be entered.
+- To keep the town simple, the only car dealership is Cacilhas Dealership (your first vehicle needs a ferry ride), Foundry Warehouse is the only warehouse, and eggs and Pastéis de Belém were removed. The engine keeps these buildings for older saves; on the map their plots show apartment blocks and they cannot be entered.
 - One local save slot per `FOUNDRY_LOCAL_DB` path, meant for one player.
 - Contracts, delivery routes and business ownership were taken out of the menus to keep the game simple. Their rules (`contracts.py`, `logistics.py`, `businesses.py`) remain in the engine, with their tests, because older saves still store their fields.
 

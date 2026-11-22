@@ -140,7 +140,7 @@ def test_garage_free_collection_and_green_bet_controls(monkeypatch):
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     town = app.session_state.town
     town.cash = 1000
-    garage = next(site for site in SITES if site.name == "Cacilhas Garage")  # The only open garage
+    garage = next(site for site in SITES if site.name == "Cacilhas Dealership")  # The only open garage
     town.x, town.y = entrance(garage)
     app.session_state.inside = garage.name
     app.run()

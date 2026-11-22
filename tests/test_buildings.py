@@ -208,7 +208,7 @@ def test_basics_can_be_replayed_from_the_start_menu_and_every_slide_exists(monke
 def test_closed_buildings_cannot_be_entered_and_are_not_destinations(monkeypatch):
     from browser_game import CLOSED_SITES, OPEN_SITES, street_event
     assert CLOSED_SITES == {"Motorworks Garage", "Armazém do Seixal", "Pastéis de Belém"}
-    assert [site.name for site in OPEN_SITES if site.role == "GARAGE"] == ["Cacilhas Garage"]
+    assert [site.name for site in OPEN_SITES if site.role == "GARAGE"] == ["Cacilhas Dealership"]
     assert [site.name for site in OPEN_SITES if site.role == "WAREHOUSE"] == ["Foundry Warehouse"]
     town = Town()
     garage = next(site for site in SITES if site.name == "Motorworks Garage")
@@ -217,7 +217,7 @@ def test_closed_buildings_cannot_be_entered_and_are_not_destinations(monkeypatch
     assert "apartments" in town.message and town.cash == 60
     app = new_app(monkeypatch)
     options = set(app.selectbox[0].options)
-    assert not CLOSED_SITES & options and {"Cacilhas Garage", "Foundry Warehouse"} <= options
+    assert not CLOSED_SITES & options and {"Cacilhas Dealership", "Foundry Warehouse"} <= options
 
 
 def test_warehouse_has_a_scene_and_the_farm_sells_only_wheat():
@@ -304,7 +304,7 @@ def test_building_hints_and_no_hints_once_every_route_is_learned():
     from browser_game import MONASTERY, next_move
     town = Town()
     assert "1 (red)" in next_move(town, "Foundry Casino")["text"]
-    assert "1–4" in next_move(town, "Cacilhas Garage")["text"]
+    assert "1–4" in next_move(town, "Cacilhas Dealership")["text"]
     assert "12 storage slots" in next_move(town, "Foundry Warehouse")["text"]
     assert "casino luck" in next_move(town, MONASTERY)["text"]
     town.total_sold = [1, 1, 1, 1]
@@ -395,7 +395,7 @@ def test_garage_sends_one_card_per_vehicle_with_its_status(monkeypatch):
     app = new_app(monkeypatch)
     town = app.session_state.town
     town.cash, town.owned_vehicles = 300, ["motorcycle"]
-    garage = next(site for site in SITES if site.name == "Cacilhas Garage")
+    garage = next(site for site in SITES if site.name == "Cacilhas Dealership")
     town.x, town.y = entrance(garage)
     app.session_state.inside = garage.name
     app.run()
@@ -405,3 +405,19 @@ def test_garage_sends_one_card_per_vehicle_with_its_status(monkeypatch):
     assert [card["affordable"] for card in cards] == [True, True, False, False]
     assert cards[1]["trunk"] == 48 and cards[1]["cargo"] == 60
     assert streamlit_interior(app)["keys"] == [["1–4", "Choose a vehicle"], ["escape", "Leave"]]
+
+
+def test_drivers_enter_the_dealership_from_the_road_in_front():
+    from browser_game import building_at, street_event
+    dealer = next(site for site in SITES if site.name == "Cacilhas Dealership")
+    door_x, _ = dealer.door
+    driver = Town()
+    driver.vehicle = "car"
+    driver.x, driver.y = door_x + 20, 1550  # On the road lane in front of the forecourt
+    assert building_at(driver) == "Cacilhas Dealership"
+    assert street_event(driver, {"dx": 0, "dy": 0, "seconds": 0, "action": "interact"}) == "Cacilhas Dealership"
+    driver.x = door_x + 90  # Further along the road: not in front of it any more
+    assert building_at(driver) is None
+    walker = Town()
+    walker.x, walker.y = door_x, 1550  # On foot, use the door itself
+    assert building_at(walker) is None

@@ -104,7 +104,8 @@ STREET_LIFE = street_life()
 # ----- Buildings: what is at the door, which illustrated scene to show and what the vendor says -----
 
 MONASTERY = "Mosteiro dos Jerónimos"
-# Closed to keep the game simple: the only garage is in Cacilhas (so the first vehicle needs a ferry
+DRIVE_IN = 110  # How far below its door a driver can still enter the dealership (forecourt + road lane)
+# Closed to keep the game simple: the only car dealership is in Cacilhas (so the first vehicle needs a ferry
 # ride), one warehouse is enough, and the eggs / pastéis side chain is gone. The engine keeps them for
 # old saves; on the map their plots show apartment blocks.
 CLOSED_SITES = frozenset({"Motorworks Garage", "Armazém do Seixal", "Pastéis de Belém"})
@@ -126,6 +127,13 @@ def building_at(town):
     site = town.nearby()
     if site:
         return None if site.name in CLOSED_SITES else site.name
+    if town.vehicle:
+        # Drivers stay on the road, so the dealership's door reaches across its forecourt to the
+        # road in front of it.
+        for dealer in OPEN_SITES:
+            door_x, door_y = dealer.door
+            if dealer.role == "GARAGE" and abs(town.x - door_x) <= 60 and door_y < town.y <= door_y + DRIVE_IN:
+                return dealer.name
     left, _, right, bottom = LANDMARKS[0].bounds
     if math.hypot(town.x-(left+right)/2, town.y-(bottom+16)) <= 40:
         return MONASTERY

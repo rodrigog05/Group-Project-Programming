@@ -621,7 +621,7 @@ TUTORIAL = (
      "Bring the products to a green **SELL PRODUCTS** market and press **E** to sell everything you carry. Bread "
      "made from $4 wheat sells for $14. Repeat with bigger batches to grow faster."),
     ("Getting around", "garage.webp",
-     "The only **BUY VEHICLES** garage is in Cacilhas, across the Tejo: take the ferry ($2) from Cais do Sodré "
+     "The only car **DEALERSHIP** is in Cacilhas, across the Tejo: take the ferry ($2) from Cais do Sodré "
      "to get there. Vehicles are faster and carry more, and by car the bridges charge a $3 toll toward Lisboa. "
      "Pick a **Destination** above the map to see the route, and press **Esc** to leave any building."),
 )
