@@ -64,7 +64,7 @@ def act(operation, *args):
     if result is False and operation is street_input:
         return
     before = st.session_state.town
-    if (before.y >= RIVER_BOTTOM) != (candidate.y >= RIVER_BOTTOM) and candidate.vehicle is None:
+    if (before.y >= RIVER_BOTTOM) != (candidate.y >= RIVER_BOTTOM) and before.vehicle is None:
         # On foot, changing banks means a ferry ride: the street map plays the crossing.
         previous = st.session_state.get("ferry", {}).get("id", 0)
         st.session_state.ferry = {"id": previous + 1, "heading": 1 if candidate.y >= RIVER_BOTTOM else -1}
@@ -195,7 +195,7 @@ def play_street():
     street_map(
         key="street_map", on_change=play, x=town.x, y=town.y, ack=ack,
         night=town.market_elapsed % DAY_SECONDS >= 180, facing=town.facing,
-        vehicle=town.vehicle, hint=hint, message=town.message,
+        vehicle=town.vehicle, stowed_vehicle=town.stowed_vehicle, hint=hint, message=town.message,
         speed=town.movement_speed, collision=COLLISION_MAP, life=STREET_LIFE,
         cash=town.cash, on_bridge=town.bridge_journey is not None, ferry=st.session_state.get("ferry"),
         locations=[

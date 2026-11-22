@@ -237,6 +237,7 @@ class Town:
         self.last_day_summary = None
         self.bridge_journey = None
         self.vehicle = None
+        self.stowed_vehicle = None
         self.market_event = None
         self.elapsed = 0.0
         self.x, self.y = 480.0, 321.0
@@ -574,7 +575,7 @@ class Town:
         if ride is None:
             self.message = "Choose a motorcycle, car, delivery van or F1 car at the garage."
             return False
-        if self.vehicle == vehicle:
+        if vehicle in (self.vehicle, self.stowed_vehicle):
             self.message = f"You already own this {ride.label.lower()}."
             return False
         capacity = self.bag_size+ride.trunk
@@ -587,6 +588,7 @@ class Town:
         self.cash -= ride.price
         self.other_expenses_today += ride.price
         self.vehicle = vehicle
+        self.stowed_vehicle = None
         self.message = f"Bought {ride.label.lower()} for ${ride.price:,} · {self.carry_capacity} cargo slots · {ride.road_speed} road speed."
         return True
 
@@ -1094,6 +1096,10 @@ def unpack_save(data):
     for name in ("sales_today", "revenue_today", "expenses_today", "total_sold"):
         state.setdefault(name, [0] * len(TRADES))
     state.setdefault("vehicle", None)
+    state.setdefault("stowed_vehicle", None)
+    stowed = state["stowed_vehicle"]
+    if stowed is not None and (not isinstance(stowed, str) or stowed not in VEHICLES or state["vehicle"] is not None):
+        raise ValueError("Invalid stowed vehicle in save")
     state.setdefault("warehouse_level", 0)
     state.setdefault("tier2_order", None)
     state.setdefault("tier2_goods", 0)

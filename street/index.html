@@ -6,6 +6,7 @@
   <title>Foundry Town street view</title>
   <style>
     * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
     body { margin: 0; color: #fff7e6; background: #17343b; font: 14px system-ui, sans-serif; }
     canvas { display: block; width: 100%; height: var(--map-height, clamp(350px, 56.25vw, 720px)); background: #315860; }
     canvas:focus-visible, button:focus-visible { outline: 3px solid #f8cb76; outline-offset: -3px; }
@@ -37,6 +38,7 @@
     <button data-action="bulk">Bulk buy · Q</button>
     <button data-action="egg">Egg · F</button>
     <button data-action="eggs">Bulk eggs · R</button>
+    <button data-action="vehicle" hidden>Leave vehicle · V</button>
     <p>Focus the map to walk with WASD or arrows.</p>
   </div>
   <script src="street.js"></script>

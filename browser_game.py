@@ -11,7 +11,7 @@ from ferry import FERRY_FARE, FERRY_PIERS, nearby_pier, ride_ferry
 import businesses
 import lisbon_scene as scene
 from lisbon_landmarks import LANDMARKS
-from vehicles import VEHICLES, CAR_SPEED_RANGE, ROAD_EXCLUSIONS, on_road, tunnel_covers_y
+from vehicles import VEHICLES, CAR_SPEED_RANGE, ROAD_EXCLUSIONS, in_tunnel, on_road, tunnel_covers_y
 from tycoon import (BRIDGE_TOLL, COLLISION_BOUNDS, EGG_COST, MAP_TOP, PLAYER_RADIUS, RIVER_BOTTOM, TRADES, Town,
                     pack_save, unpack_save)
 
@@ -214,6 +214,27 @@ def advance_clock(town, seconds):
     town.sync_market(town.market_elapsed + seconds)
 
 
+def toggle_vehicle(town):
+    if town.vehicle:
+        if in_tunnel(town.x, town.y) or town.bridge_journey or not scene.walkable_terrain(
+            town.x, town.y, PLAYER_RADIUS, on_foot=True
+        ):
+            town.message = "Leave the bridge or tunnel before getting out."
+        elif town.cargo + town.reserved > town.bag_size:
+            town.message = "Make room in your bag before getting out."
+        else:
+            town.stowed_vehicle, town.vehicle = town.vehicle, None
+            town.message = "You’re on foot. Press V to bring your vehicle back."
+    elif town.stowed_vehicle:
+        if scene.vehicle_park_blocked(town.x, town.y, PLAYER_RADIUS) or not scene.walkable_terrain(
+            town.x, town.y, PLAYER_RADIUS
+        ):
+            town.message = "Move to a street before bringing your vehicle back."
+        else:
+            town.vehicle, town.stowed_vehicle = town.stowed_vehicle, None
+            town.message = "You’re back in your vehicle."
+
+
 def street_input(town, event):
     """Apply a small, validated movement batch using the desktop collision rules."""
     if not isinstance(event, dict):
@@ -221,7 +242,7 @@ def street_input(town, event):
     action = event.get("action")
     segments = event.get("segments", [event])
     if (not isinstance(segments, list) or not 1 <= len(segments) <= 120
-            or action not in (None, "interact", "bulk", "egg", "eggs")):
+            or action not in (None, "interact", "bulk", "egg", "eggs", "vehicle")):
         return False
     total = 0
     for segment in segments:
@@ -252,6 +273,8 @@ def street_input(town, event):
             town.interact(bulk=action == "bulk")
     elif action in ("egg", "eggs"):
         town.buy_eggs(bulk=action == "eggs")
+    elif action == "vehicle":
+        toggle_vehicle(town)
     return True
 
 

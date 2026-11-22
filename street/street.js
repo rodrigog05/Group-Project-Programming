@@ -2,6 +2,7 @@ const canvas = document.querySelector("#map");
 const context = canvas.getContext("2d");
 const hint = document.querySelector("#hint");
 const feedback = document.querySelector("#feedback");
+const vehicleButton = document.querySelector('[data-action="vehicle"]');
 const day = new Image();
 const night = new Image();
 day.src = "world_100_day.webp";
@@ -10,7 +11,7 @@ const directions = {
   arrowleft: "left", a: "left", arrowright: "right", d: "right",
   arrowup: "up", w: "up", arrowdown: "down", s: "down",
 };
-const actions = { e: "interact", q: "bulk", f: "egg", r: "eggs" };
+const actions = { e: "interact", q: "bulk", f: "egg", r: "eggs", v: "vehicle" };
 const held = new Map();
 const parentOrigin = document.referrer ? new URL(document.referrer).origin : location.origin;
 let state;
@@ -62,6 +63,9 @@ window.addEventListener("message", (event) => {
   player = { x: next.x, y: next.y };
   facing = next.facing;
   state = next;
+  vehicleButton.hidden = !state.vehicle && !state.stowed_vehicle;
+  const vehicleLabel = state.vehicle ? "Leave vehicle · V" : "Bring back vehicle · V";
+  if (vehicleButton.textContent !== vehicleLabel) vehicleButton.textContent = vehicleLabel;
   if (next.ack === eventId) pending = false;
   if (!pending && Number.isInteger(next.ack)) eventId = Math.max(eventId, next.ack);
   // Replay only movement accumulated after the acknowledged batch.
@@ -224,6 +228,7 @@ function draw() {
     }
   }
 
+  if (state.vehicle && underTunnel(player.x, player.y)) return;
   context.save();
   context.translate(player.x, player.y);
   context.scale(facing < 0 ? -1 : 1, 1);
@@ -245,6 +250,11 @@ function draw() {
 }
 
 // Decorative street life from the desktop game. Nothing here blocks the player.
+function underTunnel(x, y) {
+  const [left, right, center, half] = state.life.tunnel;
+  return x > left && x < right && Math.abs(y - center) <= half;
+}
+
 function seen(x, y, left, top, width, height) {
   return x > left - 60 && x < left + width + 60 && y > top - 60 && y < top + height + 60;
 }
@@ -334,13 +344,11 @@ function drawStreetLife(t, left, top, width, height) {
   if (!state.life) return;
   drawTram(t, left, top, width, height);
   drawShuttle(t, left, top, width, height);
-  const [tunnelLeft, tunnelRight, tunnelY, tunnelHalf] = state.life.tunnel;
   for (const [start, y, end, speed, phase, direction, color] of state.life.cars) {
     const length = end - start;
     const progress = (t * speed / length + phase) % 1;
     const x = direction > 0 ? start + length * progress : end - length * progress;
-    const underground = x > tunnelLeft && x < tunnelRight && Math.abs(y - tunnelY) <= tunnelHalf;
-    if (underground || !seen(x, y, left, top, width, height)) continue;
+    if (underTunnel(x, y) || !seen(x, y, left, top, width, height)) continue;
     context.save();
     context.translate(x, y);
     context.scale(direction, 1);

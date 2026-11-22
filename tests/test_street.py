@@ -2,11 +2,40 @@ import pytest
 
 from browser_game import COLLISION_MAP, LocalSave, entrance, street_input
 from ferry import FERRY_PIERS
+from lisbon_scene import SOUTH_PARK_TUNNEL
 from tycoon import COLLISION_BOUNDS, SITES, Town
 
 
 def input_event(dx=0, dy=0, seconds=0, action=None):
     return {"dx": dx, "dy": dy, "seconds": seconds, "action": action}
+
+
+def test_drive_through_tunnel_and_put_away_vehicle_without_losing_it(tmp_path):
+    town = Town()
+    town.vehicle = "car"
+    left, right, center, _ = SOUTH_PARK_TUNNEL
+    town.x, town.y = left - 10, center
+    assert street_input(town, input_event(dx=1, seconds=0.25))
+    assert left < town.x < right
+    assert street_input(town, input_event(action="vehicle"))
+    assert town.vehicle == "car"
+    for _ in range(12):
+        assert street_input(town, input_event(dx=1, seconds=0.25))
+        if town.x > right:
+            break
+    assert town.x > right and town.y == center
+    town.supplies[0] = town.bag_size + 1
+    assert street_input(town, input_event(action="vehicle"))
+    assert town.vehicle == "car"
+    town.supplies[0] = 0
+    assert street_input(town, input_event(action="vehicle"))
+    assert (town.vehicle, town.stowed_vehicle, town.carry_capacity) == (None, "car", town.bag_size)
+    store = LocalSave(tmp_path / "vehicle.sqlite3")
+    store.load()
+    store.save(town, 0)
+    restored, _ = store.load()
+    assert street_input(restored, input_event(action="vehicle"))
+    assert (restored.vehicle, restored.stowed_vehicle, restored.cash) == ("car", None, town.cash)
 
 
 def test_street_movement_collision_and_reload(tmp_path):
