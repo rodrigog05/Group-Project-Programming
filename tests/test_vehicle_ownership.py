@@ -87,6 +87,37 @@ def test_legacy_active_vehicle_is_retained_and_can_be_collected():
     assert restored.purchase_vehicle("van")
 
 
+def test_main_stowed_save_can_be_collected_at_garage_for_free():
+    town = Town()
+    town.stowed_vehicle = "car"
+    saved = pack_save(town, 0)
+    del saved["state"]["owned_vehicles"]
+    restored, _ = unpack_save(saved)
+    assert restored.owned_vehicles == ["car"]
+    restored.cash = 0
+    assert restored.purchase_vehicle("car")
+    assert (restored.vehicle, restored.stowed_vehicle, restored.cash) == ("car", None, 0)
+    assert unpack_save(pack_save(restored, 0))[0].vehicle == "car"
+
+
+def test_v_toggle_and_x_dismount_share_ownership_and_tunnel_safety():
+    from lisbon_scene import SOUTH_PARK_TUNNEL
+    town = driver()
+    left, _, center, _ = SOUTH_PARK_TUNNEL
+    town.x, town.y = left + 25, center
+    assert street_input(town, {"dx": 0, "dy": 0, "seconds": 0, "action": "dismount"})
+    assert town.vehicle == "car" and town.stowed_vehicle is None
+    assert "tunnel" in town.message
+    town.x, town.y = 360, 301
+    for action in ("vehicle", "vehicle", "dismount"):
+        assert street_input(town, {"dx": 0, "dy": 0, "seconds": 0, "action": action})
+    assert town.vehicle is None and town.stowed_vehicle == "car"
+    assert town.owned_vehicles == ["car"]
+    town.cash = 0
+    assert town.purchase_vehicle("car")
+    assert town.stowed_vehicle is None and town.cash == 0
+
+
 @pytest.mark.parametrize("owned", [None, "car", ["car", "car"], ["spaceship"], [{}]])
 def test_invalid_ownership_is_rejected(owned):
     saved = pack_save(Town(), 0)

@@ -2,6 +2,7 @@ const canvas = document.querySelector("#map");
 const context = canvas.getContext("2d");
 const hint = document.querySelector("#hint");
 const feedback = document.querySelector("#feedback");
+const vehicleButton = document.querySelector('[data-action="vehicle"]');
 const day = new Image();
 const night = new Image();
 day.src = "world_100_day.webp";
@@ -10,7 +11,7 @@ const directions = {
   arrowleft: "left", a: "left", arrowright: "right", d: "right",
   arrowup: "up", w: "up", arrowdown: "down", s: "down",
 };
-const actions = { e: "interact", q: "bulk", f: "egg", r: "eggs", x: "dismount" };
+const actions = { e: "interact", q: "bulk", f: "egg", r: "eggs", x: "dismount", v: "vehicle" };
 const vehicleArt = Object.fromEntries(["motorcycle", "car", "van", "f1"].map(key => {
   const art = new Image();
   art.src = `vehicles/${key}.svg`;
@@ -72,6 +73,9 @@ window.addEventListener("message", (event) => {
   for (const button of document.querySelectorAll('[data-action="dismount"]')) {
     button.hidden = !state.vehicle;
   }
+  vehicleButton.hidden = !state.vehicle && !state.stowed_vehicle;
+  const vehicleLabel = state.vehicle ? "Leave vehicle · V" : "Bring back vehicle · V";
+  if (vehicleButton.textContent !== vehicleLabel) vehicleButton.textContent = vehicleLabel;
   if (next.ack === eventId) pending = false;
   if (!pending && Number.isInteger(next.ack)) eventId = Math.max(eventId, next.ack);
   // Replay only movement accumulated after the acknowledged batch.
@@ -147,9 +151,22 @@ function parkBlocked(x, y, r) {
   return insideAny(state.collision.parks, x, y, r);
 }
 
+function onRoad(x, y) {
+  const { roads, road_exclusions, tunnel } = state.collision;
+  const [left, right, center, half] = tunnel;
+  const inTunnel = left <= x && x <= right && Math.abs(y - center) <= half;
+  if (!inTunnel && insideAny(road_exclusions, x, y, 0)) return false;
+  return roads.some(([x1, y1, x2, y2, width]) => {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const fraction = Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy)));
+    return (x - (x1 + fraction * dx)) ** 2 + (y - (y1 + fraction * dy)) ** 2 <= width ** 2;
+  });
+}
+
 function canWalk(x, y) {
   const { radius: r, world: [width, mapTop, bottom], boxes } = state.collision;
-  if (state.vehicle && parkBlocked(x, y, r)) return false;
+  if (state.vehicle && (parkBlocked(x, y, r) || !onRoad(x, y))) return false;
   return r <= x && x <= width - r && mapTop + r <= y && y <= bottom - r &&
     walkableTerrain(x, y, r, !state.vehicle) && !insideAny(boxes, x, y, r);
 }
@@ -256,6 +273,7 @@ function draw() {
     }
   }
 
+  if (state.vehicle && underTunnel(player.x, player.y)) return;
   context.save();
   context.translate(player.x, player.y);
   context.scale(facing < 0 ? -1 : 1, 1);
@@ -273,6 +291,11 @@ function draw() {
 }
 
 // Decorative street life from the desktop game. Nothing here blocks the player.
+function underTunnel(x, y) {
+  const [left, right, center, half] = state.life.tunnel;
+  return x > left && x < right && Math.abs(y - center) <= half;
+}
+
 function seen(x, y, left, top, width, height) {
   return x > left - 60 && x < left + width + 60 && y > top - 60 && y < top + height + 60;
 }
@@ -362,13 +385,11 @@ function drawStreetLife(t, left, top, width, height) {
   if (!state.life) return;
   drawTram(t, left, top, width, height);
   drawShuttle(t, left, top, width, height);
-  const [tunnelLeft, tunnelRight, tunnelY, tunnelHalf] = state.life.tunnel;
   for (const [start, y, end, speed, phase, direction, color] of state.life.cars) {
     const length = end - start;
     const progress = (t * speed / length + phase) % 1;
     const x = direction > 0 ? start + length * progress : end - length * progress;
-    const underground = x > tunnelLeft && x < tunnelRight && Math.abs(y - tunnelY) <= tunnelHalf;
-    if (underground || !seen(x, y, left, top, width, height)) continue;
+    if (underTunnel(x, y) || !seen(x, y, left, top, width, height)) continue;
     context.save();
     context.translate(x, y);
     context.scale(direction, 1);
