@@ -74,21 +74,3 @@ def test_monastery_scene_rerender_does_not_award_extra_luck(monkeypatch):
     assert not app.exception
     assert app.session_state.town.casino_luck == 5
     assert any("+5" in caption.value for caption in app.caption)
-
-
-def test_contract_guidance_selects_client_without_moving_player(monkeypatch):
-    import contracts
-    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
-    app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
-    town = app.session_state.town
-    town.cash = 1000
-    town.accept_contract("tools_workshop")
-    app.session_state.town_page = "Contracts"
-    app.run()
-    before = town.x, town.y, town.cash
-    button = next(button for button in app.button if button.label == f"Show directions to {contracts.BRIDGE.name}")
-    button.click().run()
-    assert not app.exception
-    assert app.session_state.town_page == "Game"
-    assert app.selectbox[0].value == contracts.BRIDGE.name
-    assert (app.session_state.town.x, app.session_state.town.y, app.session_state.town.cash) == before

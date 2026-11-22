@@ -10,10 +10,8 @@ import streamlit as st
 from streamlit.components.v1 import declare_component
 
 import businesses
-import contracts
 import exchange
 import innovation
-import logistics
 from browser_game import (COLLISION_MAP, MONASTERY, STREET_LIFE, LocalSave, building_at, greeting, scene_for,
                           SaveConflict, entrance, place_vehicle_on_road, street_event, street_input)
 from journal_market import market_snapshot
@@ -151,13 +149,6 @@ def show_directions(label):
     st.session_state.inside = None
 
 
-def travel(position, label, *, key):
-    if (town.x-position[0])**2 + (town.y-position[1])**2 <= contracts.DELIVERY_REACH**2:
-        return True
-    st.button(f"Show directions to {label}", key=key, on_click=show_directions, args=(label,))
-    return False
-
-
 def research():
     for branch in innovation.RESEARCH_BRANCHES:
         quote = innovation.research_quote(town, branch.key)
@@ -256,17 +247,14 @@ def destination_point(name):
     if name == MONASTERY:
         left, _, right, bottom = LANDMARKS[0].bounds
         return (left+right)/2, bottom+16
-    if name in PLACES:
-        return entrance(PLACES[name])
-    location = next(location for location in contracts.LOCATIONS if location.name == name)
-    return location.x, location.y
+    return entrance(PLACES[name])
 
 
 def places():
     name = st.session_state.get("inside")
     if not (name and building_at(town) == name):
         st.session_state.inside = name = None
-    destination = st.selectbox("Destination", [*PLACES, MONASTERY, *(location.name for location in contracts.LOCATIONS)],
+    destination = st.selectbox("Destination", [*PLACES, MONASTERY],
                               index=list(PLACES).index("Goldenfield Farm"),
                               key="destination")
     site_inside = PLACES.get(name, MONASTERY) if name else None
@@ -496,82 +484,6 @@ def market():
         recipe = RECIPE_BY_KEY[key]
         ingredients = ", ".join(f"{quantity} × {name}" for name, quantity in recipe.ingredients)
         st.write(f"**{recipe.title}** · {ingredients} · {recipe.seconds}s")
-
-
-def contract_board():
-    st.caption(f"{contracts.rank_name(town)} · {town.contracts['reputation']} reputation")
-    active = town.contracts["active"]
-    if active:
-        record = st.selectbox("Active contract", active,
-                              format_func=lambda row: contracts.active_offer(row).title)
-        offer = contracts.active_offer(record)
-        left = contracts.remaining_seconds(town, record)
-        st.write(f"{record['delivered']} / {record['required']} delivered · {left:.0f}s remaining")
-        location = offer.location
-        if travel((location.x, location.y), location.name, key="contract-travel"):
-            quantity = st.number_input("Delivery quantity", 1, record["required"] - record["delivered"])
-            button("Deliver", Town.deliver_contract, record["id"], quantity)
-        if st.checkbox("Confirm abandonment (deposited goods are forfeited)", key=f"abandon-{record['id']}"):
-            button("Abandon contract", Town.abandon_contract, record["id"])
-    offers = contracts.available_offers(town)
-    if offers:
-        offer = st.selectbox("Available offer", offers, format_func=lambda item: item.title)
-        product = contracts.PRODUCT_NAMES[offer.product_key]
-        st.write(f"{offer.quantity} × {product} · ${offer.cash:,} · {offer.seconds}s")
-        st.caption(offer.location.name)
-        button("Accept contract", Town.accept_contract, offer.key)
-    else:
-        st.caption("No offers available. New recurring offers appear as game time advances.")
-
-
-def deliveries():
-    factories = [site for site in SITES if site.role == "FACTORY"]
-    factory = st.selectbox("Factory", factories, format_func=lambda item: item.name)
-    effective = town.business_site(factory)
-    suppliers = [site.name for site in SITES if site.role == "SUPPLIER" and site.trade == effective.trade]
-    source = st.selectbox("Supplier", suppliers)
-    kind = st.selectbox("Fleet vehicle", tuple(logistics.FLEET_VEHICLES),
-                        format_func=lambda key: logistics.FLEET_VEHICLES[key].label)
-    vehicle = logistics.FLEET_VEHICLES[kind]
-    button(f"Buy route · ${vehicle.price:,}", Town.create_delivery_route, kind, source, factory.name)
-    stock = town.logistics["factories"][factory.name]
-    st.write(f"{factory.name} · {stock['output']} finished units ready")
-    routes = town.logistics["routes"]
-    if not routes:
-        st.caption("No delivery routes yet.")
-        return
-    route = st.selectbox("Manage route", routes,
-                         format_func=lambda item: f"#{item['id']} · {item['source']} to {item['destination']}")
-    identifier = route["id"]
-    st.write(logistics.route_status(route))
-    button("Pause route" if route["enabled"] else "Resume route",
-           Town.set_delivery_enabled, identifier, not route["enabled"])
-    button("Reassign to selected supplier and factory", Town.reassign_delivery_route,
-           identifier, source, factory.name)
-    button("Remove empty route", Town.remove_delivery_route, identifier)
-
-
-def manage_businesses():
-    sites = [site for site in SITES if site.role in ("FACTORY", "PUBLIC SHOP")]
-    site = st.selectbox("Business", sites, format_func=lambda item: item.name)
-    if not businesses.is_owned(town, site):
-        price = businesses.PURCHASE_PRICES[site.role]
-        button(f"Buy business · ${price:,}", Town.purchase_business, site.name)
-        return
-    for upgrade in ("storage", "equipment"):
-        price = businesses.upgrade_cost(town, site, upgrade)
-        if price is None:
-            st.caption(f"{upgrade.title()} fully upgraded.")
-        else:
-            button(f"Upgrade {upgrade} · ${price:,}", Town.upgrade_business, site.name, upgrade)
-    index = st.selectbox("Specialization", range(len(TRADES)),
-                         index=town.business_site(site).trade,
-                         format_func=lambda trade: TRADES[trade].product)
-    button("Apply specialization", Town.specialize_business, site.name, index)
-    if site.role == "PUBLIC SHOP" and travel(entrance(site), site.name, key="shop-travel"):
-        button("Stock from bag", Town.stock_business, site.name)
-        button("Withdraw stock", Town.withdraw_business, site.name)
-        button("Sell from bag", Town.sell_business_carried, site.name)
 
 
 def landmarks():
@@ -955,29 +867,28 @@ with st.container(key="foundry_hud"):
         fullscreen_control("game")
 
 page = st.session_state.get("town_page", "Game")
+PAGES = {"Game": places, "Market & recipes": market, "Landmarks": landmarks}
+if page not in PAGES:  # A page from an older version of the game
+    page = st.session_state.town_page = "Game"
 with st.container(key="foundry_nav"):
-    game, recipes, advanced = st.columns(3, vertical_alignment="center")
-    for column, label in ((game, "Game"), (recipes, "Market & recipes")):
+    columns = st.columns(len(PAGES) + bool(store), vertical_alignment="center")
+    for column, label in zip(columns, PAGES):
         column.button(
             label, type="primary" if page == label else "secondary", width="stretch",
             on_click=st.session_state.update, kwargs={"town_page": label},
         )
-    with advanced.popover("More", width="stretch"):
-        for label in ("Contracts", "Deliveries", "Businesses", "Landmarks"):
-            st.button(
-                label, type="primary" if page == label else "secondary", width="stretch",
-                on_click=st.session_state.update, kwargs={"town_page": label},
-            )
-        if cloud_store and st.button("Save progress", width="stretch"):
-            if save_town(town):
-                st.toast("Progress saved.")
-        reload_label = "Reload cloud progress" if cloud_store else "Reload local progress"
-        if store and st.button(reload_label, width="stretch"):
-            try:
-                load_game()
-                st.rerun()
-            except SAVE_ERRORS:
-                st.session_state.save_error = "Could not reload progress. Check your save settings and try again."
+    if store:
+        with columns[-1].popover("Saves", width="stretch"):
+            if cloud_store and st.button("Save progress", width="stretch"):
+                if save_town(town):
+                    st.toast("Progress saved.")
+            reload_label = "Reload cloud progress" if cloud_store else "Reload local progress"
+            if st.button(reload_label, width="stretch"):
+                try:
+                    load_game()
+                    st.rerun()
+                except SAVE_ERRORS:
+                    st.session_state.save_error = "Could not reload progress. Check your save settings and try again."
 
 if st.session_state.save_error:
     st.error(st.session_state.save_error)
@@ -985,10 +896,7 @@ if town.won and not town.milestone_acknowledged:
     st.success("You reached the $500 cash milestone.")
     button("Continue building", Town.continue_after_milestone)
 
-{
-    "Game": places, "Market & recipes": market, "Contracts": contract_board,
-    "Deliveries": deliveries, "Businesses": manage_businesses, "Landmarks": landmarks,
-}[page]()
+PAGES[page]()
 
 if town.message:
     st.info(town.message)
