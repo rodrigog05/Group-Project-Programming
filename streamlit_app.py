@@ -1,4 +1,5 @@
 """Foundry Town's Streamlit interface."""
+from base64 import b64encode
 from copy import deepcopy
 import os
 from pathlib import Path
@@ -352,9 +353,46 @@ def landmarks():
             button("Visit monastery", Town.visit_monastery)
 
 
+def fullscreen_control(name):
+    st.html(f"""
+        <button class="foundry-fullscreen" id="foundry-fullscreen-{name}" type="button" hidden>Fullscreen</button>
+        <script>
+        (() => {{
+            const button = document.getElementById("foundry-fullscreen-{name}");
+            if (!document.fullscreenEnabled || !document.documentElement.requestFullscreen) return;
+            const update = () => {{
+                if (!button.isConnected) {{
+                    document.removeEventListener("fullscreenchange", update);
+                    return;
+                }}
+                button.textContent = document.fullscreenElement ? "Exit Fullscreen" : "Fullscreen";
+            }};
+            button.hidden = false;
+            update();
+            document.addEventListener("fullscreenchange", update);
+            button.onclick = async () => {{
+                try {{
+                    if (document.fullscreenElement) await document.exitFullscreen();
+                    else await document.documentElement.requestFullscreen();
+                }} catch {{
+                    button.textContent = "Fullscreen unavailable";
+                }}
+            }};
+        }})();
+        </script>
+    """, unsafe_allow_javascript=True)
+
+
 @st.dialog("Foundry Town · Lisboa", width="large", dismissible=False)
 def start_menu():
-    st.image(str(ROOT / "street" / "lisbon_waterfront.webp"), width="stretch")
+    with st.container(key="foundry_start"):
+        fullscreen_control("menu")
+        start_menu_card()
+
+
+def start_menu_card():
+    st.title("Foundry Town")
+    st.caption("Lisboa · Build your fortune along the Tejo")
     town = st.session_state.town
     can_continue = bool(st.session_state.revision or st.session_state.get("started"))
     st.caption(f"Continue with ${town.cash:,} in cash." if can_continue else "Start with $60 and a 12-slot bag.")
@@ -390,15 +428,90 @@ def enter_game():
 
 
 town = st.session_state.town
-st.title("Foundry Town")
-cash, cargo, day = st.columns(3)
+waterfront = b64encode((ROOT / "street" / "lisbon_waterfront.webp").read_bytes()).decode("ascii")
+st.html(f"""
+<style>
+  [data-testid="stMainBlockContainer"] {{
+    max-width: none;
+    padding-inline: clamp(0.5rem, 2vw, 1.75rem);
+    padding-top: 3.25rem;
+  }}
+  section[role="dialog"]:has(.st-key-foundry_start) {{
+    position: fixed !important;
+    inset: 0 !important;
+    transform: none !important;
+    width: 100vw !important;
+    max-width: none !important;
+    height: 100dvh !important;
+    max-height: none !important;
+    margin: 0;
+    border-radius: 0;
+    background: #17343b url("data:image/webp;base64,{waterfront}") center / cover;
+  }}
+  section[role="dialog"]:has(.st-key-foundry_start) > :first-child:not(:has(.st-key-foundry_start)) {{
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }}
+  .st-key-foundry_start {{
+    width: min(100%, 38rem);
+    margin: clamp(2rem, 50dvh - 6rem, 26rem) auto 2rem;
+    padding: clamp(1rem, 3vw, 2rem);
+    border: 2px solid #ffc66c;
+    border-radius: 12px;
+    background: #16303a;
+    color: #fff7e6;
+    color-scheme: dark;
+  }}
+  .st-key-foundry_start h1 {{ color: #ffc66c; }}
+  .st-key-foundry_start [data-testid="stCaptionContainer"] p {{ color: #a9e2ce; }}
+  .st-key-foundry_start button[data-testid^="stBaseButton"] {{
+    background: #2c4a55;
+    color: #fff7e6;
+    border-color: #577480;
+  }}
+  .st-key-foundry_start button[data-testid="stBaseButton-primary"] {{
+    background: #ffc66c;
+    color: #101f28;
+  }}
+  .st-key-foundry_start button[data-testid^="stBaseButton"]:disabled {{
+    background: #253e48;
+    color: #a0b2b8;
+  }}
+  .foundry-fullscreen {{
+    position: fixed;
+    top: 0.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    background: #16303a;
+    border: 1px solid #ffc66c;
+    border-radius: 5px;
+    padding: 0.35rem 0.75rem;
+    color: #ffc66c;
+    font: 600 0.875rem system-ui, sans-serif;
+    cursor: pointer;
+  }}
+  #foundry-fullscreen-game {{
+    position: static;
+    transform: none;
+  }}
+  body:has(.st-key-foundry_start) #foundry-fullscreen-game {{ display: none; }}
+</style>
+""")
+title, cash, cargo, day, menu, display = st.columns((2, 1, 1, 1, 1, 1), vertical_alignment="center")
+title.title("Foundry Town")
 cash.metric("Cash", f"${town.cash:,}")
 cargo.metric("Cargo + reserved", f"{town.cargo + town.reserved} / {town.carry_capacity}")
 day.metric("Market day", town.day)
+if menu.button("Start menu"):
+    st.session_state.show_menu = True
+with display:
+    fullscreen_control("game")
 
 with st.sidebar:
-    if st.button("Start menu"):
-        st.session_state.show_menu = True
     page = st.radio("Town", ("Places", "Market & recipes", "Contracts", "Deliveries", "Businesses", "Landmarks"))
     seconds = int(town.market_elapsed % DAY_SECONDS)
     st.caption(f"{DAY_SECONDS - seconds}s until market reset")
@@ -417,8 +530,6 @@ with st.sidebar:
 
 if st.session_state.save_error:
     st.error(st.session_state.save_error)
-if town.message:
-    st.info(town.message)
 if town.won and not town.milestone_acknowledged:
     st.success("You reached the $500 cash milestone.")
     button("Continue building", Town.continue_after_milestone)
@@ -427,6 +538,9 @@ if town.won and not town.milestone_acknowledged:
     "Places": places, "Market & recipes": market, "Contracts": contract_board,
     "Deliveries": deliveries, "Businesses": manage_businesses, "Landmarks": landmarks,
 }[page]()
+
+if town.message:
+    st.info(town.message)
 
 if st.session_state.get("show_menu", True):
     start_menu()

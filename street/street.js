@@ -23,13 +23,22 @@ let lastSend = 0;
 let segments = [];
 let bufferedSeconds = 0;
 let facing = 1;
+let reportedHeight;
 
 function send(type, data = {}) {
   window.parent.postMessage({ isStreamlitMessage: true, type, ...data }, parentOrigin);
 }
 
 function frameHeight() {
-  send("streamlit:setFrameHeight", { height: document.body.offsetHeight });
+  if (parentOrigin === location.origin && Number.isFinite(window.parent.innerHeight)) {
+    const height = Math.max(350, Math.floor(window.parent.innerHeight * 0.8));
+    document.body.style.setProperty("--map-height", `${height}px`);
+  }
+  const height = document.body.offsetHeight;
+  if (height !== reportedHeight) {
+    reportedHeight = height;
+    send("streamlit:setFrameHeight", { height });
+  }
 }
 
 window.addEventListener("message", (event) => {
@@ -380,6 +389,10 @@ for (const button of document.querySelectorAll("[data-action]")) {
 }
 
 new ResizeObserver(frameHeight).observe(document.body);
+if (parentOrigin === location.origin && window.parent !== window) {
+  window.parent.addEventListener?.("resize", frameHeight);
+  window.addEventListener("pagehide", () => window.parent.removeEventListener?.("resize", frameHeight));
+}
 send("streamlit:componentReady", { apiVersion: 1 });
 frameHeight();
 requestAnimationFrame(frame);

@@ -7,7 +7,7 @@
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; color: #fff7e6; background: #17343b; font: 14px system-ui, sans-serif; }
-    canvas { display: block; width: 100%; height: clamp(240px, 47vw, 450px); background: #315860; }
+    canvas { display: block; width: 100%; height: var(--map-height, clamp(350px, 56.25vw, 720px)); background: #315860; }
     canvas:focus-visible, button:focus-visible { outline: 3px solid #f8cb76; outline-offset: -3px; }
     .status { padding: 8px 12px; line-height: 1.4; min-height: 54px; }
     #hint { font-weight: 700; }
