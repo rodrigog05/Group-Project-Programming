@@ -14,7 +14,7 @@ const directions = {
   arrowleft: "left", a: "left", arrowright: "right", d: "right",
   arrowup: "up", w: "up", arrowdown: "down", s: "down",
 };
-const actions = { e: "interact", q: "bulk", x: "dismount", v: "vehicle" };
+const actions = { e: "interact", q: "bulk", v: "vehicle" };  // V parks the vehicle and brings it back
 const vehicleArt = Object.fromEntries(["motorcycle", "car", "van", "f1"].map(key => {
   const art = new Image();
   art.src = `vehicles/${key}.svg`;
@@ -110,9 +110,6 @@ window.addEventListener("message", (event) => {
   facing = next.facing;
   state = next;
   updateTradeButtons();
-  for (const button of document.querySelectorAll('[data-action="dismount"]')) {
-    button.hidden = !state.vehicle;
-  }
   vehicleButton.hidden = !state.vehicle && !state.stowed_vehicle;
   const vehicleLabel = state.vehicle ? "Leave vehicle · V" : "Bring back vehicle · V";
   if (vehicleButton.textContent !== vehicleLabel) vehicleButton.textContent = vehicleLabel;
@@ -607,18 +604,23 @@ function drawShowroom(showroom) {
     context.fillStyle = "#fff3dc";
     context.font = "bold 10.5px system-ui, sans-serif";
     context.fillText(ride.label, left + 26, top + 13);
-    // Price, or what the player already has.
-    context.textAlign = "right";
-    if (ride.status === "current") {
-      context.fillStyle = "#ffc66c";
-      context.fillText("YOURS", left + 142, top + 13);
-    } else if (ride.status === "owned") {
-      context.fillStyle = "#7ee0a1";
-      context.fillText("FREE", left + 142, top + 13);
-    } else {
+    // The price, or a badge on the card's top edge for a vehicle the player already has.
+    if (ride.status === "buy") {
+      context.textAlign = "right";
       context.fillStyle = ride.affordable ? "#ffc66c" : "#ff9b8f";
       context.font = "bold 12px system-ui, sans-serif";
       context.fillText("$" + ride.price, left + 142, top + 13);
+    } else {
+      const badge = ride.status === "owned" ? "ALREADY OWNED" : "YOUR RIDE";
+      context.font = "bold 8.5px system-ui, sans-serif";
+      const badgeWidth = context.measureText(badge).width + 14;
+      context.fillStyle = border;
+      context.beginPath();
+      context.roundRect(x - badgeWidth / 2, top - 7, badgeWidth, 13, 6);
+      context.fill();
+      context.fillStyle = "#16303a";
+      context.textAlign = "center";
+      context.fillText(badge, x, top - 0.5);
     }
     // What it does for you.
     context.textAlign = "left";
