@@ -581,7 +581,6 @@ const SPIN_SECONDS = 4.5;
 const POCKETS = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14,
                  31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
 const REDS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
-const KEY_NAMES = { escape: "Esc", "shift+f": "Shift+F" };
 
 let sceneOnScreen = null;
 
@@ -739,13 +738,7 @@ function drawInterior() {
     context.fillText(title, 16 * unit, 22 * unit);
   }
   if (room.scene === "monastery" || room.scene === "nova_presentation") return;
-  const hint = room.keys.map(([key, label]) => `${KEY_NAMES[key] || key.toUpperCase()} ${label}`).join("   ·   ");
-  context.font = `600 ${8.5 * unit}px system-ui, sans-serif`;
-  context.textAlign = "center";
-  context.fillStyle = "#1f2a30d9";
-  context.fillRect(0, height - 20 * unit, width, 20 * unit);
-  context.fillStyle = "#fff3dc";
-  context.fillText(room.casino ? `Chip $${room.casino.chip} (← →)   ·   ${hint}` : hint, width / 2, height - 7 * unit);
+  // The actions and their keys are the coloured buttons under the map, so the scene doesn't repeat them.
   drawTimer();
   drawHint("interior");
   drawAlert();
