@@ -243,34 +243,58 @@ def test_market_shows_four_route_cards_and_the_goal_bar(monkeypatch):
 
 # ----- Next-move hint and the production countdown -----
 
-def test_next_move_follows_a_whole_bread_run():
+def test_hints_say_where_to_go_then_which_key_to_press_on_a_new_route():
     from browser_game import next_move
+    named = lambda name: next(site for site in SITES if site.name == name)
     town = Town()
-    assert next_move(town) == {"text": "Go to Goldenfield Farm and buy Wheat ($4 each).", "target": "Goldenfield Farm"}
-    farm = next(site for site in SITES if site.name == "Goldenfield Farm")
-    town.x, town.y = entrance(farm)
+    assert next_move(town)["text"] == "Go to Goldenfield Farm and buy Wheat ($4 each)."
+    town.x, town.y = entrance(named("Goldenfield Farm"))
+    assert next_move(town)["text"].startswith("Press Q to buy up to 4 Wheat")  # At the farm: the key
     town.interact(bulk=True)
-    hint = next_move(town)
-    assert hint["target"] == "Sunrise Bakery" and "Now you should go to Sunrise Bakery" in hint["text"]
-    bakery = next(site for site in SITES if site.name == "Sunrise Bakery")
-    town.x, town.y = entrance(bakery)
+    assert next_move(town) == {"text": "Now go to Sunrise Bakery to turn your Wheat into Bread.",
+                               "target": "Sunrise Bakery"}
+    town.x, town.y = entrance(named("Sunrise Bakery"))
+    assert next_move(town)["text"] == "Press E to drop off your Wheat and make Bread."
     town.interact()
     assert "ready in 4s" in next_move(town)["text"]
     town.elapsed += 5
-    assert next_move(town)["text"].startswith("Your Bread is ready")
+    assert next_move(town)["text"] == "Press E to collect your Bread."
     town.interact()
-    assert next_move(town) == {"text": "Sell your 4 Bread at Daily Bread Market.", "target": "Daily Bread Market"}
+    assert next_move(town)["text"] == "Sell your 4 Bread at Daily Bread Market."
+    town.x, town.y = entrance(named("Daily Bread Market"))
+    assert next_move(town)["text"] == "Press E to sell your Bread."
+    town.interact()
+    # Bread is learned: suggest exploring, and stay quiet while making bread again.
+    explore = next_move(town)
+    assert explore["text"].startswith("You know how to make Bread. Explore:") and explore["target"] == "Pine Mill"
+    town.x, town.y = entrance(named("Goldenfield Farm"))
+    town.interact(bulk=True)
+    assert next_move(town) is None
+
+
+def test_building_hints_and_no_hints_once_every_route_is_learned():
+    from browser_game import MONASTERY, next_move
+    town = Town()
+    assert "1 (red)" in next_move(town, "Foundry Casino")["text"]
+    assert "1–4" in next_move(town, "Cacilhas Garage")["text"]
+    assert "12 storage slots" in next_move(town, "Foundry Warehouse")["text"]
+    assert "casino luck" in next_move(town, MONASTERY)["text"]
+    town.total_sold = [1, 1, 1, 1]
+    assert next_move(town) is None
 
 
 def test_hints_can_be_hidden_and_show_route_sets_the_destination(monkeypatch):
+    def route_button(app):
+        return next(button for button in app.button if button.label.startswith("Show route"))
     app = new_app(monkeypatch)
     app.selectbox[0].select("Tool Market").run()
-    click(app, "Show route to Goldenfield Farm")
+    assert route_button(app).label == "Show route to Goldenfield Farm" and not route_button(app).disabled
+    route_button(app).click().run()
     assert app.selectbox[0].value == "Goldenfield Farm"
-    assert "Show route to Goldenfield Farm" not in labels(app)  # Already the destination
+    assert route_button(app).disabled  # Already the destination; the button stays, so nothing moves
     app.toggle[0].set_value(False).run()
     app.selectbox[0].select("Tool Market").run()
-    assert not any(label.startswith("Show route") for label in labels(app))
+    assert route_button(app).disabled
 
 
 def test_bakery_shows_a_countdown_while_bread_is_made(monkeypatch):

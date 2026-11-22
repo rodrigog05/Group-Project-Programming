@@ -132,43 +132,76 @@ def building_at(town):
     return None
 
 
-def next_move(town):
-    """The player's next step on a trade route, as {"text", "target"} (target: a building name or None)."""
+BUILDING_HINTS = {
+    "CASINO": "Pick a chip with ← →, then press 1 (red), 2 (black) or 3 (green 0) to spin the wheel.",
+    "GARAGE": "Press 1–4 to buy a vehicle. Vehicles are faster and their trunk carries more.",
+    "WAREHOUSE": "Press E to add 12 storage slots, so you can carry bigger batches.",
+    "EXCHANGE": "Buy and sell shares with the controls below the game view.",
+    "RESEARCH": "Start research below the game view to unlock new products.",
+    MONASTERY: "Each visit adds 5 points of casino luck, up to +20.",
+}
+
+
+def next_move(town, inside=None):
+    """The next step to suggest, as {"text", "target"}, or None when the player needs no hint.
+
+    Steps are shown only on trade routes the player has not completed yet (sold at least once).
+    At the right building the hint names the key to press; elsewhere it names where to go.
+    """
     def place(role, trade):
         return next(site.name for site in OPEN_SITES if site.role == role and site.trade == trade)
 
-    # Finished products first, then batches ready to collect, then materials to process.
-    for index, trade in enumerate(TRADES):
+    here = inside or building_at(town)
+    site = next((candidate for candidate in OPEN_SITES if candidate.name == here), None)
+    if inside and (inside == MONASTERY or (site and site.role in BUILDING_HINTS)):
+        return {"text": BUILDING_HINTS[MONASTERY if inside == MONASTERY else site.role], "target": None}
+    learned = [bool(sold) for sold in town.total_sold]
+
+    def step(target, there, elsewhere):
+        return {"text": there if here == target else elsewhere, "target": target}
+
+    new = [index for index in range(len(TRADES)) if not learned[index]]
+    for index in new:  # Finished products first
         if town.goods[index]:
-            market = place("PUBLIC SHOP", index)
-            return {"text": f"Sell your {town.goods[index]} {trade.product} at {market}.", "target": market}
-    for index, trade in enumerate(TRADES):
+            trade, market = TRADES[index], place("PUBLIC SHOP", index)
+            return step(market, f"Press E to sell your {trade.product}.",
+                        f"Sell your {town.goods[index]} {trade.product} at {market}.")
+    for index in new:  # Then batches ready to collect
         order = town.orders[index]
         if order is not None and town.elapsed >= order.ready_at:
-            factory = place("FACTORY", index)
-            return {"text": f"Your {trade.product} is ready. Collect it at {factory}.", "target": factory}
-    for index, trade in enumerate(TRADES):
+            trade, factory = TRADES[index], place("FACTORY", index)
+            return step(factory, f"Press E to collect your {trade.product}.",
+                        f"Your {trade.product} is ready. Collect it at {factory}.")
+    for index in new:  # Then materials to process
         if town.supplies[index]:
-            factory = place("FACTORY", index)
-            return {"text": f"Now you should go to {factory} to turn your {trade.supply} into {trade.product}.",
-                    "target": factory}
-    for index, trade in enumerate(TRADES):
+            trade, factory = TRADES[index], place("FACTORY", index)
+            return step(factory, f"Press E to drop off your {trade.supply} and make {trade.product}.",
+                        f"Now go to {factory} to turn your {trade.supply} into {trade.product}.")
+    for index in new:  # Then batches still being made
         order = town.orders[index]
         if order is not None:
-            factory = place("FACTORY", index)
+            trade, factory = TRADES[index], place("FACTORY", index)
             seconds = math.ceil(order.ready_at - town.elapsed)
-            return {"text": f"{trade.product} is being made at {factory}: ready in {seconds}s. Then collect it there.",
-                    "target": factory}
-    if town.won:
-        return {"text": "Goal reached! Try a bigger route, or take the ferry to Cacilhas Garage for a vehicle.",
-                "target": "Cacilhas Garage"}
-    # Nothing in hand: start with the bread route the Basics teach; later, the most profitable route
-    # the player can afford.
-    affordable = [index for index in range(len(TRADES)) if town.cash >= town.costs[index]]
-    index = 3 if town.cash < 150 or not affordable else max(affordable, key=lambda i: town.prices[i] - town.costs[i])
-    supplier = place("SUPPLIER", index)
-    return {"text": f"Go to {supplier} and buy {TRADES[index].supply} (${town.costs[index]} each).",
-            "target": supplier}
+            return step(factory, f"{trade.product} is being made: ready in {seconds}s, then press E to collect.",
+                        f"{trade.product} is being made at {factory}: ready in {seconds}s. Then collect it there.")
+    if not any(learned):
+        # First route: the bread route the Basics teach.
+        supplier = place("SUPPLIER", 3)
+        return step(supplier, "Press Q to buy up to 4 Wheat (E buys one).",
+                    f"Go to {supplier} and buy Wheat (${town.costs[3]} each).")
+    busy = any(town.supplies[i] or town.goods[i] or town.orders[i] is not None for i in range(len(TRADES)))
+    if busy:
+        return None  # Working a route the player already knows: no need to explain it again
+    if new:
+        # Hands empty and a route learned: suggest exploring the most profitable new one they can afford.
+        affordable = [index for index in new if town.cash >= town.costs[index]] or new
+        index = max(affordable, key=lambda i: town.prices[i] - town.costs[i])
+        trade, supplier = TRADES[index], place("SUPPLIER", index)
+        known = " and ".join(TRADES[i].product for i in range(len(TRADES)) if learned[i])
+        return step(supplier, f"Press Q to buy up to 4 {trade.supply}.",
+                    f"You know how to make {known}. Explore: buy {trade.supply} at {supplier} "
+                    f"(${town.costs[index]}) to make {trade.product}, sold for ${town.prices[index]}.")
+    return None  # Every route learned: no more hints needed
 
 
 def scene_for(town, site):
