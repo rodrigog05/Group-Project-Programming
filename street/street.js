@@ -558,6 +558,8 @@ const POCKETS = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 
 const REDS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
 const KEY_NAMES = { escape: "Esc", "shift+f": "Shift+F" };
 
+let sceneOnScreen = null;
+
 function fitScene(width, height) {
   const ratio = Math.min(window.devicePixelRatio || 1, 2);
   const w = canvas.clientWidth;
@@ -570,8 +572,62 @@ function fitScene(width, height) {
   context.fillStyle = "#1f2a30";
   context.fillRect(0, 0, w, h);
   const scale = Math.min(w / width, h / height);
+  sceneOnScreen = { scale, left: (w - width * scale) / 2, top: (h - height * scale) / 2, width };
   context.setTransform(ratio * scale, 0, 0, ratio * scale, ratio * (w - width * scale) / 2,
                        ratio * (h - height * scale) / 2);
+}
+
+// The garage showroom (800 x 400): a card under each vehicle's turntable.
+const SHOWROOM_X = [85, 245, 405, 565];
+
+function drawShowroom(showroom) {
+  showroom.forEach((ride, index) => {
+    const x = SHOWROOM_X[index];
+    const left = x - 74;
+    const top = 333;
+    const border = ride.status === "current" ? "#ffc66c" : ride.status === "owned" ? "#7ee0a1" : "#9aaeb3";
+    context.fillStyle = "#16303aee";
+    context.strokeStyle = border;
+    context.lineWidth = ride.status === "buy" ? 1.5 : 2.5;
+    context.beginPath();
+    context.roundRect(left, top, 148, 41, 7);
+    context.fill();
+    context.stroke();
+    // Key to press, then the name.
+    context.fillStyle = "#fff3dc";
+    context.beginPath();
+    context.roundRect(left + 6, top + 5, 15, 15, 3);
+    context.fill();
+    context.fillStyle = "#1f2a30";
+    context.font = "bold 10px system-ui, sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(String(ride.number), left + 13.5, top + 13);
+    context.textAlign = "left";
+    context.fillStyle = "#fff3dc";
+    context.font = "bold 10.5px system-ui, sans-serif";
+    context.fillText(ride.label, left + 26, top + 13);
+    // Price, or what the player already has.
+    context.textAlign = "right";
+    if (ride.status === "current") {
+      context.fillStyle = "#ffc66c";
+      context.fillText("YOURS", left + 142, top + 13);
+    } else if (ride.status === "owned") {
+      context.fillStyle = "#7ee0a1";
+      context.fillText("FREE", left + 142, top + 13);
+    } else {
+      context.fillStyle = ride.affordable ? "#ffc66c" : "#ff9b8f";
+      context.font = "bold 12px system-ui, sans-serif";
+      context.fillText("$" + ride.price, left + 142, top + 13);
+    }
+    // What it does for you.
+    context.textAlign = "left";
+    context.fillStyle = "#c8d6d8";
+    context.font = "500 8.5px system-ui, sans-serif";
+    context.fillText(`Trunk +${ride.trunk}  ·  ${ride.cargo} cargo slots`, left + 8, top + 26);
+    context.fillText(`Road ${ride.road}  ·  Off-road ${ride.offroad}`, left + 8, top + 36);
+    context.textBaseline = "alphabetic";
+  });
 }
 
 function wrapLines(text, width) {
@@ -636,14 +692,22 @@ function drawInterior() {
     const [left, top, right, bottom] = room.board;
     textInBox(room.board_text, [left + 6, top + 22, right - 6, bottom - 4], 8.5, "#eef3ea", "500");
   }
-  // Title and the keys that work here.
+  if (room.showroom) drawShowroom(room.showroom);
+  // Title and the keys that work here. The garage has its own sign board for its name.
   context.font = `bold ${11 * unit}px system-ui, sans-serif`;
-  context.textAlign = "left";
   const title = room.title;
-  context.fillStyle = "#1f2a30d9";
-  context.fillRect(8 * unit, 8 * unit, context.measureText(title).width + 16 * unit, 20 * unit);
-  context.fillStyle = "#f6e7b4";
-  context.fillText(title, 16 * unit, 22 * unit);
+  if (room.scene === "garage") {
+    context.font = "bold 15px system-ui, sans-serif";
+    context.textAlign = "center";
+    context.fillStyle = "#f6e7b4";
+    context.fillText(title.toUpperCase(), 157, 38);
+  } else {
+    context.textAlign = "left";
+    context.fillStyle = "#1f2a30d9";
+    context.fillRect(8 * unit, 8 * unit, context.measureText(title).width + 16 * unit, 20 * unit);
+    context.fillStyle = "#f6e7b4";
+    context.fillText(title, 16 * unit, 22 * unit);
+  }
   if (room.scene === "monastery") return;
   const hint = room.keys.map(([key, label]) => `${KEY_NAMES[key] || key.toUpperCase()} ${label}`).join("   ·   ");
   context.font = `600 ${8.5 * unit}px system-ui, sans-serif`;
@@ -745,10 +809,15 @@ function drawHint(where) {
   context.font = "600 14px system-ui, sans-serif";
   const lines = wrapLines(state.next_move.text, boxWidth - 62);
   const boxHeight = 22 + lines.length * 19;
-  // Always on the left, so it doesn't jump sides when entering or leaving; inside it sits under the
-  // building name, clear of the vendor's speech bubble.
+  // Always on the left, so it doesn't jump sides when entering or leaving. Inside it sits just under
+  // the building name (the garage's name is on its sign board), clear of the vendor's speech bubble.
   const x = 14;
-  const y = where === "street" ? 14 : 52;
+  let y = 14;
+  if (where === "interior" && sceneOnScreen) {
+    const unit = sceneOnScreen.width / 640;
+    const nameBottom = state.interior.scene === "garage" ? 52 : 30 * unit;
+    y = sceneOnScreen.top + nameBottom * sceneOnScreen.scale + 6;
+  }
   card(x, y, boxWidth, boxHeight, "#ffd072");
   // The light bulb.
   const bx = x + 24;

@@ -389,3 +389,19 @@ def test_full_bag_inside_a_new_routes_supplier_says_sell_not_buy():
     assert next_move(town, "Redbank Clay Pit") == {
         "text": "Your bag is full (12/12). Sell your 12 Bread at Daily Bread Market.",
         "target": "Daily Bread Market"}
+
+
+def test_garage_sends_one_card_per_vehicle_with_its_status(monkeypatch):
+    app = new_app(monkeypatch)
+    town = app.session_state.town
+    town.cash, town.owned_vehicles = 300, ["motorcycle"]
+    garage = next(site for site in SITES if site.name == "Cacilhas Garage")
+    town.x, town.y = entrance(garage)
+    app.session_state.inside = garage.name
+    app.run()
+    cards = streamlit_interior(app)["showroom"]
+    assert [card["label"] for card in cards] == ["Motorcycle", "Car", "Delivery van", "F1 car"]
+    assert [card["status"] for card in cards] == ["owned", "buy", "buy", "buy"]
+    assert [card["affordable"] for card in cards] == [True, True, False, False]
+    assert cards[1]["trunk"] == 48 and cards[1]["cargo"] == 60
+    assert streamlit_interior(app)["keys"] == [["1–4", "Choose a vehicle"], ["escape", "Leave"]]

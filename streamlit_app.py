@@ -378,6 +378,16 @@ def interior_view(site):
     if site != MONASTERY and site.role == "CASINO":
         view["casino"] = {"spin": st.session_state.get("spin"), "chip": st.session_state.get("chip") or 10,
                           "luck": town.casino_luck}
+    if site != MONASTERY and site.role == "GARAGE":
+        # One card per vehicle, drawn under it in the showroom; the key bar just says 1-4.
+        view["showroom"] = [
+            {"number": number, "label": ride.label, "price": ride.price, "trunk": ride.trunk,
+             "cargo": town.bag_size + ride.trunk, "road": ride.road_speed, "offroad": ride.offroad_speed,
+             "status": "current" if town.vehicle == key else
+                       "owned" if key in town.owned_vehicles or key == town.stowed_vehicle else "buy",
+             "affordable": town.cash >= ride.price}
+            for number, (key, ride) in enumerate(VEHICLES.items(), start=1)]
+        view["keys"] = [["1–4", "Choose a vehicle"], ["escape", "Leave"]]
     if site != MONASTERY and site.role == "FACTORY":
         # Countdown in the corner while a batch is being made here.
         trade = town.business_site(site).trade
