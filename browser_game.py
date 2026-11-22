@@ -113,6 +113,7 @@ OPEN_SITES = tuple(site for site in SITES if site.name not in CLOSED_SITES)
 INTERIOR_ROLES = ("SUPPLIER", "FACTORY", "PUBLIC SHOP", "PASTELARIA", "SHIPYARD", "TIER2")
 # Scenes from the desktop game, as drawn in street/scenes. Boxes are in each scene's own pixels.
 SCENES = {
+    "presentation": {"size": (1448, 1086), "bubble": None, "board": None},
     "interior": {"size": (640, 400), "bubble": (250, 20, 470, 130), "board": (336, 318, 500, 384)},
     "garage": {"size": (800, 400), "bubble": (460, 10, 790, 80), "board": None},
     "monastery": {"size": (640, 400), "bubble": None, "board": None},
@@ -145,7 +146,7 @@ BUILDING_HINTS = {
     "GARAGE": "Press 1–4 to buy a vehicle. Vehicles are faster and their trunk carries more.",
     "WAREHOUSE": "Press E to add 12 storage slots, so you can carry bigger batches.",
     "EXCHANGE": "Buy and sell shares with the controls below the game view.",
-    "RESEARCH": "Start research below the game view to unlock new products.",
+    "RESEARCH": "Our team is presenting Foundry Town to our professors at Nova SBE.",
     MONASTERY: "Each visit adds 5 points of casino luck, up to +20.",
 }
 
@@ -277,6 +278,8 @@ def scene_for(town, site):
     """(image name, layout) for a building, or None when it has no illustrated scene."""
     if site == MONASTERY:
         return "monastery", SCENES["monastery"]
+    if site.role == "RESEARCH":
+        return "nova_presentation", SCENES["presentation"]
     if site.role in INTERIOR_ROLES:
         trade = town.business_site(site).trade if site.role in ("FACTORY", "PUBLIC SHOP") else max(site.trade, 0)
         return f"{site.role.replace(' ', '_').lower()}_{trade}", SCENES["interior"]
@@ -292,6 +295,8 @@ def greeting(town, site):
     if site == MONASTERY:
         return "Peace be with you. Each visit adds 5 percentage points of casino luck, up to 20."
     role = site.role
+    if role == "RESEARCH":
+        return BUILDING_HINTS[role]
     if role == "SUPPLIER":
         trade = TRADES[site.trade]
         opener = ("Freshly mined", "Cut this morning", "Dug from the pit today", "Harvested at dawn")[site.trade]
@@ -363,7 +368,6 @@ def visit(town, position, label):
 def advance_clock(town, seconds):
     town.advance(seconds)
     advance_city(town, seconds)
-    town.advance_research(seconds)
     town.advance_deliveries(seconds)
     town.advance_contracts(seconds)
     town.advance_businesses(seconds)

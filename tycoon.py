@@ -305,7 +305,7 @@ class Town:
         if not self.won:
             return False
         self.milestone_acknowledged = True
-        self.message = "Cash milestone complete! Visit Nova SBE in Carcavelos for research and tier-3 crafting."
+        self.message = "Cash milestone complete! Visit Nova SBE in Carcavelos for our Foundry Town presentation."
         return True
 
     def create_delivery_route(self, kind, source, destination):
@@ -774,7 +774,7 @@ class Town:
             self.message = "Bolsa de Lisboa · E to buy or sell district and infrastructure shares."
             return
         if site.role == "RESEARCH":
-            self.message = "Nova SBE · Carcavelos · E for research and the advanced workshop."
+            self.message = "Nova SBE · Carcavelos · Foundry Town presentation."
             return
         if site.role in INDUSTRIES:
             self.interact_industry(site.role)
@@ -1031,11 +1031,7 @@ class Town:
             if factory.get("input", 0):
                 return f"Auto: {factory['input']} raw materials stored · L Deliveries"
         if site.role == "RESEARCH":
-            project = self.innovation["project"]
-            if project:
-                branch = innovation.BRANCH_BY_KEY[project["branch"]]
-                return f"{branch.name} {project['level']} · {math.ceil(project['remaining'])}s"
-            return f"Inovação · Green {innovation.research_level(self, 'green_energy')}/3 · Metal {innovation.research_level(self, 'metallurgy')}/3"
+            return "Foundry Town · Team presentation"
         if site.role == "EXCHANGE":
             shares = sum(self.exchange["holdings"].values())
             paid = sum(self.exchange["total_dividends"].values())
@@ -1087,7 +1083,7 @@ class Town:
         if site.role == "FACTORY" and self.logistics["factories"].get(site.name, {}).get("output", 0):
             return "E  Collect automatic output / process personal supplies    L  Manage deliveries"
         if site.role == "RESEARCH":
-            return "E  Nova SBE · Research upgrades / craft and sell tier-3 products"
+            return "E  Nova SBE · Watch the team present Foundry Town"
         if site.role == "EXCHANGE":
             return "E  Trade district / infrastructure shares and view dividends"
         if site.role == "PASTELARIA":

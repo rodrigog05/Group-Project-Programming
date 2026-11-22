@@ -9,6 +9,8 @@ const night = new Image();
 day.src = "world_100_day.webp";
 const stationArt = { day: new Image(), night: new Image() };
 stationArt.day.src = "oriente_day.svg";
+const campusSigns = new Image();
+campusSigns.src = "nova_presentation_signs.svg";
 
 const directions = {
   arrowleft: "left", a: "left", arrowright: "right", d: "right",
@@ -341,6 +343,7 @@ function draw() {
   context.drawImage(state.night && night.naturalWidth ? night : day, 0, 0);
   const station = state.night && night.naturalWidth ? stationArt.night : stationArt.day;
   if (station.complete && station.naturalWidth && state.station_bounds) context.drawImage(station, ...state.station_bounds);
+  if (campusSigns.complete && campusSigns.naturalWidth) context.drawImage(campusSigns, 27, 508, 178, 110);
 
   if (state.route?.points?.length > 1) {
     context.save();
@@ -731,7 +734,7 @@ function drawInterior() {
     context.fillStyle = "#f6e7b4";
     context.fillText(title, 16 * unit, 22 * unit);
   }
-  if (room.scene === "monastery") return;
+  if (room.scene === "monastery" || room.scene === "nova_presentation") return;
   const hint = room.keys.map(([key, label]) => `${KEY_NAMES[key] || key.toUpperCase()} ${label}`).join("   ·   ");
   context.font = `600 ${8.5 * unit}px system-ui, sans-serif`;
   context.textAlign = "center";

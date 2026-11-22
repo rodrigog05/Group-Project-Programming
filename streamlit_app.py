@@ -11,7 +11,6 @@ from streamlit.components.v1 import declare_component
 
 import businesses
 import exchange
-import innovation
 from browser_game import (COLLISION_MAP, MONASTERY, OPEN_SITES, bag_full, next_move, STREET_LIFE, LocalSave, building_at, greeting, scene_for,
                           SaveConflict, entrance, place_vehicle_on_road, street_event, street_input)
 from journal_market import market_snapshot
@@ -157,32 +156,6 @@ def show_directions(label):
     st.session_state.destination = label
     st.session_state.town_page = "Game"
     st.session_state.inside = None
-
-
-def research():
-    for branch in innovation.RESEARCH_BRANCHES:
-        quote = innovation.research_quote(town, branch.key)
-        if quote is None:
-            st.write(f"{branch.name} · Complete")
-        else:
-            node = innovation.next_research(town, branch.key)
-            button(f"{branch.name} · Level {node.level} · ${quote:,} · {node.seconds}s",
-                   Town.start_research, branch.key)
-    project = town.innovation["project"]
-    if project:
-        st.info(f"Research underway · {project['remaining']:.0f}s remaining")
-    for recipe in innovation.unlocked_recipes(town):
-        with st.expander(recipe.product):
-            st.write(", ".join(f"{item.quantity} × {item.label}" for item in recipe.ingredients))
-            lab = town.innovation
-            key = recipe.key
-            st.write(f"{lab['goods'][key]} in bag · ${lab['prices'][key]} each · {lab['demand'][key]} buyers")
-            if order := lab["orders"][key]:
-                st.caption(f"{order['quantity']} ordered · {order['remaining']:.0f}s remaining")
-            quantity = st.number_input("Quantity", 1, 999, key=f"craft-{recipe.key}")
-            button("Fabricate", Town.start_fabrication, recipe.key, quantity, key=f"make-{recipe.key}")
-            button("Collect", Town.collect_research_products, recipe.key, key=f"collect-{recipe.key}")
-            button("Sell", Town.sell_research_products, recipe.key, key=f"sell-{recipe.key}")
 
 
 def district_exchange():
@@ -443,9 +416,7 @@ def building(site):
             with column:
                 shortcut = "Shift+F" if key == "shift+f" else key
                 action(label, operation, *args, shortcut=shortcut, width="stretch")
-    if role == "RESEARCH":
-        research()
-    elif role == "EXCHANGE":
+    if role == "EXCHANGE":
         district_exchange()
 
 
@@ -546,7 +517,7 @@ def market():
             "Product": row.product, "Materials held": row.raw_stock, "Material cost": row.raw_cost,
             "Sale price": row.price, "Stock": row.stock_label, "In production": row.orders,
             "Buyers / jobs": row.remaining_buyers, "Sold today": row.sold_today,
-        } for row in snapshot.rows if row.product != "Pastéis"], hide_index=True)
+        } for row in snapshot.rows if not row.key.startswith("innovation:") and row.product != "Pastéis"], hide_index=True)
         st.write(f"Revenue \\${town.daily_revenue:,} · Expenses \\${town.daily_expenses:,} · "
                  f"Net \\${town.daily_net_profit:,}")
         if town.last_day_summary:
@@ -558,6 +529,8 @@ def market():
             st.caption("Operate a production site to discover its recipe.")
         for key in town.discovered_recipes:
             recipe = RECIPE_BY_KEY[key]
+            if recipe.role == "RESEARCH":
+                continue
             ingredients = ", ".join(f"{quantity} × {name}" for name, quantity in recipe.ingredients)
             st.write(f"**{recipe.title}** · {ingredients} · {recipe.seconds}s")
 
@@ -565,12 +538,16 @@ def market():
 def landmarks():
     map_art = b64encode((ROOT / "street" / "world_100_day.webp").read_bytes()).decode("ascii")
     station = b64encode(station_svg().encode()).decode("ascii")
+    campus = b64encode((ROOT / "street" / "nova_presentation_signs.svg").read_bytes()).decode("ascii")
     x, y, width, height = ORIENTE_BOUNDS
     st.html(f'<div style="position:relative"><img src="data:image/webp;base64,{map_art}" '
             'alt="Foundry Town · Lisboa and Almada" style="width:100%;display:block">'
             f'<img src="data:image/svg+xml;base64,{station}" alt="Gare do Oriente" '
             f'style="position:absolute;left:{x/2400*100}%;top:{y/1780*100}%;width:{width/2400*100}%;'
-            f'height:{height/1780*100}%"></div>')
+            f'height:{height/1780*100}%">'
+            f'<img src="data:image/svg+xml;base64,{campus}" alt="Nova SBE presentation" '
+            f'style="position:absolute;left:{27/2400*100}%;top:{508/1780*100}%;'
+            f'width:{178/2400*100}%;height:{110/1780*100}%"></div>')
     monument = st.selectbox("Landmark", LANDMARKS, format_func=lambda item: item.name)
     st.write(monument_description(monument, SITES))
     if monument.kind == "monastery":
@@ -724,7 +701,7 @@ def start_menu_card():
         st.rerun()
     with st.expander("Rules & How to Play"):
         st.markdown(
-            "**Goal** · Start with $60 and grow to $500, then keep growing through research, contracts and "
+            "**Goal** · Start with $60 and grow to $500, then keep growing through trading, vehicles and "
             "business ownership.\n\n"
             "**Controls** · Move with **WASD** or the **arrow keys**. Press **E** at a door to go inside and **Esc** "
             "to leave. Inside: **E** buys, makes or sells, **Q** buys up to four.\n\n"
