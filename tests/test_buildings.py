@@ -1,6 +1,8 @@
 from pathlib import Path
 
+import pytest
 from streamlit.testing.v1 import AppTest
+from streamlit.testing.v1.errors import AppTestError
 
 from browser_game import MONASTERY, building_at, entrance, greeting, scene_for
 from ferry import FERRY_PIERS
@@ -90,6 +92,14 @@ def test_casino_spin_pays_by_colour_and_rejects_an_unaffordable_chip(monkeypatch
     expected = 70 if roulette_color(spin["number"]) == "red" else 50
     assert app.session_state.town.cash == expected
     assert spin["number"] in ROULETTE_POCKETS and spin["id"] == 1
+    black = next(button for button in app.button if button.label == "Black · pays 2×")
+    assert black.proto.disabled
+    with pytest.raises(AppTestError, match="Cannot update a disabled button"):
+        black.click()
+    assert app.session_state.town.cash == expected
+    assert app.session_state.spin["id"] == 1
+
+    app.session_state.spin["ends_at"] = 0
     app.session_state.town.cash = 4
     app.run()
     click(app, "Green 0 · pays 36×")

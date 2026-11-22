@@ -6,6 +6,7 @@ from html import escape
 import os
 from pathlib import Path
 import sqlite3
+from time import monotonic
 
 import streamlit as st
 from streamlit.components.v1 import declare_component
@@ -245,8 +246,9 @@ def leave_building():
 
 def inside(operation, *args):
     """Run a building action; the vendor answers with the result."""
-    act(operation, *args)
+    saved = act(operation, *args)
     st.session_state.reply = st.session_state.town.message
+    return saved
 
 
 def action(label, operation, *args, key=None, shortcut=None, primary=True, **options):
@@ -360,10 +362,18 @@ def building(site):
 
 CHIPS = (5, 10, 25, 50, 100)
 POCKET_COLORS = {"red": "#c8313c", "black": "#1b1d22", "green": "#1f8a4c"}
+SPIN_SECONDS = 4.5
+
+
+def spin_remaining():
+    spin_state = st.session_state.get("spin")
+    return max(0, spin_state["ends_at"] - monotonic()) if spin_state else 0
 
 
 def spin(choice):
     """Bet the chosen chip; the wheel animation lands on the result."""
+    if spin_remaining():
+        return
     stake = st.session_state.get("chip") or 10
     landed = {}
 
@@ -379,17 +389,16 @@ def spin(choice):
         town.message = f"{number} {roulette_color(number).upper()} · {result}"
         landed["number"] = number
 
-    inside(bet)
-    if landed:
+    if inside(bet) and landed:
         previous = st.session_state.get("spin") or {"id": 0, "angle": 0}
         pocket = ROULETTE_POCKETS.index(landed["number"])
         # Turn the wheel at least three times and stop with the winning pocket under the ball.
         target = previous["angle"] - (previous["angle"] % 360) - 3 * 360 - pocket * 360 / len(ROULETTE_POCKETS)
         st.session_state.spin = {"id": previous["id"] + 1, "angle": target, "from": previous["angle"],
-                                 "number": landed["number"], "shown": False}
+                                 "number": landed["number"], "ends_at": monotonic() + SPIN_SECONDS}
 
 
-def wheel_svg(spin_state):
+def wheel_svg(spin_state, remaining):
     """European roulette wheel. A new spin animates once from the last angle to the winning pocket."""
     from math import cos, radians, sin
     seg = 360 / len(ROULETTE_POCKETS)
@@ -409,14 +418,13 @@ def wheel_svg(spin_state):
                      f'transform="rotate({index * seg:.1f} {200 + 166 * cos(mid):.1f} {200 + 166 * sin(mid):.1f})">'
                      f'{number}</text>')
     angle = spin_state["angle"] if spin_state else 0
-    animate = spin_state and not spin_state["shown"]
     css = ".wheel,.ball{transform-box:view-box;transform-origin:200px 200px}"
-    if animate:
+    if remaining:
+        delay = remaining - SPIN_SECONDS
         css += (f"@keyframes wheel{{from{{transform:rotate({spin_state['from']}deg)}}to{{transform:rotate({angle}deg)}}}}"
                 "@keyframes ball{from{transform:rotate(1440deg)}to{transform:rotate(0deg)}}"
-                ".wheel{animation:wheel 4.5s cubic-bezier(.12,.6,.2,1) both}"
-                ".ball{animation:ball 4.5s cubic-bezier(.2,.5,.25,1) both}")
-        spin_state["shown"] = True
+                f".wheel{{animation:wheel {SPIN_SECONDS}s cubic-bezier(.12,.6,.2,1) {delay}s both}}"
+                f".ball{{animation:ball {SPIN_SECONDS}s cubic-bezier(.2,.5,.25,1) {delay}s both}}")
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><style>{css}</style>
         <circle cx="200" cy="200" r="198" fill="#4a2614"/><circle cx="200" cy="200" r="192" fill="#7a4424"/>
         <g class="wheel" style="transform:rotate({angle}deg)">{''.join(parts)}
@@ -434,11 +442,11 @@ def wheel_svg(spin_state):
 def casino(found):
     name, layout = found
     spin_state = st.session_state.get("spin")
-    animating = spin_state and not spin_state["shown"]
-    wheel = wheel_svg(spin_state)
+    remaining = spin_remaining()
+    wheel = wheel_svg(spin_state, remaining)
     message = st.session_state.get("reply") or greeting(town, PLACES["Foundry Casino"])
     # The result appears when the ball stops.
-    reveal = "animation:reveal 0s 4.5s both;" if animating else ""
+    reveal = f"animation:reveal 0s {remaining}s both;" if remaining else ""
     result = (f'<style>@keyframes reveal{{from{{opacity:0}}to{{opacity:1}}}}</style>'
               f'<div style="position:absolute;left:0;right:0;top:82%;{reveal}'
               f'text-align:center;font:700 2.6cqw system-ui;color:#fff7e6;text-shadow:0 2px 4px #000">'
@@ -446,14 +454,30 @@ def casino(found):
     overlay = f'<div style="position:absolute;left:30%;top:4%;width:40%">{wheel}</div>{result}'
     scene(name, layout, overlay=overlay)
     st.caption(f"Monastery luck +{town.casino_luck} percentage points")
-    st.segmented_control("Chip", CHIPS, default=10, key="chip", format_func=lambda value: f"${value}")
-    red, black, green = st.columns(3)
-    with red:
-        st.button("Red · pays 2×", on_click=spin, args=("red",), shortcut="1", width="stretch", type="primary")
-    with black:
-        st.button("Black · pays 2×", on_click=spin, args=("black",), shortcut="2", width="stretch")
-    with green:
-        st.button("Green 0 · pays 36×", on_click=spin, args=("green",), shortcut="3", width="stretch")
+    if remaining:
+        waiting_for_spin()
+    else:
+        bet_controls()
+
+
+@st.fragment(run_every=0.25)
+def waiting_for_spin():
+    if not spin_remaining():
+        st.rerun()
+    st.caption("Wait for the wheel to stop before betting again.")
+    bet_controls(disabled=True)
+
+
+def bet_controls(*, disabled=False):
+    st.segmented_control("Chip", CHIPS, default=10, key="chip", format_func=lambda value: f"${value}",
+                         disabled=disabled)
+    for column, (label, colour, shortcut) in zip(st.columns(3), (
+        ("Red · pays 2×", "red", "1"),
+        ("Black · pays 2×", "black", "2"),
+        ("Green 0 · pays 36×", "green", "3"),
+    )):
+        column.button(label, on_click=spin, args=(colour,), shortcut=shortcut, width="stretch",
+                      type="primary" if colour == "red" else "secondary", disabled=disabled)
 
 
 def market():
