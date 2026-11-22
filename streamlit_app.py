@@ -233,6 +233,7 @@ def places():
 def enter_building(name):
     st.session_state.inside = name
     st.session_state.reply = None
+    st.session_state.focus_building = True
     if name == MONASTERY:
         act(Town.visit_monastery)
         st.session_state.reply = st.session_state.town.message
@@ -287,7 +288,22 @@ def building(site):
     """Inside a building: its illustrated scene, the vendor's answer and the building's actions."""
     head, leave = st.columns((4, 1), vertical_alignment="center")
     head.subheader(site if site == MONASTERY else site.name)
-    leave.button("Leave", on_click=leave_building, shortcut="Escape", width="stretch")
+    leave.button("Leave", key="leave_building", on_click=leave_building, shortcut="Escape", width="stretch")
+    if st.session_state.pop("focus_building", False):
+        # The map that had the keyboard is gone. Give it to this building so its keys work at once.
+        st.html("""<script>
+            // A held E that opened the door keeps repeating; ignore repeats briefly so it doesn't buy.
+            const swallow = (event) => { if (event.repeat) { event.preventDefault(); event.stopImmediatePropagation(); } };
+            window.addEventListener("keydown", swallow, true);
+            setTimeout(() => window.removeEventListener("keydown", swallow, true), 700);
+            let tries = 0;
+            const claim = () => {
+                const leave = document.querySelector(".st-key-leave_building button");
+                if (leave) leave.focus({ preventScroll: true });
+                else if (tries++ < 40) setTimeout(claim, 50);
+            };
+            claim();
+        </script>""", unsafe_allow_javascript=True)
     speech = st.session_state.get("reply") or greeting(town, site)
     found = scene_for(town, site)
     if site != MONASTERY and site.role == "CASINO":

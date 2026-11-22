@@ -51,6 +51,8 @@ window.addEventListener("message", (event) => {
   const next = event.data.args;
   // Ignore rerenders while an older request is still in flight.
   if (pending && next.ack !== eventId) return;
+  // Python's reply to the map's own movement, as opposed to a page update such as Visit or Leave.
+  const ownReply = pending && next.ack === eventId;
   if (next.night && !night.getAttribute("src")) night.src = "world_100_night.webp";
   // A new ferry id means Python just moved the player across the Tejo: play the crossing.
   // The first id this map sees is history (for example after leaving a building), so skip it.
@@ -74,7 +76,29 @@ window.addEventListener("message", (event) => {
   if (hint.textContent !== state.hint) hint.textContent = state.hint;
   if (feedback.textContent !== state.message) feedback.textContent = state.message;
   frameHeight();
+  if (!ownReply) claimKeyboard();
 });
+
+// Take the keyboard when the map appears or the page updates (after Continue, Visit, Leave...),
+// so the player can walk without clicking first. Replies to the map's own movement never do this,
+// so clicking elsewhere on the page still pauses street play, and a field being typed in keeps it.
+function claimKeyboard() {
+  focusMap();
+  // Streamlit may remove the clicked button or the start menu just after this render; try again.
+  setTimeout(focusMap, 400);
+}
+
+function focusMap() {
+  if (document.activeElement === canvas && document.hasFocus()) return;
+  try {
+    const active = window.parent.document.activeElement;
+    const typing = active && (active.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(active.tagName));
+    if (typing) return;
+  } catch {
+    // The parent page is unavailable; focusing the map is still safe.
+  }
+  canvas.focus({ preventScroll: true });
+}
 
 // Collision checks mirror Town.can_walk in tycoon.py, using the geometry Python sends.
 // Python stays the authority: it replays every step and corrects the position if needed.
