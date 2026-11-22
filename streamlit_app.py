@@ -302,13 +302,8 @@ def inside(operation, *args):
     return saved
 
 
-def action(label, operation, *args, key=None, shortcut=None, primary=True, **options):
-    st.button(label, key=key, on_click=inside, args=(operation, *args), shortcut=shortcut,
-              type="primary" if primary else "secondary", **options)
-
-
 def building_actions(site):
-    """(key, label, operation, args) for a building. The same list drives its buttons and the map's keys."""
+    """(key, label, operation, args) for a building. The same list drives the scene's buttons and keys."""
     if site == MONASTERY:
         return []
     role = site.role
@@ -327,7 +322,8 @@ def building_actions(site):
     if role == "CASINO":
         return [("1", "Red · pays 2×", spin, ("red",)), ("2", "Black · pays 2×", spin, ("black",)),
                 ("3", "Green 0 · pays 36×", spin, ("green",)),
-                ("arrowleft", "Smaller chip", chip_step, (-1,)), ("arrowright", "Bigger chip", chip_step, (1,))]
+                ("arrowleft", "Smaller chip", chip_step, (-1,)), ("arrowright", "Bigger chip", chip_step, (1,))] + [
+                (f"chip-{value}", f"${value} chip", chip_set, (value,)) for value in CHIPS]
     if role in ("RESEARCH", "EXCHANGE"):
         return []
     labels = {
@@ -344,7 +340,7 @@ def run_building_key(site, key):
     """A key pressed on the map view while inside: run the matching building action."""
     for action_key, _, operation, args in building_actions(site):
         if action_key == key:
-            if operation in (spin, chip_step):
+            if operation in (spin, chip_step, chip_set):
                 operation(*args)
             else:
                 inside(operation, *args)
@@ -356,7 +352,7 @@ def interior_view(site):
     found = scene_for(town, site)
     name, layout = found if found else (None, {"size": (640, 400), "bubble": None, "board": None})
     title = site if site == MONASTERY else place_name(site.name)
-    keys = [[key, label] for key, label, *_ in building_actions(site) if not key.startswith("arrow")]
+    keys = [[key, label] for key, label, *_ in building_actions(site) if not key.startswith(("arrow", "chip-"))]
     view = {"title": title, "scene": name, "size": layout["size"], "bubble": layout["bubble"],
             "board": layout["board"], "speech": localize_place_names(st.session_state.get("reply") or greeting(town, site)),
             "board_text": site_status(site) if site != MONASTERY and layout["board"] else "",
@@ -364,7 +360,7 @@ def interior_view(site):
             "accepts": [key for key, *_ in building_actions(site)] + ["escape"]}
     if site != MONASTERY and site.role == "CASINO":
         view["casino"] = {"spin": st.session_state.get("spin"), "chip": st.session_state.get("chip") or 10,
-                          "luck": town.casino_luck}
+                          "chips": list(CHIPS), "luck": town.casino_luck}
     if site != MONASTERY and site.role == "GARAGE":
         # One card per vehicle, drawn under it in the showroom; the key bar just says 1-4.
         view["showroom"] = [
@@ -387,42 +383,13 @@ def interior_view(site):
 
 
 def building(site):
-    """Inside a building: its actions as buttons. The scene itself is drawn in the map view above."""
-    head, leave = st.columns((4, 1), vertical_alignment="center")
-    head.subheader(site if site == MONASTERY else place_name(site.name))
-    leave.button("Leave", key="leave_building", on_click=leave_building, shortcut="Escape", width="stretch")
+    """Inside a building. The scene and its buttons are drawn in the map view above; only notes stay here."""
     if site == MONASTERY:
         st.caption(f"Casino luck +{town.casino_luck} percentage points · Maximum +20")
         return
-    role = site.role
-    if role == "CASINO":
+    if site.role == "CASINO":
         st.caption(f"Monastery luck +{town.casino_luck} percentage points")
-    actions = [item for item in building_actions(site) if not item[0].startswith("arrow")]
-    if role == "GARAGE":
-        for column, (key, ride), (number, label, operation, args) in zip(
-                st.columns(len(VEHICLES)), VEHICLES.items(), actions):
-            with column:
-                current = town.vehicle == key
-                owned = key in town.owned_vehicles or current
-                st.image(str(ROOT / "street" / "vehicles" / f"{key}.svg"), width="stretch")
-                status = "Your ride" if current else "Owned · Free collection" if owned else f"${ride.price:,}"
-                st.markdown(f"**{ride.label}** · {status}")
-                st.caption(f"Trunk +{ride.trunk} · {town.bag_size + ride.trunk} cargo · "
-                           f"Road {ride.road_speed} · Off-road {ride.offroad_speed}")
-                action(label, operation, *args, key=f"vehicle-{key}", shortcut=number, disabled=current,
-                       width="stretch")
-    elif role == "CASINO":
-        # No new bets until the wheel stops (the keys check the same lock).
-        if spin_remaining():
-            waiting_for_spin()
-        else:
-            bet_controls()
-    elif actions:
-        for column, (key, label, operation, args) in zip(st.columns(len(actions)), actions):
-            with column:
-                shortcut = "Shift+F" if key == "shift+f" else key
-                action(label, operation, *args, shortcut=shortcut, width="stretch")
-    if role == "EXCHANGE":
+    if site.role == "EXCHANGE":
         district_exchange()
 
 
@@ -463,36 +430,14 @@ def spin(choice):
                                  "number": landed["number"], "ends_at": monotonic() + SPIN_SECONDS}
 
 
+def chip_set(value):
+    if value in CHIPS:
+        st.session_state.chip = value
+
+
 def chip_step(step):
     index = CHIPS.index(st.session_state.get("chip") or 10)
     st.session_state.chip = CHIPS[max(0, min(len(CHIPS) - 1, index + step))]
-
-
-@st.fragment(run_every=0.25)
-def waiting_for_spin():
-    if not spin_remaining():
-        st.rerun()
-    st.caption("Wait for the wheel to stop before betting again.")
-    bet_controls(disabled=True)
-
-
-def bet_controls(*, disabled=False):
-    st.html("""<style>
-        .st-key-bet_green button {background:#1f8a4c;color:#fff;border-color:#46be79;}
-        .st-key-bet_green button:hover {background:#176b3a;color:#fff;border-color:#8ae4ad;}
-        .st-key-bet_green button:focus-visible {outline:3px solid #b5ffd2;outline-offset:2px;}
-        .st-key-bet_green button:disabled {background:#1f8a4c;color:#fff;opacity:.5;}
-    </style>""")
-    st.segmented_control("Chip", CHIPS, default=10, key="chip", format_func=lambda value: f"${value}",
-                         disabled=disabled)
-    for column, (label, colour, shortcut) in zip(st.columns(3), (
-        ("Red · pays 2×", "red", "1"),
-        ("Black · pays 2×", "black", "2"),
-        ("Green 0 · pays 36×", "green", "3"),
-    )):
-        column.button(label, on_click=spin, args=(colour,), shortcut=shortcut, width="stretch",
-                      type="primary" if colour == "red" else "secondary", disabled=disabled,
-                      key="bet_green" if colour == "green" else None)
 
 
 ROUTE_COLOURS = ("#9aa3a6", "#b48762", "#c56b47", "#e8b04a")

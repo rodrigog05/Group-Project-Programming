@@ -5,6 +5,7 @@ from streamlit.testing.v1 import AppTest
 
 from browser_game import OPEN_SITES, entrance, greeting, next_move
 from tycoon import Order, Town, TRADES
+from scene_buttons import click_scene
 
 
 def scene_data(app):
@@ -37,7 +38,7 @@ def test_production_timer_is_separate_from_seller_recipe_and_hint(monkeypatch):
     app.session_state.inside = bakery.name
     app.run()
     initial = scene_data(app)["interior"]
-    next(button for button in app.button if button.label == "Produce or collect").click().run()
+    click_scene(app, "Produce or collect")
     assert not app.exception
     making = scene_data(app)
     assert making["interior"]["timer"]["seconds"] > 0
@@ -52,7 +53,7 @@ def test_production_timer_is_separate_from_seller_recipe_and_hint(monkeypatch):
     assert ready["interior"]["board_text"] == initial["board_text"]
     assert ready["interior"]["speech"] == initial["speech"]
     assert ready["next_move"]["text"] == making["next_move"]["text"]
-    next(button for button in app.button if button.label == "Produce or collect").click().run()
+    click_scene(app, "Produce or collect")
     collected = scene_data(app)["interior"]
     assert "timer" not in collected
     assert app.session_state.town.goods[3] == 4

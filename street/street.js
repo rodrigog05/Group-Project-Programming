@@ -586,7 +586,6 @@ const SPIN_SECONDS = 4.5;
 const POCKETS = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14,
                  31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
 const REDS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
-const KEY_NAMES = { escape: "Esc", "shift+f": "Shift+F" };
 
 let sceneOnScreen = null;
 
@@ -694,10 +693,138 @@ function textInBox(text, [left, top, right, bottom], size, color, weight = "bold
   context.textBaseline = "alphabetic";
 }
 
+// ----- The building's buttons: a bar under the scene (so they never cover it), clickable, each with its key -----
+let sceneButtons = [];  // [{key, left, top, width, height}] in scene pixels, for clicks
+let hoveredKey = null;
+const KEY_NAMES = { escape: "Esc", "shift+f": "Shift+F" };
+const BUTTON_BAR = 32;  // Height of the bar under the scene, in 640-wide scene pixels
+const BUTTON_STYLES = {
+  secondary: { fill: "#1b1f27", border: "#4b505a", text: "#fafafa" },
+  red: { fill: "#ff4b4b", border: "#ff4b4b", text: "#ffffff" },
+  green: { fill: "#1f8a4c", border: "#46be79", text: "#ffffff" },
+  selected: { fill: "#1b1f27", border: "#ff4b4b", text: "#ff4b4b" },
+};
+
+function keycapWidth(name, unit) {
+  context.font = `700 ${7 * unit}px system-ui, sans-serif`;
+  return Math.max(13 * unit, context.measureText(name).width + 8 * unit);
+}
+
+// A small keyboard key with the key's name on it, its left edge at x, centred on y.
+function keycap(name, x, y, unit) {
+  const width = keycapWidth(name, unit);
+  const height = 13 * unit;
+  context.fillStyle = "#a9a49a";  // The key's lower edge
+  context.beginPath();
+  context.roundRect(x, y - height / 2 + 1.5 * unit, width, height, 3 * unit);
+  context.fill();
+  context.fillStyle = "#f4f1ea";
+  context.beginPath();
+  context.roundRect(x, y - height / 2, width, height - 1 * unit, 3 * unit);
+  context.fill();
+  context.fillStyle = "#2b2f36";
+  context.textAlign = "center";
+  context.fillText(name, x + width / 2, y - 0.2 * unit);
+}
+
+function drawButton({ key, label, keyName = KEY_NAMES[key] || key.toUpperCase(), style = "secondary", disabled = false },
+                    left, top, width, height, unit) {
+  const look = BUTTON_STYLES[style];
+  const hovered = !disabled && hoveredKey === key;
+  context.globalAlpha = disabled ? 0.45 : 1;
+  context.fillStyle = look.fill;
+  context.strokeStyle = hovered ? "#ffffff" : look.border;
+  context.lineWidth = (hovered ? 1.6 : 1) * unit;
+  context.beginPath();
+  context.roundRect(left, top, width, height, 6 * unit);
+  context.fill();
+  context.stroke();
+  context.textBaseline = "middle";
+  const capWidth = keyName ? keycapWidth(keyName, unit) + 6 * unit : 0;
+  context.font = `500 ${9 * unit}px system-ui, sans-serif`;
+  const labelWidth = context.measureText(label).width;
+  const start = left + (width - labelWidth - capWidth) / 2;
+  context.textAlign = "left";
+  context.fillStyle = look.text;
+  context.fillText(label, start, top + height / 2 + 0.5 * unit);
+  if (keyName) keycap(keyName, start + labelWidth + 6 * unit, top + height / 2, unit);
+  context.textBaseline = "alphabetic";
+  context.globalAlpha = 1;
+  if (!disabled) sceneButtons.push({ key, left, top, width, height });
+}
+
+// A row of equal buttons between left and right, like Streamlit columns.
+function buttonRow(buttons, left, right, top, height, unit, gap = 8 * unit) {
+  const width = (right - left - gap * (buttons.length - 1)) / buttons.length;
+  buttons.forEach((button, index) => drawButton(button, left + index * (width + gap), top, width, height, unit));
+}
+
+function drawButtons(room, unit, spinning) {
+  const [width, height] = room.size;
+  sceneButtons = [];
+  const bar = BUTTON_BAR * unit;
+  const size = 21 * unit;
+  const margin = 10 * unit;
+  const top = height + (bar - size) / 2;
+  context.fillStyle = "#11161c";
+  context.fillRect(0, height, width, bar);
+  // Leave always sits at the right end of the bar.
+  const capWidth = keycapWidth("Esc", unit);
+  context.font = `500 ${9 * unit}px system-ui, sans-serif`;
+  const leaveWidth = context.measureText("Leave").width + capWidth + 30 * unit;
+  const leaveLeft = width - margin - leaveWidth;
+  drawButton({ key: "escape", label: "Leave" }, leaveLeft, top, leaveWidth, size, unit);
+  if (room.showroom) {  // The vehicle cards themselves are the buttons
+    room.showroom.forEach((ride, index) => {
+      if (ride.status !== "current") {
+        sceneButtons.push({ key: String(ride.number), left: SHOWROOM_X[index] - 74, top: 333, width: 148, height: 41 });
+      }
+    });
+    return;
+  }
+  const actions = room.keys.filter(([key]) => key !== "escape");
+  const right = leaveLeft - margin * 1.5;
+  if (room.casino) {
+    const chips = room.casino.chips.map(value => ({
+      key: `chip-${value}`, label: `$${value}`, keyName: "", disabled: spinning,
+      style: value === room.casino.chip ? "selected" : "secondary",
+    }));
+    const chipRight = margin + width * 0.26;
+    buttonRow(chips, margin, chipRight, top, size, unit, 3 * unit);
+    const styles = { 1: "red", 2: "secondary", 3: "green" };
+    buttonRow(actions.map(([key, label]) => ({ key, label, style: styles[key], disabled: spinning })),
+              chipRight + margin * 1.5, right, top, size, unit);
+    return;
+  }
+  if (actions.length) buttonRow(actions.map(([key, label]) => ({ key, label })), margin, right, top, size, unit);
+}
+
+function sceneButtonAt(event) {
+  if (!state || !state.interior || !sceneOnScreen) return null;
+  const rect = canvas.getBoundingClientRect();
+  const x = (event.clientX - rect.left - sceneOnScreen.left) / sceneOnScreen.scale;
+  const y = (event.clientY - rect.top - sceneOnScreen.top) / sceneOnScreen.scale;
+  return sceneButtons.find(b => x >= b.left && x <= b.left + b.width && y >= b.top && y <= b.top + b.height) || null;
+}
+
+canvas.addEventListener("pointermove", (event) => {
+  const button = sceneButtonAt(event);
+  hoveredKey = button ? button.key : null;
+  canvas.style.cursor = button ? "pointer" : "";
+});
+canvas.addEventListener("pointerdown", (event) => {
+  const button = sceneButtonAt(event);
+  if (!button || !state.interior.accepts.includes(button.key)) return;
+  event.preventDefault();
+  canvas.focus();
+  queuedAction = button.key === "escape" ? "leave" : "building";
+  queuedKey = button.key;
+});
+
 function drawInterior() {
   const room = state.interior;
   const [width, height] = room.size;
-  fitScene(width, height);
+  fitScene(width, height + BUTTON_BAR * width / 640);  // Room for the button bar under the scene
   if (room.scene) {
     if (!sceneArt[room.scene]) {
       sceneArt[room.scene] = new Image();
@@ -743,14 +870,8 @@ function drawInterior() {
     context.fillStyle = "#f6e7b4";
     context.fillText(title, 16 * unit, 22 * unit);
   }
+  drawButtons(room, unit, spinning);
   if (room.scene === "monastery" || room.scene === "nova_presentation") return;
-  const hint = room.keys.map(([key, label]) => `${KEY_NAMES[key] || key.toUpperCase()} ${label}`).join("   ·   ");
-  context.font = `600 ${8.5 * unit}px system-ui, sans-serif`;
-  context.textAlign = "center";
-  context.fillStyle = "#1f2a30d9";
-  context.fillRect(0, height - 20 * unit, width, 20 * unit);
-  context.fillStyle = "#fff3dc";
-  context.fillText(room.casino ? `Chip $${room.casino.chip} (← →)   ·   ${hint}` : hint, width / 2, height - 7 * unit);
   drawTimer();
   drawHint("interior");
   drawAlert();
@@ -816,10 +937,11 @@ function drawTimer() {
   context.font = "bold 17px system-ui, sans-serif";
   const boxWidth = context.measureText(text).width + 62;
   const x = width - boxWidth - 14;
-  card(x, 14, boxWidth, 46, ready ? "#7ee0a1" : "#ffc66c");
+  const top = 14;
+  card(x, top, boxWidth, 46, ready ? "#7ee0a1" : "#ffc66c");
   // A small clock whose hand sweeps once per second.
   const cx = x + 24;
-  const cy = 37;
+  const cy = top + 23;
   context.strokeStyle = ready ? "#7ee0a1" : "#ffc66c";
   context.lineWidth = 2.5;
   context.beginPath();
@@ -833,7 +955,7 @@ function drawTimer() {
   context.fillStyle = "#fff3dc";
   context.textAlign = "left";
   context.textBaseline = "middle";
-  context.fillText(text, x + 44, 38);
+  context.fillText(text, x + 44, top + 24);
   context.textBaseline = "alphabetic";
 }
 
