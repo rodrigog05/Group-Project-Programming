@@ -11,6 +11,7 @@ from streamlit.components.v1 import declare_component
 
 import businesses
 import exchange
+from place_names import localize_place_names, place_name
 from browser_game import (COLLISION_MAP, MONASTERY, OPEN_SITES, bag_full, next_move, STREET_LIFE, LocalSave, building_at, greeting, scene_for,
                           SaveConflict, entrance, place_vehicle_on_road, street_event, street_input)
 from journal_market import market_snapshot
@@ -177,7 +178,7 @@ def play_street(site_inside=None):
     pier = nearby_pier(town.x, town.y)
     hint = "Follow the marked entrances to buy, make, and sell."
     if nearby:
-        hint = f"{nearby.name} · {site_status(nearby)}"
+        hint = f"{place_name(nearby.name)} · {site_status(nearby)}"
     if pier:
         hint = f"{pier.name} · Take the ferry for $2"
 
@@ -201,25 +202,30 @@ def play_street(site_inside=None):
     street_map(
         key="street_map", on_change=play, x=town.x, y=town.y, ack=ack,
         night=town.market_elapsed % DAY_SECONDS >= 180, facing=town.facing,
-        vehicle=town.vehicle, stowed_vehicle=town.stowed_vehicle, hint=hint, message=town.message,
+        vehicle=town.vehicle, stowed_vehicle=town.stowed_vehicle, hint=hint, message=localize_place_names(town.message),
         speed=town.movement_speed, collision=COLLISION_MAP, life=STREET_LIFE,
         cash=town.cash, on_bridge=town.bridge_journey is not None, ferry=st.session_state.get("ferry"),
         station_bounds=ORIENTE_BOUNDS,
         alert=st.session_state.get("alert"),
         interior=interior_view(site_inside) if site_inside is not None else None,
-        next_move=next_move(town, st.session_state.get("inside")) if st.session_state.get("show_hints", True) else None,
+        next_move=visible_next_move(st.session_state.get("inside")) if st.session_state.get("show_hints", True) else None,
         route=directions(town, destination_point(st.session_state.get("destination", DEFAULT_DESTINATION))),
         suppliers=[{"x": site.door[0], "y": site.door[1], "trade": site.trade,
                     "cost": town.costs[site.trade]} for site in OPEN_SITES if site.role == "SUPPLIER"],
         free_slots=town.carry_capacity-town.cargo-town.reserved,
         locations=[
-            {"name": site.name, "x": site.door[0], "y": site.door[1], "color": site.color}
+            {"name": place_name(site.name), "x": site.door[0], "y": site.door[1], "color": site.color}
             for site in OPEN_SITES
         ] + [
             {"name": pier.name, "x": pier.x, "y": pier.y, "color": "#91dfff"}
             for pier in FERRY_PIERS
         ],
     )
+
+
+def visible_next_move(inside=None):
+    hint = next_move(town, inside)
+    return {**hint, "text": localize_place_names(hint["text"])} if hint else None
 
 
 def site_status(site):
@@ -255,12 +261,12 @@ def places():
     # One row with a fixed height: a button appearing here must not push the game view down (it flickered).
     pick, route, hints = st.columns((3, 2, 1), vertical_alignment="bottom")
     destination = pick.selectbox("Destination", [DEFAULT_DESTINATION, *PLACES, MONASTERY],
-                                 index=0,
+                                 index=0, format_func=place_name,
                                  key="destination")
     hints.toggle("💡 Show hints", value=True, key="show_hints")
     hint = next_move(town, name)
     target = hint and hint["target"]
-    route.button(f"Show route to {target}" if target else "Show route", width="stretch",
+    route.button(f"Show route to {place_name(target)}" if target else "Show route", width="stretch",
                  disabled=not (st.session_state.show_hints and target and target != destination),
                  on_click=st.session_state.update, kwargs={"destination": target})
     site_inside = PLACES.get(name, MONASTERY) if name else None
@@ -349,10 +355,10 @@ def interior_view(site):
     """What the map view draws inside a building: its scene, the vendor's words and the keys."""
     found = scene_for(town, site)
     name, layout = found if found else (None, {"size": (640, 400), "bubble": None, "board": None})
-    title = site if site == MONASTERY else site.name
+    title = site if site == MONASTERY else place_name(site.name)
     keys = [[key, label] for key, label, *_ in building_actions(site) if not key.startswith("arrow")]
     view = {"title": title, "scene": name, "size": layout["size"], "bubble": layout["bubble"],
-            "board": layout["board"], "speech": st.session_state.get("reply") or greeting(town, site),
+            "board": layout["board"], "speech": localize_place_names(st.session_state.get("reply") or greeting(town, site)),
             "board_text": site_status(site) if site != MONASTERY and layout["board"] else "",
             "keys": keys + [["escape", "Leave"]],
             "accepts": [key for key, *_ in building_actions(site)] + ["escape"]}
@@ -383,7 +389,7 @@ def interior_view(site):
 def building(site):
     """Inside a building: its actions as buttons. The scene itself is drawn in the map view above."""
     head, leave = st.columns((4, 1), vertical_alignment="center")
-    head.subheader(site if site == MONASTERY else site.name)
+    head.subheader(site if site == MONASTERY else place_name(site.name))
     leave.button("Leave", key="leave_building", on_click=leave_building, shortcut="Escape", width="stretch")
     if site == MONASTERY:
         st.caption(f"Casino luck +{town.casino_luck} percentage points · Maximum +20")
@@ -499,7 +505,7 @@ def market():
     columns = st.columns(2)
     for index, trade in enumerate(TRADES):
         def named(role):
-            return " or ".join(site.name for site in OPEN_SITES if site.role == role and site.trade == index)
+            return " or ".join(place_name(site.name) for site in OPEN_SITES if site.role == role and site.trade == index)
         cost, price = town.costs[index], town.prices[index]
         with columns[index % 2].container(border=True):
             st.markdown(f"<h4 style='margin:0;color:{ROUTE_COLOURS[index]}'>{trade.product}</h4>",
@@ -592,16 +598,16 @@ TUTORIAL = (
      "You start in Lisboa with **$60** and a 12-slot bag. Grow your business to **$500** by running trade routes: "
      "buy materials, turn them into products, and sell the products for more than they cost."),
     ("1 · Buy materials", "buy.webp",
-     "Walk with **WASD** or the **arrow keys** to a store with a yellow **BUY MATERIALS** sign and press **E** at "
-     "its door. Inside, **E** buys one unit and **Q** buys up to four. Goldenfield Farm sells wheat for $4."),
+     "Walk with **WASD** or the **arrow keys** to a store with a yellow **COMPRAR MATERIAIS** sign and press **E** at "
+     "its door. Inside, **E** buys one unit and **Q** buys up to four. Armazém de Cereais sells wheat for $4."),
     ("2 · Make products", "make.webp",
-     "Take the materials to a store with a blue **MAKE PRODUCTS** sign. Press **E** to drop them off. Production "
+     "Take the materials to a store with a blue **FABRICAR PRODUTOS** sign. Press **E** to drop them off. Production "
      "takes a few seconds while you play; press **E** again to collect the finished products."),
     ("3 · Sell products", "sell.webp",
-     "Bring the products to a green **SELL PRODUCTS** market and press **E** to sell everything you carry. Bread "
+     "Bring the products to a green **VENDER PRODUTOS** market and press **E** to sell everything you carry. Bread "
      "made from $4 wheat sells for $14. Repeat with bigger batches to grow faster."),
     ("Getting around", "garage.webp",
-     "The only car **DEALERSHIP** is in Cacilhas, across the Tejo: take the ferry ($2) from Cais do Sodré "
+     "The only car **CONCESSIONÁRIO** is in Cacilhas, across the Tejo: take the ferry ($2) from Cais do Sodré "
      "to get there. Vehicles are faster and carry more, and by car the bridges charge a $3 toll toward Lisboa. "
      "Pick a **Destination** above the map to see the route, and press **Esc** to leave any building."),
 )
@@ -709,7 +715,7 @@ def start_menu_card():
             "**Controls** · Move with **WASD** or the **arrow keys**. Press **E** at a door to go inside and **Esc** "
             "to leave. Inside: **E** buys, makes or sells, **Q** buys up to four.\n\n"
             "**Trade route** · Buy materials at a yellow store, make products at a blue store, sell them at a green "
-            "market. Example: wheat at Goldenfield Farm → bread at Sunrise Bakery → Daily Bread Market.\n\n"
+            "market. Example: wheat at Armazém de Cereais → bread at Padaria do Sol → Pão de Cada Dia.\n\n"
             "**Getting around** · The ferry crosses the Tejo for $2 on foot; with a vehicle the bridges charge "
             "$3 toward Lisboa. Choose a **Destination** above the map to see the route.".replace("$", "\\$"))
     if cloud:
@@ -971,7 +977,7 @@ if town.won and not town.milestone_acknowledged:
 PAGES[page]()
 
 if town.message:
-    st.info(town.message)
+    st.info(localize_place_names(town.message))
 
 if st.session_state.get("show_menu", True):
     start_menu()
