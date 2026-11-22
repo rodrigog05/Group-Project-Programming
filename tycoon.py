@@ -838,7 +838,8 @@ class Town:
             self.cash -= cost
             self.expenses_today[index] += cost
             self.supplies[index] += quantity
-            self.message = f"Picked up {quantity} × {trade.supply} for ${cost}."
+            self.message = (f"You now carry {self.supplies[index]} × {trade.supply}. "
+                            f"Bought {quantity} for ${cost}.")
             self.congratulate(quantity, trade.supply.lower())
         elif site.role == "FACTORY":
             order = self.orders[index]
