@@ -13,7 +13,7 @@ import contracts
 import exchange
 import innovation
 import logistics
-from browser_game import COLLISION_MAP, STREET_LIFE, LocalSave, SaveConflict, advance_turn, entrance, street_input, visit
+from browser_game import COLLISION_MAP, STREET_LIFE, LocalSave, SaveConflict, entrance, street_input, visit
 from journal_market import market_snapshot
 from journal_recipes import RECIPE_BY_KEY
 from lisbon_landmarks import LANDMARKS
@@ -600,8 +600,7 @@ with st.container(key="foundry_nav"):
 with settings.popover("Time & progress", width="stretch"):
     seconds = int(town.market_elapsed % DAY_SECONDS)
     st.caption(f"{DAY_SECONDS - seconds}s until market reset")
-    step = st.select_slider("Time to advance", (5, 15, 30, 60), value=15, format_func=lambda value: f"{value}s")
-    button("Advance time", advance_turn, step)
+    st.caption("The clock runs while the game map has focus.")
     if store:
         st.caption("Local progress autosaves.")
         if st.button("Reload local progress"):

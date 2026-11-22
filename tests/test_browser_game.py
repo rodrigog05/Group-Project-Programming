@@ -1,7 +1,7 @@
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from browser_game import LocalSave, SaveConflict, advance_turn, entrance, visit
+from browser_game import LocalSave, SaveConflict, advance_clock, entrance, street_input, visit
 from tycoon import SITES, Town
 
 
@@ -56,7 +56,11 @@ def test_browser_trade_loop_rejection_restart_and_session_isolation(tmp_path, mo
     click(app, "Produce or collect")
     click(app, "Produce or collect")
     assert "production" in app.info[0].value.lower()
-    click(app, "Advance time")
+    assert "Advance time" not in {button.label for button in app.button}
+    assert not app.select_slider
+    # AppTest does not run JavaScript. Simulate normal clock updates from the map.
+    for _ in range(60):
+        assert street_input(app.session_state.town, {"dx": 0, "dy": 0, "seconds": 0.25})
     click(app, "Produce or collect")
     choose_place(app, "Daily Bread Market")
     click(app, "Sell carried goods")
@@ -68,7 +72,7 @@ def test_browser_trade_loop_rejection_restart_and_session_isolation(tmp_path, mo
     assert "$120" in app.info[0].value
     reloaded = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     assert reloaded.metric[0].value == "$100"
-    assert reloaded.session_state.town.elapsed == 15
+    assert reloaded.session_state.town.elapsed == pytest.approx(15)
     assert reloaded.session_state.town.nearby().name == "Motorworks Garage"
     monkeypatch.delenv("FOUNDRY_LOCAL_DB")
     separate = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
@@ -108,7 +112,8 @@ def test_local_save_rejects_stale_write_and_restores_market_clock(tmp_path):
     store = LocalSave(tmp_path / "nested" / "game.sqlite3")
     first, revision = store.load()
     stale, stale_revision = store.load()
-    advance_turn(first, 301)
+    for _ in range(301):
+        advance_clock(first, 1)
     assert first.day == 2
     assert store.save(first, revision) == 1
     with pytest.raises(SaveConflict):
