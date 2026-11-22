@@ -265,8 +265,9 @@ def test_hints_say_where_to_go_then_which_key_to_press_on_a_new_route():
     assert next_move(town)["text"] == "Press E to sell your Bread."
     town.interact()
     # Bread is learned: suggest exploring, and stay quiet while making bread again.
-    explore = next_move(town)
-    assert explore["text"].startswith("You know how to make Bread. Explore:") and explore["target"] == "Pine Mill"
+    assert next_move(town) == {
+        "text": "Nice work! Now explore the other buildings: each coloured sign is a new way to earn.",
+        "target": None}
     town.x, town.y = entrance(named("Goldenfield Farm"))
     town.interact(bulk=True)
     assert next_move(town) is None

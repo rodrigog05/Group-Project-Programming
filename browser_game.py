@@ -193,14 +193,12 @@ def next_move(town, inside=None):
     if busy:
         return None  # Working a route the player already knows: no need to explain it again
     if new:
-        # Hands empty and a route learned: suggest exploring the most profitable new one they can afford.
-        affordable = [index for index in new if town.cash >= town.costs[index]] or new
-        index = max(affordable, key=lambda i: town.prices[i] - town.costs[i])
-        trade, supplier = TRADES[index], place("SUPPLIER", index)
-        known = " and ".join(TRADES[i].product for i in range(len(TRADES)) if learned[i])
-        return step(supplier, f"Press Q to buy up to 4 {trade.supply}.",
-                    f"You know how to make {known}. Explore: buy {trade.supply} at {supplier} "
-                    f"(${town.costs[index]}) to make {trade.product}, sold for ${town.prices[index]}.")
+        # Hands empty and a route learned: invite the player to explore, without picking a route for them.
+        # At the door of a store on a new route, still name the key.
+        if site and site.role == "SUPPLIER" and site.trade in new:
+            return {"text": f"Press Q to buy up to 4 {TRADES[site.trade].supply}.", "target": None}
+        return {"text": "Nice work! Now explore the other buildings: each coloured sign is a new way to earn.",
+                "target": None}
     return None  # Every route learned: no more hints needed
 
 
