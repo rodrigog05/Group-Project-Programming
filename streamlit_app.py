@@ -565,7 +565,6 @@ st.html(f"""
     .st-key-foundry_hud [data-testid="stColumn"],
     .st-key-foundry_nav [data-testid="stColumn"] {{ width: auto !important; }}
     .st-key-foundry_hud [data-testid="stColumn"]:first-child {{ grid-column: 1 / -1; }}
-    .st-key-foundry_nav [data-testid="stHorizontalBlock"] {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
   }}
   body:has(.st-key-foundry_start) #foundry-fullscreen-game {{ display: none; }}
 </style>
@@ -584,7 +583,7 @@ with st.container(key="foundry_hud"):
 
 page = st.session_state.get("town_page", "Game")
 with st.container(key="foundry_nav"):
-    game, recipes, advanced, settings = st.columns(4, vertical_alignment="center")
+    game, recipes, advanced = st.columns(3, vertical_alignment="center")
     for column, label in ((game, "Game"), (recipes, "Market & recipes")):
         column.button(
             label, type="primary" if page == label else "secondary", width="stretch",
@@ -596,21 +595,12 @@ with st.container(key="foundry_nav"):
                 label, type="primary" if page == label else "secondary", width="stretch",
                 on_click=st.session_state.update, kwargs={"town_page": label},
             )
-
-with settings.popover("Time & progress", width="stretch"):
-    seconds = int(town.market_elapsed % DAY_SECONDS)
-    st.caption(f"{DAY_SECONDS - seconds}s until market reset")
-    st.caption("The clock runs while the game map has focus.")
-    if store:
-        st.caption("Local progress autosaves.")
-        if st.button("Reload local progress"):
+        if store and st.button("Reload local progress", width="stretch"):
             try:
                 load_game()
                 st.rerun()
             except SAVE_ERRORS:
                 st.session_state.save_error = "Could not read local progress. Check the save file."
-    else:
-        st.caption("Progress lasts for this browser session.")
 
 if st.session_state.save_error:
     st.error(st.session_state.save_error)

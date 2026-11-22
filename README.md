@@ -43,7 +43,7 @@ The Lisbon start menu fills the browser with a looping waterfront scene from Cor
 
 Click or tab into the street map. Walk with **WASD** or the **arrow keys**. Use **E** at a marked entrance to trade and at a ferry pier to cross the Tejo. At suppliers, **Q** buys up to four units. At farms, **F** buys one egg and **R** buys up to four. The buttons below the map provide touch controls. For garages, the warehouse, the exchange, research, and the casino, **E** selects the building's controls below the map.
 
-The market clock, production, deliveries, research, and contracts run while the map has focus. Click outside the map to pause street play. **Time & progress** shows the market countdown and save information. The market settles every 300 game seconds and the map switches to night after 180 seconds. Use **Visit** below the map for direct travel. On foot, the ferry costs $2. With a vehicle, bridges charge a $3 toll toward Lisboa.
+The market clock, production, deliveries, research, and contracts run while the map has focus. Click outside the map to pause street play. The market settles every 300 game seconds and the map switches to night after 180 seconds. Use **Visit** below the map for direct travel. On foot, the ferry costs $2. With a vehicle, bridges charge a $3 toll toward Lisboa.
 
 The street view includes the original map art and collision rules, with the desktop game's traffic, pedestrians and waterfront tram as decoration (they never block you). Building interiors, soundtrack, and desktop save services are outside this port. Driving a vehicle back to Lisboa needs the $3 bridge toll in cash before you start across.
 
@@ -57,7 +57,7 @@ Run a private instance bound to loopback:
 FOUNDRY_LOCAL_DB=.local/game.sqlite3 uv run --python 3.12 --with-requirements requirements.txt streamlit run streamlit_app.py --server.address 127.0.0.1
 ```
 
-`FOUNDRY_LOCAL_DB` selects one local autosave slot. Choose a new path to start a fresh game or back up the database to keep progress. If two tabs edit the same slot, the older revision must reload before writing. A failed SQLite write leaves the current game state available for retry. The browser build starts fresh from its own save slot and does not import desktop saves.
+`FOUNDRY_LOCAL_DB` selects one local autosave slot. Use **More → Reload local progress** to reopen that save. Choose a new path to start a fresh game or back up the database to keep progress. If two tabs edit the same slot, the older revision must reload before writing. A failed SQLite write leaves the current game state available for retry. The browser build starts fresh from its own save slot and does not import desktop saves.
 
 ## Publish on Streamlit Community Cloud
 
