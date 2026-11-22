@@ -543,16 +543,16 @@ TUTORIAL = (
      "You start in Lisboa with **$60** and a 12-slot bag. Grow your business to **$500** by running trade routes: "
      "buy materials, turn them into products, and sell the products for more than they cost."),
     ("1 · Buy materials", "buy.webp",
-     "Walk with **WASD** or the **arrow keys** to a store with a yellow **COMPRAR MATERIAIS** sign and press **E** at "
-     "its door. Inside, **E** buys one unit and **Q** buys up to four. Armazém de Cereais sells wheat for $4."),
+     "Walk with **WASD** or the **arrow keys** to a store with a yellow **BUY MATERIALS** sign and press **E** at "
+     "its door. Inside, **E** buys one unit and **Q** buys up to four. Goldenfield Farm sells wheat for $4."),
     ("2 · Make products", "make.webp",
-     "Take the materials to a store with a blue **FABRICAR PRODUTOS** sign. Press **E** to drop them off. Production "
+     "Take the materials to a store with a blue **MAKE PRODUCTS** sign. Press **E** to drop them off. Production "
      "takes a few seconds while you play; press **E** again to collect the finished products."),
     ("3 · Sell products", "sell.webp",
-     "Bring the products to a green **VENDER PRODUTOS** market and press **E** to sell everything you carry. Bread "
+     "Bring the products to a green **SELL PRODUCTS** market and press **E** to sell everything you carry. Bread "
      "made from $4 wheat sells for $14. Repeat with bigger batches to grow faster."),
     ("Getting around", "garage.webp",
-     "The only car **CONCESSIONÁRIO** is in Cacilhas, across the Tejo: take the ferry ($2) from Cais do Sodré "
+     "The only car **DEALERSHIP** is in Cacilhas, across the Tejo: take the ferry ($2) from Cais do Sodré "
      "to get there. Vehicles are faster and carry more, and by car the bridges charge a $3 toll toward Lisboa. "
      "Pick a **Destination** above the map to see the route, and press **Esc** to leave any building."),
 )
@@ -660,7 +660,7 @@ def start_menu_card():
             "**Controls** · Move with **WASD** or the **arrow keys**. Press **E** at a door to go inside and **Esc** "
             "to leave. Inside: **E** buys, makes or sells, **Q** buys up to four.\n\n"
             "**Trade route** · Buy materials at a yellow store, make products at a blue store, sell them at a green "
-            "market. Example: wheat at Armazém de Cereais → bread at Padaria do Sol → Pão de Cada Dia.\n\n"
+            "market. Example: wheat at Goldenfield Farm → bread at Sunrise Bakery → Daily Bread Market.\n\n"
             "**Getting around** · The ferry crosses the Tejo for $2 on foot; with a vehicle the bridges charge "
             "$3 toward Lisboa. Choose a **Destination** above the map to see the route.".replace("$", "\\$"))
     if cloud:
