@@ -161,6 +161,8 @@ def greeting(town, site):
     if role == "GARAGE":
         ride = VEHICLES.get(town.vehicle)
         if ride is None:
+            if town.owned_vehicles:
+                return "Welcome back! Your owned vehicles are ready to collect for free. Pick a ride."
             return "Tired of walking? The bridges are for vehicles only. Pick a ride and I'll hand you the keys!"
         return f"How's the {ride.label.lower()} running? Trade up for a bigger trunk any time."
     if role == "CASINO":
@@ -221,7 +223,7 @@ def street_input(town, event):
     action = event.get("action")
     segments = event.get("segments", [event])
     if (not isinstance(segments, list) or not 1 <= len(segments) <= 120
-            or action not in (None, "interact", "bulk", "egg", "eggs")):
+            or action not in (None, "interact", "bulk", "egg", "eggs", "dismount")):
         return False
     total = 0
     for segment in segments:
@@ -243,7 +245,9 @@ def street_input(town, event):
                 town.move(dx, dy, seconds / steps)
             if seconds:
                 advance_clock(town, seconds / steps)
-    if action == "interact" and nearby_pier(town.x, town.y):
+    if action == "dismount":
+        town.leave_vehicle()
+    elif action == "interact" and nearby_pier(town.x, town.y):
         ride_ferry(town)
     elif action in ("interact", "bulk"):
         if action == "bulk" and (town.nearby() is None or town.nearby().role != "SUPPLIER"):

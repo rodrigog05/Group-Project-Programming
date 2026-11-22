@@ -129,27 +129,27 @@ class VehicleTrunkTest(unittest.TestCase):
             town.x, town.y = x, y
             with self.subTest(road=(x, y)):
                 self.assertTrue(town.road_bonus_active)
-                self.assertEqual(town.movement_speed, 690)
+                self.assertEqual(town.movement_speed, 483)
         for x, y in ((300, south(1250)), (1910, 580), (596, 582), (100, 400), (2028, 210)):
             town.x, town.y = x, y
             with self.subTest(offroad=(x, y)):
                 self.assertFalse(on_road(x, y, COLLISION_BOUNDS))
-                self.assertEqual(town.movement_speed, 510)
+                self.assertEqual(town.movement_speed, 357)
 
     def test_road_speed_and_power_up_combine_without_changing_walking_speed(self):
         town = Town()
         self.assertEqual(town.movement_speed, 228)
         town.vehicle = "van"
-        self.assertEqual(town.movement_speed, 620)
+        self.assertEqual(town.movement_speed, 434)
         town.speed_until = 10
-        self.assertEqual(town.movement_speed, 930)
+        self.assertEqual(town.movement_speed, 651)
 
     def test_vehicle_move_uses_actual_speed_and_remains_normalized(self):
         town = Town()
         town.vehicle = "car"
         x, y = town.x, town.y
         town.move(1, 1, .01)
-        self.assertAlmostEqual(math.hypot(town.x-x, town.y-y), 6.9)
+        self.assertAlmostEqual(math.hypot(town.x-x, town.y-y), 4.83)
 
 
 if __name__ == "__main__":

@@ -53,6 +53,8 @@ Street movement and camera tracking render immediately in the browser. Movement 
 
 ## Keep local progress
 
+Vehicles use the same side-view skins in the garage selection and on the street. All four player vehicles drive 30% slower than before, on roads and off-road. Press **X** or **Walk on foot** below the map to store your vehicle and walk. Owned rides remain available at any garage through **Drive · Free**, including after restoring a local save. Empty excess cargo and finish reserved orders before switching to your smaller walking bag. Leave bridges before dismounting.
+
 Run a private instance bound to loopback:
 
 ```sh

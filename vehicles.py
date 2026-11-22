@@ -16,10 +16,10 @@ class Vehicle:
 
 # Every ride can be purchased before the $500 victory threshold.
 VEHICLES = {
-    "motorcycle": Vehicle("Motorcycle", 120, 6, 420, 520),
-    "car": Vehicle("Car", 240, 48, 510, 690),
-    "van": Vehicle("Delivery van", 360, 108, 430, 620),
-    "f1": Vehicle("F1 car", 480, 0, 350, 900),
+    "motorcycle": Vehicle("Motorcycle", 120, 6, 294, 364),
+    "car": Vehicle("Car", 240, 48, 357, 483),
+    "van": Vehicle("Delivery van", 360, 108, 301, 434),
+    "f1": Vehicle("F1 car", 480, 0, 245, 630),
 }
 WALK_SPEED = 228
 # City traffic outpaces a walking player, even one with the 1.5x speed power-up.

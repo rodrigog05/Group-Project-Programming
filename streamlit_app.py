@@ -334,11 +334,15 @@ def building(site):
         for column, (key, ride) in zip(st.columns(len(VEHICLES)), VEHICLES.items()):
             with column:
                 current = town.vehicle == key
-                st.markdown(f"**{ride.label}** · {'Your ride' if current else f'${ride.price:,}'}")
+                owned = key in town.owned_vehicles or current
+                st.image(str(ROOT / "street" / "vehicles" / f"{key}.svg"), width="stretch")
+                status = "Your ride" if current else "Owned · Free collection" if owned else f"${ride.price:,}"
+                st.markdown(f"**{ride.label}** · {status}")
                 st.caption(f"Trunk +{ride.trunk} · {town.bag_size + ride.trunk} cargo · "
                            f"Road {ride.road_speed} · Off-road {ride.offroad_speed}")
                 number = str(list(VEHICLES).index(key) + 1)
-                action(f"Buy {ride.label} · ${ride.price:,} · +{ride.trunk} slots", Town.purchase_vehicle, key,
+                label = f"Drive {ride.label} · Free" if owned else f"Buy {ride.label} · ${ride.price:,} · +{ride.trunk} slots"
+                action(label, Town.purchase_vehicle, key,
                        key=f"vehicle-{key}", shortcut=number, disabled=current, width="stretch")
     elif role == "WAREHOUSE":
         st.write(f"Personal storage {town.bag_size} · Total cargo {town.carry_capacity}")
@@ -453,7 +457,12 @@ def casino(found):
     with black:
         st.button("Black · pays 2×", on_click=spin, args=("black",), shortcut="2", width="stretch")
     with green:
-        st.button("Green 0 · pays 36×", on_click=spin, args=("green",), shortcut="3", width="stretch")
+        st.html("""<style>
+            .st-key-bet_green button {background:#1f8a4c;color:#fff;border-color:#46be79;}
+            .st-key-bet_green button:hover {background:#176b3a;color:#fff;border-color:#8ae4ad;}
+            .st-key-bet_green button:focus-visible {outline:3px solid #b5ffd2;outline-offset:2px;}
+        </style>""")
+        st.button("Green 0 · pays 36×", key="bet_green", on_click=spin, args=("green",), shortcut="3", width="stretch")
 
 
 def market():
