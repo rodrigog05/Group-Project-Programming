@@ -83,11 +83,11 @@ def planter(d, x, y, night):
 
 def signs(d, site, night):
     x, y = site.x, site.y
-    badge, color = {"SUPPLIER": ("COMPRAR MATERIAIS", "#a67324"),
-                    "FACTORY": ("FABRICAR PRODUTOS", "#376b88"),
-                    "PUBLIC SHOP": ("VENDER PRODUTOS", "#377e68"),
-                    "TIER2": ("FABRICAR E VENDER", "#72618f"),
-                    "WAREHOUSE": ("ARMAZENAMENTO", "#65727f")}[site.role]
+    badge, color = {"SUPPLIER": ("BUY MATERIALS", "#a67324"),
+                    "FACTORY": ("MAKE PRODUCTS", "#376b88"),
+                    "PUBLIC SHOP": ("SELL PRODUCTS", "#377e68"),
+                    "TIER2": ("MAKE & SELL", "#72618f"),
+                    "WAREHOUSE": ("STORAGE", "#65727f")}[site.role]
     d.rect(x+20, y-14, 136, 13, color, 2)
     d.path(f'M{x+24} {y-12}h128', stroke="#e8d7af", width=.7)
     d.text(x+88, y-4, badge, 8)
@@ -114,7 +114,7 @@ def shell(d, site, wall, night, roof_color="#a8654e"):
 def tool_shop(d, site, night):
     x, y = shell(d, site, "#acb6b3" if night else "#e6d7ac", night, "#656d6e")
     d.rect(x+8, y+25, 107, 12, "#315e67", 1)
-    d.text(x+61, y+33.5, "FERRAGENS", 7)
+    d.text(x+61, y+33.5, "HARDWARE", 7)
     for wx in (x+9, x+83):
         window(d, wx, y+44, 29, 27, night)
         # Wall-mounted spanners and drills distinguish the hardware windows.
@@ -128,7 +128,7 @@ def tool_shop(d, site, night):
 def furniture_shop(d, site, night):
     x, y = shell(d, site, "#a49f91" if night else "#ead7bd", night)
     d.rect(x+8, y+24, 106, 12, "#8e6850", 1)
-    d.text(x+61, y+33, "CASA · MÓVEIS", 7.5)
+    d.text(x+61, y+33, "HOME FURNISHINGS", 7.5)
     for wx in (x+9, x+83):
         window(d, wx, y+41, 29, 31, night)
     # One sofa and one table with a lamp, instead of generic market crates.
@@ -145,7 +145,7 @@ def pottery_shop(d, site, night):
     for tx in range(7, 116, 7):
         d.path(f'M{x+tx} {y+23}l3-3 3 3-3 3Z', "#759a9b")
     d.rect(x+12, y+29, 101, 11, "#597f80", 1)
-    d.text(x+62, y+37, "OLARIA · CERÂMICA", 6.8)
+    d.text(x+62, y+37, "POTTERY", 6.8)
     for wx in (x+10, x+83):
         window(d, wx, y+44, 28, 28, night)
         for ox, color in ((6,"#d89764"), (19,"#89aaa0")):
@@ -160,7 +160,7 @@ def pottery_shop(d, site, night):
 def bread_shop(d, site, night):
     x, y = shell(d, site, "#a7a391" if night else "#f0dfaf", night)
     d.rect(x+8, y+25, 107, 12, "#8c6348", 1)
-    d.text(x+61, y+33.5, "PÃO QUENTE", 8)
+    d.text(x+61, y+33.5, "FRESH BREAD", 8)
     for wx in (x+9, x+83):
         window(d, wx, y+46, 29, 26, night)
         for row in (0, 9):
@@ -171,7 +171,7 @@ def bread_shop(d, site, night):
     for ax in range(8, 113, 9):
         d.path(f'M{x+ax} {y+38}h9l3 8h-10Z', "#a85f50" if ax % 2 else "#eee0bc")
     d.rect(x-10, y+62, 13, 19, "#475d5d", 1)
-    d.text(x-3.5, y+70, "PÃO", 4.5)
+    d.text(x-3.5, y+70, "BREAD", 4.5)
     d.path(f'M{x-7} {y+74}h7m-7 3h5', stroke="#dcc59a", width=.8)
 
 
@@ -180,7 +180,7 @@ def factory(d, site, night):
     trade = 0 if site.role == "TIER2" else site.trade
     wall = "#8a8980" if night else colors[trade]
     x, y = shell(d, site, wall, night, "#716f67" if trade == 0 else "#a76b50")
-    name = "OFICINA DE PRECISÃO" if site.role == "TIER2" else ("SERRALHARIA", "CARPINTARIA", "CERÂMICA", "PADARIA")[trade]
+    name = "PRECISION WORKS" if site.role == "TIER2" else ("METALWORK", "CARPENTRY", "CERAMICS", "BAKERY")[trade]
     d.rect(x+10, y+25, 104, 12, ("#4b6972", "#806548", "#9f6046", "#a88045")[trade], 1)
     d.text(x+62, y+34, name, 7)
     for wx in (x+9, x+84):
@@ -214,7 +214,7 @@ def supplier(d, site, night):
     # Urban depots keep the material identity without open mines, forests or fields in a city block.
     walls = ("#b2bfc0", "#d7bc96", "#dfb49c", "#e6d4a3")
     x, y = shell(d, site, "#888e87" if night else walls[site.trade], night)
-    labels = ("MINÉRIOS", "MADEIRAS", "BARROS · ARGILAS", "CEREAIS")
+    labels = ("MINERALS", "TIMBER", "CLAY SUPPLIES", "GRAIN")
     d.rect(x+8, y+25, 107, 12, "#6b604b", 1)
     d.text(x+61, y+33.5, labels[site.trade], 7)
     for wx in (x+9, x+84):
@@ -250,7 +250,7 @@ def supplier(d, site, night):
 def warehouse(d, site, night):
     x, y = shell(d, site, "#838e90" if night else "#c1ccca", night, "#677c7e")
     d.rect(x+15, y+24, 95, 11, "#64757b", 1)
-    d.text(x+62, y+32.5, "ARMAZÉM", 6.8)
+    d.text(x+62, y+32.5, "WAREHOUSE", 6.8)
     d.rect(x+8, y+43, 35, 32, "#627981")
     d.rect(x+83, y+43, 32, 32, "#627981")
     for row in range(46, 75, 4):
@@ -322,10 +322,16 @@ def city_svg(night=False):
     # The dealership keeps its own building model; replace its old English sign.
     dealer = next(site for site in SITES if site.name == "Cacilhas Dealership")
     d.rect(dealer.x+9, dealer.y+4, 158, 15, "#a5443d")
-    d.text(dealer.x+88, dealer.y+15, "CONCESSIONÁRIO DE CACILHAS", 6.8)
+    d.text(dealer.x+88, dealer.y+15, "CACILHAS DEALERSHIP", 6.8)
     casino = next(site for site in SITES if site.role == "CASINO")
     d.rect(casino.x+43, casino.y+43, 90, 13, "#523457", 2)
-    d.text(casino.x+88, casino.y+52, "Casino de Lisboa", 7.5, "#ffe7bd" if night else "#f6dca9")
+    d.text(casino.x+88, casino.y+52, "Lisbon Casino", 7.5, "#ffe7bd" if night else "#f6dca9")
+    shipyard = next(site for site in SITES if site.role == "SHIPYARD")
+    d.rect(shipyard.x+11, shipyard.y+75, 154, 15, "#2b4954")
+    d.text(shipyard.x+88, shipyard.y+86, "Tagus Shipyard", 8)
+    exchange = next(site for site in SITES if site.role == "EXCHANGE")
+    d.rect(exchange.x+24, exchange.y+10, 128, 12, "#647476" if night else "#ded5bb")
+    d.text(exchange.x+88, exchange.y+19, "LISBON STOCK EXCHANGE", 6.5, "#f3dfae" if night else "#344f5b")
     return d.svg()
 
 
@@ -501,10 +507,10 @@ def tutorial_svg(name):
         d.text(325, 378, "1 Buy materials  ›  2 Make products  ›  3 Sell them", 17)
     else:
         identifier, caption = {
-            "buy": ("Goldenfield Farm", "Walk to a yellow COMPRAR MATERIAIS store"),
-            "make": ("Sunrise Bakery", "Turn materials into products at FABRICAR PRODUTOS"),
-            "sell": ("Daily Bread Market", "Sell finished goods at VENDER PRODUTOS"),
-            "garage": ("Cacilhas Dealership", "Concessionário de Cacilhas: take the ferry"),
+            "buy": ("Goldenfield Farm", "Walk to a yellow BUY MATERIALS store"),
+            "make": ("Sunrise Bakery", "Turn materials into products at MAKE PRODUCTS"),
+            "sell": ("Daily Bread Market", "Sell finished goods at SELL PRODUCTS"),
+            "garage": ("Cacilhas Dealership", "Cacilhas Dealership: take the ferry"),
         }[name]
         site = next(site for site in SITES if site.name == identifier)
         left, top = site.x+88-260, site.y-103
