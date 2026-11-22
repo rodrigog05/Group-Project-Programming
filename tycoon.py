@@ -175,7 +175,7 @@ SITES = (
     Site("Oriente Tool Market", "PUBLIC SHOP", 0, 1820, 345, "#72d8bc"),
     Site("Mercado das Nações", "PUBLIC SHOP", 2, 2080, 530, "#d2a7e5"),
     Site("Quinta de Palmela", "SUPPLIER", 3, 2060, south(1430), "#e3c77e"),
-    Site("Cacilhas Garage", "GARAGE", -1, 1540, south(1180), "#86caff"),
+    Site("Cacilhas Dealership", "GARAGE", -1, 1540, south(1180), "#86caff"),
     Site("Armazém do Seixal", "WAREHOUSE", -1, 2060, south(1180), "#d2a7e5"),
     Site("Bolsa de Lisboa", "EXCHANGE", -1, 508, 160, "#d7bb6e"),
     Site("Nova SBE · Carcavelos", "RESEARCH", -1, 28, 530, "#83bac9"),
