@@ -145,22 +145,33 @@ BUILDING_HINTS = {
 def next_move(town, inside=None):
     """The next step to suggest, as {"text", "target"}, or None when the player needs no hint.
 
-    Steps are shown only on trade routes the player has not completed yet (sold at least once).
-    At the right building the hint names the key to press; elsewhere it names where to go.
+    Where the player is matters: away from a store the hint says where to go, at its door it says
+    to go in, and inside it names the key to press. Route steps are shown only for routes the player
+    has not completed yet (sold at least once, from the saved total_sold).
     """
     def place(role, trade):
         return next(site.name for site in OPEN_SITES if site.role == role and site.trade == trade)
 
-    here = inside or building_at(town)
-    site = next((candidate for candidate in OPEN_SITES if candidate.name == here), None)
-    if inside and (inside == MONASTERY or (site and site.role in BUILDING_HINTS)):
-        return {"text": BUILDING_HINTS[MONASTERY if inside == MONASTERY else site.role], "target": None}
+    def named(name):
+        return next((site for site in OPEN_SITES if site.name == name), None)
+
+    door = None if inside else building_at(town)  # Standing at a door, still outside
+    room = named(inside) if inside else None      # The building the player is inside
+    if inside == MONASTERY:
+        return {"text": BUILDING_HINTS[MONASTERY], "target": None}
+    if room and room.role in BUILDING_HINTS:
+        return {"text": BUILDING_HINTS[room.role], "target": None}
     learned = [bool(sold) for sold in town.total_sold]
-
-    def step(target, there, elsewhere):
-        return {"text": there if here == target else elsewhere, "target": target}
-
     new = [index for index in range(len(TRADES)) if not learned[index]]
+
+    def step(target, key_text, go_text):
+        if inside == target:
+            return {"text": key_text, "target": target}
+        if door == target:
+            return {"text": f"Press E to go into {target}.", "target": target}
+        return {"text": go_text, "target": target}
+
+    # 1. Steps on a route the player has started but not completed yet.
     for index in new:  # Finished products first
         if town.goods[index]:
             trade, market = TRADES[index], place("PUBLIC SHOP", index)
@@ -184,19 +195,32 @@ def next_move(town, inside=None):
             seconds = math.ceil(order.ready_at - town.elapsed)
             return step(factory, f"{trade.product} is being made: ready in {seconds}s, then press E to collect.",
                         f"{trade.product} is being made at {factory}: ready in {seconds}s. Then collect it there.")
+
+    # 2. The first route: the bread route the Basics teach.
     if not any(learned):
-        # First route: the bread route the Basics teach.
         supplier = place("SUPPLIER", 3)
         return step(supplier, "Press Q to buy up to 4 Wheat (E buys one).",
                     f"Go to {supplier} and buy Wheat (${town.costs[3]} each).")
-    busy = any(town.supplies[i] or town.goods[i] or town.orders[i] is not None for i in range(len(TRADES)))
-    if busy:
-        return None  # Working a route the player already knows: no need to explain it again
+
+    # 3. A store on a route the player hasn't done yet: explain it, even while busy with a known route.
+    here = room or named(door)
+    if here and here.role in ("SUPPLIER", "FACTORY", "PUBLIC SHOP") and here.trade in new:
+        trade = TRADES[here.trade]
+        supplier = place("SUPPLIER", here.trade)
+        if here.role == "SUPPLIER":
+            return step(here.name, f"Press Q to buy up to 4 {trade.supply} (${town.costs[here.trade]} each).",
+                        here.name)
+        what = "makes" if here.role == "FACTORY" else "buys"
+        detail = (f"{trade.product} from {trade.supply}" if here.role == "FACTORY"
+                  else f"{trade.product} for ${town.prices[here.trade]} each")
+        return {"text": f"{here.name} {what} {detail}. Start by buying {trade.supply} at {supplier}.",
+                "target": supplier}
+
+    # 4. Working a route the player already knows: no need to explain it again.
+    if any(town.supplies[i] or town.goods[i] or town.orders[i] is not None for i in range(len(TRADES))):
+        return None
+    # 5. Hands empty with routes left to try: invite the player to explore.
     if new:
-        # Hands empty and a route learned: invite the player to explore, without picking a route for them.
-        # At the door of a store on a new route, still name the key.
-        if site and site.role == "SUPPLIER" and site.trade in new:
-            return {"text": f"Press Q to buy up to 4 {TRADES[site.trade].supply}.", "target": None}
         return {"text": "Nice work! Now explore the other buildings: each coloured sign is a new way to earn.",
                 "target": None}
     return None  # Every route learned: no more hints needed
