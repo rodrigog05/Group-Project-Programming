@@ -313,6 +313,8 @@ def street_event(town, event):
         moved = street_input(town, {**event, "action": None})
         name = building_at(town) if moved else None
         if name:
+            if name == MONASTERY:
+                town.visit_monastery()
             return name
         if not moved:
             return None

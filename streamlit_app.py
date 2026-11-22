@@ -15,7 +15,7 @@ import exchange
 import innovation
 import logistics
 from browser_game import (COLLISION_MAP, MONASTERY, STREET_LIFE, LocalSave, building_at, greeting, scene_for,
-                          SaveConflict, entrance, place_vehicle_on_road, street_event, street_input, visit)
+                          SaveConflict, entrance, place_vehicle_on_road, street_event, street_input)
 from journal_market import market_snapshot
 from journal_recipes import RECIPE_BY_KEY
 from lisbon_landmarks import LANDMARKS
@@ -24,6 +24,7 @@ from lisbon_scene import RIVER_BOTTOM
 from tourism import monument_description
 from tycoon import DAY_SECONDS, INDUSTRIES, SITES, TRADES, ROULETTE_POCKETS, Town, roulette_color
 from vehicles import VEHICLES
+from navigation import directions
 
 
 PLACES = {site.name: site for site in SITES}
@@ -110,26 +111,16 @@ def warehouse(town):
     town.message = f"Warehouse expanded. Total capacity is {town.carry_capacity}."
 
 
-def visit_and_enter(position, label):
-    ferry = st.session_state.get("ferry")
-    act(visit, position, label)
-    # After a ferry ride, stay on the street so the map can play the crossing.
-    if building_at(st.session_state.town) == label and st.session_state.get("ferry") == ferry:
-        enter_building(label)
+def show_directions(label):
+    st.session_state.destination = label
+    st.session_state.town_page = "Game"
+    st.session_state.inside = None
 
 
-def travel(position, label, *, key, enter=False):
-    if (town.x, town.y) == position:
+def travel(position, label, *, key):
+    if (town.x-position[0])**2 + (town.y-position[1])**2 <= contracts.DELIVERY_REACH**2:
         return True
-    if (town.y >= RIVER_BOTTOM) != (position[1] >= RIVER_BOTTOM):
-        if town.vehicle:
-            st.caption("Ponte 25 de Abril · $3 toll toward Lisboa, free toward Almada.")
-        else:
-            st.caption("Cross the Tejo by ferry for $2.")
-    if enter:
-        st.button(f"Visit {label}", key=key, on_click=visit_and_enter, args=(position, label))
-    else:
-        button(f"Visit {label}", visit, position, label, key=key)
+    st.button(f"Show directions to {label}", key=key, on_click=show_directions, args=(label,))
     return False
 
 
@@ -206,6 +197,10 @@ def play_street(site_inside=None):
         speed=town.movement_speed, collision=COLLISION_MAP, life=STREET_LIFE,
         cash=town.cash, on_bridge=town.bridge_journey is not None, ferry=st.session_state.get("ferry"),
         interior=interior_view(site_inside) if site_inside is not None else None,
+        route=directions(town, destination_point(st.session_state.get("destination", "Goldenfield Farm"))),
+        suppliers=[{"x": site.door[0], "y": site.door[1], "trade": site.trade,
+                    "cost": town.costs[site.trade]} for site in SITES if site.role == "SUPPLIER"],
+        free_slots=town.carry_capacity-town.cargo-town.reserved,
         locations=[
             {"name": site.name, "x": site.door[0], "y": site.door[1], "color": site.color}
             for site in SITES
@@ -223,19 +218,29 @@ def site_status(site):
     return status
 
 
+def destination_point(name):
+    if name == MONASTERY:
+        left, _, right, bottom = LANDMARKS[0].bounds
+        return (left+right)/2, bottom+16
+    if name in PLACES:
+        return entrance(PLACES[name])
+    location = next(location for location in contracts.LOCATIONS if location.name == name)
+    return location.x, location.y
+
+
 def places():
     name = st.session_state.get("inside")
     if not (name and building_at(town) == name):
         st.session_state.inside = name = None
+    destination = st.selectbox("Destination", [*PLACES, MONASTERY, *(location.name for location in contracts.LOCATIONS)],
+                              index=list(PLACES).index("Goldenfield Farm"),
+                              key="destination")
     site_inside = PLACES.get(name, MONASTERY) if name else None
-    # The map view stays on screen inside buildings too, so it keeps the keyboard (see street.js).
+    # The game view stays on screen inside buildings too, so it keeps the keyboard (see street.js).
     play_street(site_inside)
-    site = PLACES[st.selectbox("Destination", list(PLACES), index=list(PLACES).index("Goldenfield Farm"),
-                              key="destination")]
-    st.caption(site_status(site))
-    if travel(entrance(site), site.name, key="visit-site", enter=True) and name is None:
-        st.button(f"Enter {site.name}", on_click=enter_building, args=(site.name,), type="primary")
-    if site_inside:
+    if site_inside is None:
+        st.caption(directions(town, destination_point(destination))["instruction"])
+    else:
         building(site_inside)
 
 
@@ -243,7 +248,6 @@ def enter_building(name):
     st.session_state.inside = name
     st.session_state.reply = None
     if name == MONASTERY:
-        act(Town.visit_monastery)
         st.session_state.reply = st.session_state.town.message
 
 
@@ -541,9 +545,7 @@ def landmarks():
     monument = st.selectbox("Landmark", LANDMARKS, format_func=lambda item: item.name)
     st.write(monument_description(monument, SITES))
     if monument.kind == "monastery":
-        position = (monument.map_point[0], monument.bounds[3] + 15)
-        if travel(position, monument.name, key="monastery"):
-            button("Visit monastery", Town.visit_monastery)
+        st.button("Show directions to the monastery", on_click=show_directions, args=(MONASTERY,))
 
 
 def fullscreen_control(name):

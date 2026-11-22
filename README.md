@@ -43,9 +43,9 @@ The Lisbon start menu fills the browser with a looping waterfront scene from Cor
 
 Click or tab into the street map. Walk with **WASD** or the **arrow keys**. Press **E** at a marked entrance to go inside, or at a ferry pier to cross the Tejo (the crossing plays as an animation; click or **Esc** skips it). On the street, **Q** buys up to four units at a supplier and **F** / **R** buy eggs at a farm. The buttons below the map provide touch controls.
 
-Inside, each building shows its illustrated scene from the desktop game: the vendor answers in a speech bubble and the chalkboard shows live prices. Use the buttons or their keys: **E** to buy, make, sell or collect, **Q** to buy four, **F** / **Shift+F** for eggs, **1–4** for vehicles in a garage, and in the casino pick a chip (**←** / **→**) and press **1** (red), **2** (black) or **3** (green 0) to spin the wheel. **Esc** leaves. The building is drawn in the same game view as the street, so the keys work straight away without clicking. **Visit** below the map travels to a building and takes you inside. The Jerónimos monastery adds 5 points of casino luck per visit, up to 20.
+Inside, each building shows its illustrated scene from the desktop game: the vendor answers in a speech bubble and the chalkboard shows live prices. Use the buttons or their keys: **E** to buy, make, sell or collect, **Q** to buy four, **F** / **Shift+F** for eggs, **1–4** for vehicles in a garage, and in the casino pick a chip (**←** / **→**) and press **1** (red), **2** (black) or **3** (green 0) to spin the wheel. **Esc** leaves. The building is drawn in the same game view as the street, so the keys work straight away without clicking. **Destination** selects a light-blue dashed street route. Follow it and press **E** at the door to enter; selecting a destination never moves you or opens a store. The Jerónimos monastery adds 5 points of casino luck per visit, up to 20.
 
-The market clock, production, deliveries, research, and contracts run while the map has focus. Click outside the map to pause street play. The market settles every 300 game seconds and the map switches to night after 180 seconds. Use **Visit** below the map for direct travel. On foot, the ferry costs $2. With a vehicle, bridges charge a $3 toll toward Lisboa.
+The market clock, production, deliveries, research, and contracts run while the map has focus. Click outside the map to pause street play. The market settles every 300 game seconds and the map switches to night after 180 seconds. Trade shortcuts appear only within reach of the right supplier, with enough cash and free cargo space. On foot, the ferry costs $2. With a vehicle, bridges charge a $3 toll toward Lisboa.
 
 The street view includes the original map art and collision rules, with the desktop game's traffic, the waterfront tram, the shuttling ferry and pedestrians who keep to the pavements, as decoration (they never block you). The soundtrack and desktop save services are outside this port. Driving a vehicle back to Lisboa needs the $3 bridge toll in cash before you start across.
 
@@ -87,7 +87,7 @@ The tests need no network, accounts or secrets.
 - **Game rules** (`tests/test_market.py`, `test_vehicles.py`, `test_contracts.py` and the other engine tests) cover trades, production, prices, vehicles, tolls, contracts, research, businesses and deliveries. They include rejected actions, such as buying without enough cash or space.
 - **Browser app** (`tests/test_browser_game.py`) tests the start menu and save replacement, a full trade loop, rejected purchases, separate player sessions, ferry fares and bridge tolls, and stale-save protection.
 - **Street map** (`tests/test_street.py`) checks walking, collisions, entrances, cargo limits, the ferry, invalid input, and that cars stay on roads and pedestrians never step onto one.
-- **Buildings** (`tests/test_buildings.py`) check that every door opens its own building without trading, every scene image exists, Visit enters and Leave exits, casino spins pay by colour and reject unaffordable chips, the monastery's luck cap, and that crossing on foot triggers the ferry animation.
+- **Buildings** (`tests/test_buildings.py`) check that every door opens its own building without trading, every scene image exists, E enters and Leave exits, destination selection never teleports or opens a store, casino spins pay by colour and reject unaffordable chips, the monastery's luck cap, and that cross-bank walking routes lead to the ferry.
 - **Casino and ferry rules** (`tests/test_casino.py`, `tests/test_ferry.py`) cover the roulette wheel and payouts, fares, failed trips and reaching every business on foot.
 - **Not covered by automated tests:** the JavaScript in `street/` (map drawing, the ferry animation and the browser's copy of the collision rules) and the deployed site. We check those by hand in a browser before the demo.
 
@@ -109,6 +109,7 @@ The tests need no network, accounts or secrets.
 With Node.js installed, run `node --test tests/street_prediction.cjs` for browser prediction, delayed-response reconciliation, action ordering and deferred night-map checks.
 
 - `streamlit_app.py` contains game screens and event handlers.
+- `navigation.py` finds safe street routes and directs walkers to the ferry when crossing banks. Routes are cached and never change player position or cash.
 - `browser_game.py` adapts navigation, time, and persistence for the browser.
 - `tycoon.py` and the adjacent simulation modules hold game rules and state.
 - `street/` contains the browser map component and original day/night artwork; `street/scenes/` holds the building, casino, monastery and ferry scenes, drawn from the desktop game's own scene code (kept on the `desktop-game` branch).

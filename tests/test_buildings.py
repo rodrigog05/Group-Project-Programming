@@ -18,8 +18,16 @@ def click(app, label):
 
 
 def choose_place(app, name):
+    # AppTest does not run keyboard movement. Stage arrival, then send the same E event.
+    from browser_game import entrance, street_event
+    site = next(site for site in SITES if site.name == name)
     app.selectbox[0].select(name).run()
-    click(app, f"Visit {name}")
+    app.session_state.town.x, app.session_state.town.y = entrance(site)
+    app.session_state.inside = street_event(app.session_state.town,
+        {"dx": 0, "dy": 0, "seconds": 0, "action": "interact"})
+    app.run()
+    assert not app.exception
+
 
 
 def labels(app):
@@ -79,8 +87,8 @@ def test_visit_enters_the_building_and_leave_returns_to_the_street(monkeypatch):
     assert app.metric[0].value == "$44"
     assert "Wheat" in app.session_state.reply  # The vendor answers inside the speech bubble
     click(app, "Leave")
-    assert "Enter Goldenfield Farm" in labels(app) and "Buy up to 4 Wheat" not in labels(app)
-    click(app, "Enter Goldenfield Farm")
+    assert "Enter Goldenfield Farm" not in labels(app) and "Buy up to 4 Wheat" not in labels(app)
+    choose_place(app, "Goldenfield Farm")
     assert "Buy up to 4 Wheat" in labels(app)
 
 
@@ -121,15 +129,22 @@ def test_monastery_visit_shows_the_prayer_and_adds_luck(monkeypatch):
 
 # ----- Ferry crossings are animated -----
 
-def test_crossing_on_foot_plays_the_ferry_and_stops_at_the_door(monkeypatch):
+def test_crossbank_destination_gives_ferry_directions_without_travelling(monkeypatch):
+    from navigation import directions
+    from browser_game import street_event
     app = new_app(monkeypatch)
-    choose_place(app, "Iron Hill Mine")  # South bank, so the walker takes the ferry
-    assert app.session_state.ferry == {"id": 1, "heading": 1}
-    assert "Enter Iron Hill Mine" in labels(app)  # The map shows the crossing before you go in
-    app.session_state.town.vehicle = "car"
-    app.run()
-    choose_place(app, "Goldenfield Farm")  # By car over the bridge: no ferry
-    assert app.session_state.ferry["id"] == 1
+    before = app.session_state.town.x, app.session_state.town.y, app.session_state.town.cash
+    app.selectbox[0].select("Iron Hill Mine").run()
+    town = app.session_state.town
+    assert (town.x, town.y, town.cash) == before
+    assert "Enter Iron Hill Mine" not in labels(app)
+    assert not any(label.startswith("Visit ") for label in labels(app))
+    mine = next(site for site in SITES if site.name == "Iron Hill Mine")
+    assert "ferry" in directions(town, entrance(mine))["instruction"]
+    town.x, town.y = FERRY_PIERS[0].position
+    street_event(town, {"dx": 0, "dy": 0, "seconds": 0, "action": "interact"})
+    assert (town.x, town.y, town.cash) == (*FERRY_PIERS[1].position, before[2]-2)
+    assert "ferry" not in directions(town, entrance(mine))["instruction"]
 
 
 # ----- E on the street map -----
