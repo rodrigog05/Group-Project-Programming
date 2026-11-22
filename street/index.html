@@ -10,10 +10,12 @@
     body { margin: 0; color: #fff7e6; background: #17343b; font: 14px system-ui, sans-serif; }
     canvas { display: block; width: 100%; height: var(--map-height, clamp(350px, 56.25vw, 720px)); background: #315860; }
     canvas:focus-visible, button:focus-visible { outline: 3px solid #f8cb76; outline-offset: -3px; }
-    .status { display: flex; flex-wrap: wrap; column-gap: 1rem; padding: 4px 8px; line-height: 1.4; }
+    .street-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+                     gap: 4px 12px; padding: 4px 8px; }
+    .status { flex: 1 1 15rem; display: flex; flex-wrap: wrap; column-gap: 1rem; line-height: 1.4; }
     #hint { font-weight: 700; }
     #route { color: #bde7ff; }
-    .controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 4px 8px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
     .controls p { margin: 0; }
     /* Actions: dark buttons with their key drawn as a small keyboard key, like the buttons inside buildings */
     button { display: inline-flex; align-items: center; gap: 8px; background: #1b1f27; color: #fafafa;
@@ -34,21 +36,23 @@
 </head>
 <body>
   <canvas id="map" tabindex="0" aria-label="Foundry Town map. Move with WASD or arrows. Press E to interact."></canvas>
-  <div class="status">
-    <div id="hint"></div>
-    <div id="route" role="status"></div>
-  </div>
-  <div class="controls">
-    <div class="pad" aria-label="Movement controls">
-      <button data-direction="left" aria-label="Walk left">←</button>
-      <button data-direction="up" aria-label="Walk up">↑</button>
-      <button data-direction="down" aria-label="Walk down">↓</button>
-      <button data-direction="right" aria-label="Walk right">→</button>
+  <div class="street-footer">
+    <div class="status">
+      <div id="hint"></div>
+      <div id="route" role="status"></div>
     </div>
-    <button data-action="interact"><span>Interact</span><kbd>E</kbd></button>
-    <button data-action="bulk" hidden><span>Bulk buy</span><kbd>Q</kbd></button>
-    <button data-action="vehicle" hidden><span>Leave vehicle</span><kbd>V</kbd></button>
-    <p>Focus the map to walk with WASD or arrows.</p>
+    <div class="controls">
+      <div class="pad" aria-label="Movement controls">
+        <button data-direction="left" aria-label="Walk left">←</button>
+        <button data-direction="up" aria-label="Walk up">↑</button>
+        <button data-direction="down" aria-label="Walk down">↓</button>
+        <button data-direction="right" aria-label="Walk right">→</button>
+      </div>
+      <button data-action="interact"><span>Interact</span><kbd>E</kbd></button>
+      <button data-action="bulk" hidden><span>Bulk buy</span><kbd>Q</kbd></button>
+      <button data-action="vehicle" hidden><span>Leave vehicle</span><kbd>V</kbd></button>
+      <p>Focus the map to walk with WASD or arrows.</p>
+    </div>
   </div>
   <script src="street.js"></script>
 </body>

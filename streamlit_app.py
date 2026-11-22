@@ -258,17 +258,19 @@ def places():
     )
     if st.session_state.pop("reset_destination", False) or arrived:
         st.session_state.destination = DEFAULT_DESTINATION
-    # One row with a fixed height: a button appearing here must not push the game view down (it flickered).
-    pick, route_button, hints = st.columns((3, 2, 1), vertical_alignment="center")
-    destination = pick.selectbox("Destination", [DEFAULT_DESTINATION, *PLACES, MONASTERY],
-                                 index=0, format_func=place_name,
-                                 key="destination", label_visibility="collapsed")
-    hints.toggle("💡 Show hints", value=True, key="show_hints")
-    hint = next_move(town, name)
-    target = hint and hint["target"]
-    route_button.button(f"Show route to {place_name(target)}" if target else "Show route", width="stretch",
-                        disabled=not (st.session_state.show_hints and target and target != destination),
-                        on_click=st.session_state.update, kwargs={"destination": target})
+    with st.container(key="foundry_route"):
+        route_button, options, feedback = st.columns((2, 1, 4), vertical_alignment="center")
+        with options.popover("Route options", width="stretch"):
+            destination = st.selectbox("Destination", [DEFAULT_DESTINATION, *PLACES, MONASTERY],
+                                       format_func=place_name, key="destination")
+            st.toggle("💡 Show hints", value=True, key="show_hints")
+        hint = next_move(town, name)
+        target = hint and hint["target"]
+        route_button.button(f"Show route to {place_name(target)}" if target else "Show route", width="stretch",
+                            disabled=not (st.session_state.show_hints and target and target != destination),
+                            on_click=st.session_state.update, kwargs={"destination": target})
+        if town.message:
+            feedback.info(localize_place_names(town.message))
     site_inside = PLACES.get(name, MONASTERY) if name else None
     if site_inside is not None:
         building(site_inside)
@@ -745,7 +747,12 @@ st.html(f"""
     padding-top: 3.25rem;
   }}
   [data-testid="stMainBlockContainer"]:has(.st-key-foundry_play) {{
+    padding-inline: clamp(0.375rem, 1vw, 1rem);
+    padding-top: 0.375rem;
     padding-bottom: 0.5rem;
+  }}
+  body:has(.st-key-foundry_play) [data-testid="stHeader"] {{
+    display: none;
   }}
   [data-testid="stMainBlockContainer"]:has(.st-key-foundry_play) > [data-testid="stVerticalBlock"],
   .st-key-foundry_play,
@@ -758,13 +765,13 @@ st.html(f"""
   .st-key-foundry_play [data-testid="stAlertContainer"] {{
     padding-block: 0.25rem;
   }}
-  [data-testid="stMainBlockContainer"]:has(.st-key-foundry_play) [data-testid="stProgress"] {{
+  .st-key-foundry_hud [data-testid="stProgress"] {{
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
     gap: 0.5rem;
   }}
-  [data-testid="stMainBlockContainer"]:has(.st-key-foundry_play) [data-testid="stProgress"] > div {{
+  .st-key-foundry_hud [data-testid="stProgress"] > div {{
     padding-bottom: 0;
   }}
   section[role="dialog"]:has(.st-key-foundry_start) {{
@@ -852,91 +859,110 @@ st.html(f"""
   #foundry-fullscreen-game {{
     position: static;
     transform: none;
+    min-height: 2rem;
+    white-space: nowrap;
   }}
   .st-key-foundry_hud {{
     background: #101f28;
     border: 1px solid #31515d;
     border-radius: 8px;
-    padding: 0.55rem 0.85rem;
+    padding: 0.25rem 0.5rem;
     color: #fff3dc;
   }}
   .st-key-foundry_hud h1 {{
     color: #ffda86;
-    font-size: clamp(1.15rem, 2vw, 1.6rem);
+    font-size: 1rem;
     padding: 0;
+  }}
+  .st-key-foundry_hud [data-testid="stMetric"] {{
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.35rem;
+    white-space: nowrap;
   }}
   .st-key-foundry_hud [data-testid="stMetricLabel"] p {{ color: #b7cacb; }}
   .st-key-foundry_hud [data-testid="stMetricValue"] {{
     color: #ffda86;
-    font-size: 1.15rem;
+    font-size: 1rem;
     font-weight: 700;
   }}
-  .st-key-foundry_hud [data-testid="stBaseButton-secondary"] {{
+  .st-key-foundry_hud [data-testid="stPopoverButton"] {{
     color: #fff3dc;
     background: #16303a;
     border-color: #577480;
   }}
-  .st-key-foundry_nav [data-testid="stBaseButton-primary"] {{
-    background: #ffc66c;
-    border-color: #b38239;
-    color: #101f28;
+  .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"],
+  .st-key-foundry_route > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
+    display: grid;
+    align-items: center;
+    gap: 0.375rem 0.75rem;
   }}
-  @media (max-width: 760px) {{
-    .st-key-foundry_hud [data-testid="stHorizontalBlock"] {{
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      align-items: center;
-      gap: 0.55rem;
-    }}
-    .st-key-foundry_play [data-testid="stHorizontalBlock"] {{
-      display: grid;
-      grid-template-columns: minmax(0, 3fr) minmax(0, 2fr) auto;
-      align-items: center;
-      gap: 0.35rem;
-    }}
-    .st-key-foundry_play [data-testid="stColumn"],
-    .st-key-foundry_hud [data-testid="stColumn"],
-    .st-key-foundry_nav [data-testid="stColumn"] {{ width: auto !important; }}
-    .st-key-foundry_hud [data-testid="stColumn"]:first-child {{ grid-column: 1 / -1; }}
-    .st-key-foundry_nav [data-testid="stHorizontalBlock"] {{ gap: 0.35rem; }}
-    .st-key-foundry_nav [data-testid="stColumn"] {{ flex: 1; min-width: 0; }}
+  .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
+    grid-template-columns: repeat(4, auto) minmax(8rem, 1fr) auto auto;
   }}
-  @media (min-width: 600px) and (max-width: 760px) {{
-    .st-key-foundry_hud [data-testid="stHorizontalBlock"] {{
-      grid-template-columns: 1.5fr repeat(3, 1fr) auto auto;
+  .st-key-foundry_route > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
+    grid-template-columns: auto auto minmax(0, 1fr);
+  }}
+  :is(.st-key-foundry_hud, .st-key-foundry_route) [data-testid="stColumn"] {{
+    width: auto !important;
+    min-width: 0;
+  }}
+  :is(.st-key-foundry_hud, .st-key-foundry_route) :is([data-testid="stPopoverButton"], [data-testid="stBaseButton-secondary"]) {{
+    min-height: 2rem;
+    padding-block: 0.125rem;
+  }}
+  @media (max-width: 740px) {{
+    .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
+      grid-template-columns: repeat(4, auto) minmax(0, 1fr) auto;
     }}
-    .st-key-foundry_hud [data-testid="stColumn"]:first-child {{ grid-column: auto; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(5) {{
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }}
+  }}
+  @media (max-width: 560px) {{
+    .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"],
+    .st-key-foundry_route > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
+      column-gap: 0.375rem;
+    }}
+    .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
+      grid-template-columns: minmax(0, 1fr) auto auto;
+    }}
+    .st-key-foundry_hud [data-testid="stColumn"]:is(:nth-child(2), :nth-child(3), :nth-child(4)) {{
+      grid-row: 2;
+    }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(5) {{ grid-row: 3; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:is(:nth-child(6), :nth-child(7)) {{ grid-row: 1; }}
+    .st-key-foundry_route > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
+      grid-template-columns: minmax(0, 1fr) auto;
+    }}
+    .st-key-foundry_route [data-testid="stColumn"]:nth-child(3) {{ grid-column: 1 / -1; }}
   }}
   body:has(.st-key-foundry_start) #foundry-fullscreen-game {{ display: none; }}
 </style>
 """)
-with st.container(key="foundry_hud"):
-    title, cash, cargo, day, menu, display = st.columns(
-        (2, 1, 1, 1, 1, 1), vertical_alignment="center"
-    )
-    title.title("Foundry Town")
-    cash.metric("Cash", f"${town.cash:,}")
-    cargo.metric("Bag + reserved", f"{town.cargo + town.reserved} / {town.carry_capacity}")
-    day.metric("Day", town.day)
-    menu.button("Start menu", on_click=st.session_state.update, kwargs={"show_menu": True})
-    with display:
-        fullscreen_control("game")
-    goal = "Goal reached! Keep growing." if town.won else f"\\${town.cash:,} of the \\$500 goal"
-    st.progress(1.0 if town.won else max(0.0, min(town.cash / 500, 1.0)), text=goal)
-
 page = st.session_state.get("town_page", "Game")
 PAGES = {"Game": places, "Market & recipes": market, "Landmarks": landmarks}
 if page not in PAGES:  # A page from an older version of the game
     page = st.session_state.town_page = "Game"
-with st.container(key="foundry_nav"):
-    columns = st.columns(len(PAGES) + bool(store), vertical_alignment="center")
-    for column, label in zip(columns, PAGES):
-        column.button(
-            label, type="primary" if page == label else "secondary", width="stretch",
-            on_click=st.session_state.update, kwargs={"town_page": label},
-        )
-    if store:
-        with columns[-1].popover("Saves", width="stretch"):
+with st.container(key="foundry_hud"):
+    title, cash, cargo, day, goal_bar, display, menu = st.columns(7, vertical_alignment="center")
+    title.title("Foundry Town")
+    cash.metric("Cash", f"${town.cash:,}")
+    cargo.metric("Bag + reserved", f"{town.cargo + town.reserved} / {town.carry_capacity}")
+    day.metric("Day", town.day)
+    with display:
+        fullscreen_control("game")
+    goal = "Goal reached! Keep growing." if town.won else f"\\${town.cash:,} of the \\$500 goal"
+    goal_bar.progress(1.0 if town.won else max(0.0, min(town.cash / 500, 1.0)), text=goal)
+    with menu.popover("Menu", key=f"town_menu_{page}", width="stretch"):
+        for label in PAGES:
+            st.button(label, type="primary" if page == label else "secondary", width="stretch",
+                      on_click=st.session_state.update, kwargs={"town_page": label})
+        st.button("Start menu", width="stretch",
+                  on_click=st.session_state.update, kwargs={"show_menu": True})
+        if store:
             if cloud_store and st.button("Save progress", width="stretch"):
                 if save_town(town):
                     st.toast("Progress saved.")
@@ -959,8 +985,6 @@ def play_notices():
 if page == "Game":
     with st.container(key="foundry_play"):
         play_notices()
-        if town.message:
-            st.info(localize_place_names(town.message))
         places()
 else:
     play_notices()
