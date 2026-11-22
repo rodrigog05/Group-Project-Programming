@@ -140,7 +140,7 @@ def test_garage_free_collection_and_green_bet_controls(monkeypatch):
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     town = app.session_state.town
     town.cash = 1000
-    garage = next(site for site in SITES if site.name == "Motorworks Garage")
+    garage = next(site for site in SITES if site.name == "Cacilhas Garage")  # The only open garage
     town.x, town.y = entrance(garage)
     app.session_state.inside = garage.name
     app.run()
@@ -150,6 +150,9 @@ def test_garage_free_collection_and_green_bet_controls(monkeypatch):
     assert app.session_state.town.cash == 760
     assert app.session_state.town.leave_vehicle()
     app.session_state.town.cash = 0
+    # Getting off moves the walker onto the pavement; walk back to the garage door.
+    app.session_state.town.x, app.session_state.town.y = entrance(garage)
+    app.session_state.inside = garage.name
     app.run()
     retrieve = next(b for b in app.button if b.key == "vehicle-car")
     assert retrieve.label == "Drive Car · Free"

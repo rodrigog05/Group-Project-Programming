@@ -35,15 +35,15 @@ cd Group-Project-Programming
 uv run --python 3.12 --with-requirements requirements.txt streamlit run streamlit_app.py --server.address 127.0.0.1
 ```
 
-Open the local URL printed by Streamlit. You start with $60 and 12 cargo slots. For a first trade, visit Goldenfield Farm and buy four Wheat, visit Sunrise Bakery and start production, then click the street map and give the order time to finish. Collect the Bread and sell it at Daily Bread Market. **Market & recipes** shows inventory, prices, demand, orders, and discovered recipes.
+Open the local URL printed by Streamlit. You start with $60 and 12 cargo slots. For a first trade, visit Goldenfield Farm and buy four Wheat, visit Sunrise Bakery and start production, then click the street map and give the order time to finish. Collect the Bread and sell it at Daily Bread Market. **Market & recipes** shows one card per trade route (where to buy, make and sell, and the profit per unit); the full market table and recipes are under **Details**.
 
 The Lisbon start menu fills the browser with a looping waterfront scene from Core Edition. Boats and bridge traffic move through a 60-second day–night cycle. The browser plays the muted backdrop while the menu is open and displays a still image when reduced motion is enabled. Choose **New Game**, **Continue**, **Basics**, or **Rules & How to Play**. A new game opens **Basics**: five animated slides that show the goal and the player walking to a yellow BUY MATERIALS store, a blue MAKE PRODUCTS store and a green SELL PRODUCTS market, going inside with **E**, and getting around. Use **Back**, **Next** or **Skip**; **Basics** in the start menu replays it. The slides in `street/tutorial/` were drawn from the game's own map and store scenes. Open it again from **Start menu** above the map. Replacing your progress requires confirmation. Use **Fullscreen** from the menu or game and **Exit Fullscreen** or **Esc** to return to the browser window.
 
-**Game** opens the map. **Market & recipes** shows trading information. **Landmarks** describes Lisbon's monuments. With local or cloud saves, **Saves** holds the save and reload buttons. The bar above the map shows cash, bag use including reserved slots, and the current market day.
+**Game** opens the map. **Market & recipes** shows trading information. **Landmarks** describes Lisbon's monuments. With local or cloud saves, **Saves** holds the save and reload buttons. The bar above the map shows cash, bag use including reserved slots, the current market day, and a progress bar toward the $500 goal.
 
-Click or tab into the street map. Walk with **WASD** or the **arrow keys**. Press **E** at a marked entrance to go inside, or at a ferry pier to cross the Tejo (the crossing plays as an animation; click or **Esc** skips it). On the street, **Q** buys up to four units at a supplier and **F** / **R** buy eggs at a farm. The buttons below the map provide touch controls.
+Click or tab into the street map. Walk with **WASD** or the **arrow keys**. Press **E** at a marked entrance to go inside, or at a ferry pier to cross the Tejo (the crossing plays as an animation; click or **Esc** skips it). On the street, **Q** buys up to four units at a supplier. The buttons below the map provide touch controls.
 
-Inside, each building shows its illustrated scene from the desktop game: the vendor answers in a speech bubble and the chalkboard shows live prices. Use the buttons or their keys: **E** to buy, make, sell or collect, **Q** to buy four, **F** / **Shift+F** for eggs, **1–4** for vehicles in a garage, and in the casino pick a chip (**←** / **→**) and press **1** (red), **2** (black) or **3** (green 0) to spin the wheel. **Esc** leaves. The building is drawn in the same game view as the street, so the keys work straight away without clicking. **Destination** selects a light-blue dashed street route. Follow it and press **E** at the door to enter; selecting a destination never moves you or opens a store. The Jerónimos monastery adds 5 points of casino luck per visit, up to 20.
+Inside, each building shows its illustrated scene from the desktop game: the vendor answers in a speech bubble and the chalkboard shows live prices. Use the buttons or their keys: **E** to buy, make, sell or collect (or expand the warehouse), **Q** to buy four, **1–4** for vehicles in a garage, and in the casino pick a chip (**←** / **→**) and press **1** (red), **2** (black) or **3** (green 0) to spin the wheel. **Esc** leaves. The building is drawn in the same game view as the street, so the keys work straight away without clicking. **Destination** selects a light-blue dashed street route. Follow it and press **E** at the door to enter; selecting a destination never moves you or opens a store. The Jerónimos monastery adds 5 points of casino luck per visit, up to 20.
 
 The market clock, production and research run while the map has focus. Click outside the map to pause street play. The market settles every 300 game seconds and the map switches to night after 180 seconds. Trade shortcuts appear only within reach of the right supplier, with enough cash and free cargo space. On foot, the ferry costs $2. With a vehicle, bridges charge a $3 toll toward Lisboa.
 
@@ -55,7 +55,7 @@ Street movement and camera tracking render immediately in the browser. Movement 
 
 ## Keep local progress
 
-Vehicles use the same side-view skins in the garage selection and on the street. All four player vehicles drive 30% slower than before, on roads and off-road. Press **X** or **Walk on foot** below the map to store your vehicle and walk. Owned rides remain available at any garage through **Drive · Free**, including after restoring a local save. Empty excess cargo and finish reserved orders before switching to your smaller walking bag. Leave bridges before dismounting.
+Vehicles use the same side-view skins in the garage selection and on the street. All four player vehicles drive 30% slower than before, on roads and off-road. Press **X** or **Walk on foot** below the map to store your vehicle and walk. Owned rides remain available at the garage through **Drive · Free**, including after restoring a local save. Empty excess cargo and finish reserved orders before switching to your smaller walking bag. Leave bridges before dismounting.
 
 Run a private instance bound to loopback:
 
@@ -116,7 +116,8 @@ The tests need no network, accounts or secrets.
 ## Known limits
 
 - Guest games reset on reload or when the server restarts. Players with cloud saves can sign in again to resume.
-- The soundtrack from the desktop version is not in the browser version. The warehouse, exchange and research centre use plain controls, as they had no illustrated scene on desktop.
+- The soundtrack from the desktop version is not in the browser version. The exchange and research centre use plain controls, as they had no illustrated scene on desktop.
+- To keep the town simple, the only garage is Cacilhas Garage (your first vehicle needs a ferry ride), Foundry Warehouse is the only warehouse, and eggs and Pastéis de Belém were removed. The engine keeps these buildings for older saves; on the map their plots show apartment blocks and they cannot be entered.
 - One local save slot per `FOUNDRY_LOCAL_DB` path, meant for one player.
 - Contracts, delivery routes and business ownership were taken out of the menus to keep the game simple. Their rules (`contracts.py`, `logistics.py`, `businesses.py`) remain in the engine, with their tests, because older saves still store their fields.
 

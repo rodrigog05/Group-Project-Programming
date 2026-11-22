@@ -12,7 +12,7 @@ const directions = {
   arrowleft: "left", a: "left", arrowright: "right", d: "right",
   arrowup: "up", w: "up", arrowdown: "down", s: "down",
 };
-const actions = { e: "interact", q: "bulk", f: "egg", r: "eggs", x: "dismount", v: "vehicle" };
+const actions = { e: "interact", q: "bulk", x: "dismount", v: "vehicle" };
 const vehicleArt = Object.fromEntries(["motorcycle", "car", "van", "f1"].map(key => {
   const art = new Image();
   art.src = `vehicles/${key}.svg`;
@@ -44,15 +44,15 @@ function send(type, data = {}) {
 }
 
 function tradeAvailable(action) {
-  if (!["bulk", "egg", "eggs"].includes(action)) return true;
+  if (action !== "bulk") return true;
   if (!state || state.free_slots <= 0) return false;
   const supplier = (state.suppliers || []).find(site => Math.hypot(site.x-player.x, site.y-player.y) <= 35);
   if (!supplier) return false;
-  return action === "bulk" ? state.cash >= supplier.cost : supplier.trade === 3 && state.cash >= 2;
+  return state.cash >= supplier.cost;
 }
 
 function updateTradeButtons() {
-  for (const button of document.querySelectorAll('[data-action="bulk"], [data-action="egg"], [data-action="eggs"]')) {
+  for (const button of document.querySelectorAll('[data-action="bulk"]')) {
     button.hidden = !tradeAvailable(button.dataset.action);
   }
 }
