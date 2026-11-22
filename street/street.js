@@ -688,18 +688,41 @@ function textInBox(text, [left, top, right, bottom], size, color, weight = "bold
   context.textBaseline = "alphabetic";
 }
 
-// ----- The building's buttons, drawn in the scene and clickable (each also has a key) -----
+// ----- The building's buttons: a bar under the scene (so they never cover it), clickable, each with its key -----
 let sceneButtons = [];  // [{key, left, top, width, height}] in scene pixels, for clicks
 let hoveredKey = null;
 const KEY_NAMES = { escape: "Esc", "shift+f": "Shift+F" };
+const BUTTON_BAR = 32;  // Height of the bar under the scene, in 640-wide scene pixels
 const BUTTON_STYLES = {
-  secondary: { fill: "#1b1f27f2", border: "#4b505a", text: "#fafafa", hint: "#9ca0a8" },
-  red: { fill: "#ff4b4b", border: "#ff4b4b", text: "#ffffff", hint: "#ffd2d2" },
-  green: { fill: "#1f8a4c", border: "#46be79", text: "#ffffff", hint: "#c9f2da" },
-  selected: { fill: "#1b1f27f2", border: "#ff4b4b", text: "#ff4b4b", hint: "#ff9b9b" },
+  secondary: { fill: "#1b1f27", border: "#4b505a", text: "#fafafa" },
+  red: { fill: "#ff4b4b", border: "#ff4b4b", text: "#ffffff" },
+  green: { fill: "#1f8a4c", border: "#46be79", text: "#ffffff" },
+  selected: { fill: "#1b1f27", border: "#ff4b4b", text: "#ff4b4b" },
 };
 
-function drawButton({ key, label, hint = KEY_NAMES[key] || key.toUpperCase(), style = "secondary", disabled = false },
+function keycapWidth(name, unit) {
+  context.font = `700 ${7 * unit}px system-ui, sans-serif`;
+  return Math.max(13 * unit, context.measureText(name).width + 8 * unit);
+}
+
+// A small keyboard key with the key's name on it, its left edge at x, centred on y.
+function keycap(name, x, y, unit) {
+  const width = keycapWidth(name, unit);
+  const height = 13 * unit;
+  context.fillStyle = "#a9a49a";  // The key's lower edge
+  context.beginPath();
+  context.roundRect(x, y - height / 2 + 1.5 * unit, width, height, 3 * unit);
+  context.fill();
+  context.fillStyle = "#f4f1ea";
+  context.beginPath();
+  context.roundRect(x, y - height / 2, width, height - 1 * unit, 3 * unit);
+  context.fill();
+  context.fillStyle = "#2b2f36";
+  context.textAlign = "center";
+  context.fillText(name, x + width / 2, y - 0.2 * unit);
+}
+
+function drawButton({ key, label, keyName = KEY_NAMES[key] || key.toUpperCase(), style = "secondary", disabled = false },
                     left, top, width, height, unit) {
   const look = BUTTON_STYLES[style];
   const hovered = !disabled && hoveredKey === key;
@@ -712,20 +735,14 @@ function drawButton({ key, label, hint = KEY_NAMES[key] || key.toUpperCase(), st
   context.fill();
   context.stroke();
   context.textBaseline = "middle";
+  const capWidth = keyName ? keycapWidth(keyName, unit) + 6 * unit : 0;
   context.font = `500 ${9 * unit}px system-ui, sans-serif`;
   const labelWidth = context.measureText(label).width;
-  context.font = `500 ${8 * unit}px system-ui, sans-serif`;
-  const hintWidth = hint ? context.measureText(hint).width + 6 * unit : 0;
-  const start = left + (width - labelWidth - hintWidth) / 2;
+  const start = left + (width - labelWidth - capWidth) / 2;
   context.textAlign = "left";
   context.fillStyle = look.text;
-  context.font = `500 ${9 * unit}px system-ui, sans-serif`;
   context.fillText(label, start, top + height / 2 + 0.5 * unit);
-  if (hint) {
-    context.fillStyle = look.hint;
-    context.font = `500 ${8 * unit}px system-ui, sans-serif`;
-    context.fillText(hint, start + labelWidth + 6 * unit, top + height / 2 + 0.5 * unit);
-  }
+  if (keyName) keycap(keyName, start + labelWidth + 6 * unit, top + height / 2, unit);
   context.textBaseline = "alphabetic";
   context.globalAlpha = 1;
   if (!disabled) sceneButtons.push({ key, left, top, width, height });
@@ -740,13 +757,18 @@ function buttonRow(buttons, left, right, top, height, unit, gap = 8 * unit) {
 function drawButtons(room, unit, spinning) {
   const [width, height] = room.size;
   sceneButtons = [];
-  const size = 19 * unit;
+  const bar = BUTTON_BAR * unit;
+  const size = 21 * unit;
   const margin = 10 * unit;
-  // Leave sits in the top-right corner of every room; in the dealership, bottom-right, clear of the speech bubble.
+  const top = height + (bar - size) / 2;
+  context.fillStyle = "#11161c";
+  context.fillRect(0, height, width, bar);
+  // Leave always sits at the right end of the bar.
+  const capWidth = keycapWidth("Esc", unit);
   context.font = `500 ${9 * unit}px system-ui, sans-serif`;
-  const leaveWidth = context.measureText("Leave  Esc").width + 26 * unit;
-  const leaveTop = room.showroom ? height - size - margin : margin;
-  drawButton({ key: "escape", label: "Leave" }, width - margin - leaveWidth, leaveTop, leaveWidth, size, unit);
+  const leaveWidth = context.measureText("Leave").width + capWidth + 30 * unit;
+  const leaveLeft = width - margin - leaveWidth;
+  drawButton({ key: "escape", label: "Leave" }, leaveLeft, top, leaveWidth, size, unit);
   if (room.showroom) {  // The vehicle cards themselves are the buttons
     room.showroom.forEach((ride, index) => {
       if (ride.status !== "current") {
@@ -756,24 +778,20 @@ function drawButtons(room, unit, spinning) {
     return;
   }
   const actions = room.keys.filter(([key]) => key !== "escape");
-  if (!actions.length && !room.casino) return;
-  const top = height - size - margin * 0.6;  // Low, so signs and price boards above stay readable
-  context.fillStyle = "#11161c99";  // A dark strip so the buttons read over any scene
-  context.fillRect(0, top - margin * 0.4, width, height - top + margin * 0.4);
+  const right = leaveLeft - margin * 1.5;
   if (room.casino) {
     const chips = room.casino.chips.map(value => ({
-      key: `chip-${value}`, label: `$${value}`, hint: "", disabled: spinning,
+      key: `chip-${value}`, label: `$${value}`, keyName: "", disabled: spinning,
       style: value === room.casino.chip ? "selected" : "secondary",
     }));
-    const chipRight = margin + width * 0.3;
+    const chipRight = margin + width * 0.26;
     buttonRow(chips, margin, chipRight, top, size, unit, 3 * unit);
     const styles = { 1: "red", 2: "secondary", 3: "green" };
     buttonRow(actions.map(([key, label]) => ({ key, label, style: styles[key], disabled: spinning })),
-              chipRight + margin * 1.5, width - margin, top, size, unit);
+              chipRight + margin * 1.5, right, top, size, unit);
     return;
   }
-  buttonRow(actions.map(([key, label], index) => ({ key, label, style: index === 0 ? "red" : "secondary" })),
-            margin, width - margin, top, size, unit);
+  if (actions.length) buttonRow(actions.map(([key, label]) => ({ key, label })), margin, right, top, size, unit);
 }
 
 function sceneButtonAt(event) {
@@ -801,7 +819,7 @@ canvas.addEventListener("pointerdown", (event) => {
 function drawInterior() {
   const room = state.interior;
   const [width, height] = room.size;
-  fitScene(width, height);
+  fitScene(width, height + BUTTON_BAR * width / 640);  // Room for the button bar under the scene
   if (room.scene) {
     if (!sceneArt[room.scene]) {
       sceneArt[room.scene] = new Image();
@@ -914,9 +932,7 @@ function drawTimer() {
   context.font = "bold 17px system-ui, sans-serif";
   const boxWidth = context.measureText(text).width + 62;
   const x = width - boxWidth - 14;
-  // Under the Leave button in the top-right corner.
-  const leave = sceneButtons.find(button => button.key === "escape");
-  const top = leave ? sceneOnScreen.top + (leave.top + leave.height) * sceneOnScreen.scale + 10 : 14;
+  const top = 14;
   card(x, top, boxWidth, 46, ready ? "#7ee0a1" : "#ffc66c");
   // A small clock whose hand sweeps once per second.
   const cx = x + 24;
