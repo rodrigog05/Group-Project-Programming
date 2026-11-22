@@ -91,9 +91,11 @@ def test_pages_and_service_controls(monkeypatch):
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     for place in ("Nova SBE · Carcavelos", "Bolsa de Lisboa", "Foundry Warehouse", "Foundry Casino"):
         choose_place(app, place)
-    for page in ("Market & recipes", "Contracts", "Deliveries", "Businesses", "Landmarks"):
+    for page in ("Market & recipes", "Landmarks"):
         click(app, page)
         assert app.session_state.town_page == page
+    # Contracts, deliveries and businesses were removed from the game's menus.
+    assert not {"More", "Contracts", "Deliveries", "Businesses"} & {button.label for button in app.button}
     click(app, "Game")
     assert app.session_state.town_page == "Game"
 
@@ -140,3 +142,12 @@ def test_visit_by_vehicle_rejects_unaffordable_toll():
     visit(town, (480, 321), "Lisboa")
     assert (town.x, town.y, town.cash) == (*entrance(mine), 2)
     assert "portagem" in town.message.lower()
+
+
+def test_a_removed_page_falls_back_to_the_game(monkeypatch):
+    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
+    app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
+    app.session_state.town_page = "Contracts"
+    app.run()
+    assert not app.exception
+    assert app.session_state.town_page == "Game"
