@@ -422,7 +422,7 @@ def street_input(town, event):
     action = event.get("action")
     segments = event.get("segments", [event])
     if (not isinstance(segments, list) or not 1 <= len(segments) <= 120
-            or action not in (None, "interact", "bulk", "egg", "eggs", "dismount", "vehicle")):
+            or action not in (None, "interact", "egg", "dismount", "vehicle")):
         return False
     total = 0
     for segment in segments:
@@ -449,13 +449,10 @@ def street_input(town, event):
         town.leave_vehicle()
     elif action == "interact" and nearby_pier(town.x, town.y):
         ride_ferry(town)
-    elif action in ("interact", "bulk"):
-        if action == "bulk" and (town.nearby() is None or town.nearby().role != "SUPPLIER"):
-            town.message = "Walk up to a supplier to buy materials in bulk."
-        else:
-            town.interact(bulk=action == "bulk")
-    elif action in ("egg", "eggs"):
-        town.buy_eggs(bulk=action == "eggs")
+    elif action == "interact":
+        town.interact()
+    elif action == "egg":
+        town.buy_eggs()
     elif action == "vehicle":
         toggle_vehicle(town)
     return True

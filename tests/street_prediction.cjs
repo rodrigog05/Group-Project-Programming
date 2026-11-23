@@ -7,8 +7,10 @@ const path = require("node:path");
 function browser() {
   const sent = [];
   const listeners = {};
+  const canvasListeners = {};
   const canvas = {
-    addEventListener() {}, getContext: () => ({}), clientWidth: 800, clientHeight: 450,
+    addEventListener(name, callback) { canvasListeners[name] = callback; },
+    getContext: () => ({}), clientWidth: 800, clientHeight: 450,
     focus() { document.activeElement = canvas; },
   };
   const elements = {
@@ -61,7 +63,8 @@ function browser() {
     } },
   });
   receive({ ack: null });
-  return { run, receive, sent, document };
+  const press = key => canvasListeners.keydown({ key, preventDefault() {} });
+  return { run, receive, sent, document, press };
 }
 
 test("movement continues during Python latency, then replays unacknowledged input", () => {
@@ -183,21 +186,37 @@ test("Escape queues a building exit from the game page unless an overlay is open
   assert.equal(b.sent.at(-1).value.key, "escape");
 });
 
-test("bulk buy is available only within reach with cash and cargo room", () => {
+test("Q buys materials only inside a supplier", () => {
   const b = browser();
-  const supplier = { x: 480, y: 321, trade: 3, cost: 4 };
-  const available = () => b.run('tradeAvailable("bulk")');
-  assert.equal(available(), false);
-  b.receive({ cash: 60, free_slots: 12, suppliers: [supplier] });
-  assert.equal(available(), true);
-  b.run("player.x += 36");
-  assert.equal(available(), false);
-  b.receive({ cash: 60, free_slots: 0, suppliers: [supplier] });
-  assert.equal(available(), false);
-  b.receive({ cash: 1, free_slots: 12, suppliers: [supplier] });
-  assert.equal(available(), false);
-  b.receive({ cash: 60, free_slots: 12, suppliers: [{ ...supplier, trade: 0 }] });
-  assert.equal(available(), true);
+  b.press("q");
+  assert.equal(b.run("queuedAction"), null);
+  b.receive({ interior: { accepts: ["e", "escape"] } });
+  b.press("q");
+  assert.equal(b.run("queuedAction"), null);
+  b.receive({ interior: { accepts: ["e", "q", "escape"] } });
+  b.press("q");
+  b.run("update(100)");
+  assert.equal(b.sent.at(-1).value.action, "building");
+  assert.equal(b.sent.at(-1).value.key, "q");
+});
+
+test("M forwards the original map key event to the page menu shortcut", () => {
+  const b = browser();
+  b.run(`
+    let menuPresses = 0;
+    window.parent.document.defaultView = {
+      foundryMenuShortcut(event) {
+        if (event.key !== "m") return false;
+        menuPresses++;
+        return true;
+      },
+    };
+  `);
+  b.press("m");
+  b.press("m");
+  b.press("q");
+  assert.equal(b.run("menuPresses"), 2);
+  assert.equal(b.run("queuedAction"), null);
 });
 
 test("an action waits behind movement and pause excludes inactive time", () => {

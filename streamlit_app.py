@@ -93,10 +93,8 @@ def act(operation, *args):
     if result is False and operation is street_input:
         return
     before = st.session_state.town
-    buying = operation is interact or (operation is street_event and isinstance(args[0], dict)
-                                       and args[0].get("action") == "bulk")
     supplier = before.nearby()
-    if buying and supplier and supplier.role == "SUPPLIER" and bag_full(before):
+    if operation is interact and supplier and supplier.role == "SUPPLIER" and bag_full(before):
         # The purchase was refused: show a red warning at the top of the game view.
         previous = st.session_state.get("alert", {}).get("id", 0)
         st.session_state.alert = {"id": previous + 1,
@@ -294,9 +292,6 @@ def play_street(site_inside=None):
         interior=interior_view(site_inside) if site_inside is not None else None,
         next_move=visible_next_move(st.session_state.get("inside")) if st.session_state.get("show_hints", True) else None,
         route=directions(town, destination_point(st.session_state.get("destination", DEFAULT_DESTINATION))),
-        suppliers=[{"x": site.door[0], "y": site.door[1], "trade": site.trade,
-                    "cost": town.costs[site.trade]} for site in OPEN_SITES if site.role == "SUPPLIER"],
-        free_slots=town.carry_capacity-town.cargo-town.reserved,
         locations=[
             {"name": place_name(site.name), "x": site.door[0], "y": site.door[1], "color": site.color}
             for site in OPEN_SITES
@@ -818,10 +813,10 @@ def start_menu_rules():
         "**Goal** · Start with $60. Sell your first product (Level 1), reach $500 (Level 2), then $2,000 "
         "(Level 3), growing through trading, vehicles, a bigger warehouse and investments.\n\n"
         "**Controls** · Move with **WASD** or the **arrow keys**. Press **E** at a door to go inside and **Esc** "
-        "to leave. Inside, click the buttons under the scene or press their keys: **E** buys, makes or sells, "
-        "**Q** buys up to four. **V** leaves or brings back your vehicle, **I** opens your inventory, **G** opens "
-        "Destination and **F** shows the route to the hint's building. Change your look in **Menu → Character**."
-        "\n\n"
+        "to leave. Inside, click the buttons under the scene or press their keys. **E** buys, makes or sells. "
+        "Press **Q** inside a supplier to buy up to four. **V** leaves or brings back your vehicle, **I** toggles "
+        "Inventory, **G** toggles Destination, **F** toggles the suggested route, and **M** toggles the in-game "
+        "Menu. Change your look in **Menu → Character**.\n\n"
         "**Trade route** · Buy materials at a yellow store, make products at a blue store, sell them at a green "
         "market. Example: wheat at Goldenfield Farm → bread at Sunrise Bakery → Daily Bread Market.\n\n"
         "**Getting around** · The ferry crosses the Tagus for $2 on foot; with a vehicle the bridges charge "
@@ -1308,9 +1303,11 @@ st.html(f"""
   .st-key-foundry_hud [data-testid="stColumn"]:nth-child(5) {{ margin-left: 1rem; }}
   .st-key-foundry_hud [data-testid="stColumn"]:nth-child(7) {{ margin-left: 1rem; }}
   .st-key-inventory {{ --key-label: "I"; }}
+  [class*="st-key-town_menu_"] {{ --key-label: "M"; }}
   .st-key-show_suggested_route {{ --key-label: "F"; }}
   .st-key-destination {{ --key-label: "G"; }}
-  :is(.st-key-inventory [data-testid="stPopoverButton"], .st-key-show_suggested_route button)
+  :is(.st-key-inventory [data-testid="stPopoverButton"],
+      [class*="st-key-town_menu_"] [data-testid="stPopoverButton"], .st-key-show_suggested_route button)
     [data-testid="stMarkdownContainer"] p::after,
   .st-key-destination button::before {{
     content: var(--key-label);
@@ -1382,6 +1379,35 @@ st.html(f"""
   body:has(.st-key-foundry_start) #foundry-fullscreen-game {{ display: none; }}
 </style>
 """)
+st.html("""
+<script>
+  (() => {
+    let previousFocus;
+    window.foundryMenuShortcut ??= (event) => {
+      if (event.key.toLowerCase() !== "m" || event.defaultPrevented || event.repeat ||
+          event.ctrlKey || event.metaKey || event.altKey) return false;
+      const active = document.activeElement;
+      if (active?.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(active?.tagName)) return false;
+      const button = document.querySelector('[class*="st-key-town_menu_"] [data-testid="stPopoverButton"]');
+      if (!button || button.disabled) return false;
+      const expanded = button.getAttribute("aria-expanded") === "true";
+      const dialogs = expanded
+        ? '[role="dialog"]:not([data-testid="stPopoverBody"][aria-label="Menu"])'
+        : '[role="dialog"]';
+      if (document.querySelector(dialogs)) return false;
+      event.preventDefault();
+      if (!expanded) previousFocus = active;
+      button.click();
+      if (expanded) {
+        if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+        previousFocus = null;
+      }
+      return true;
+    };
+    document.addEventListener("keydown", window.foundryMenuShortcut, true);
+  })();
+</script>
+""", unsafe_allow_javascript=True)
 page = st.session_state.get("town_page", "Game")
 PAGES = {"Game": places, "Market & recipes": market, "Landmarks": landmarks}
 if page not in PAGES:  # A page from an older version of the game
