@@ -933,9 +933,9 @@ st.html(f"""
   .st-key-foundry_hud [data-testid="stProgress"] > div {{
     padding-bottom: 0;
   }}
-  section[role="dialog"]:has(.st-key-level_complete) {{
-    top: 50%;
-    transform: translateY(-50%);
+  /* Centre the level-complete box on screen. (Moving the box itself pushed its top out of view.) */
+  [data-testid="stDialog"]:has(.st-key-level_complete) {{
+    align-items: center;
   }}
   section[role="dialog"]:has(.st-key-foundry_start) {{
     position: fixed !important;
@@ -1282,7 +1282,7 @@ def level_complete():
             1: "You sold your first product! Next: reach $500 cash to complete Level 2.",
             2: "You reached $500 cash! Continue to Level 3 and reach $2,000 cash?",
             3: "You successfully completed the game! Good job!",
-        }[level])
+        }[level].replace("$", "\\$"))  # A pair of $ signs would otherwise show as a maths formula
         label = {1: "Continue to Level 2", 2: "Continue to Level 3", 3: "Keep playing"}[level]
         if st.button(label, type="primary"):
             act(Town.acknowledge_level)
