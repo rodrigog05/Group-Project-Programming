@@ -545,18 +545,14 @@ def landmarks():
     map_art = b64encode((ROOT / "street" / "world_100_day.webp").read_bytes()).decode("ascii")
     station = b64encode(station_svg().encode()).decode("ascii")
     city = b64encode((ROOT / "street" / "city_day.svg").read_bytes()).decode("ascii")
-    campus = b64encode((ROOT / "street" / "nova_presentation_signs.svg").read_bytes()).decode("ascii")
     x, y, width, height = ORIENTE_BOUNDS
     st.html(f'<div style="position:relative"><img src="data:image/webp;base64,{map_art}" '
             'alt="Foundry Town · Lisbon and Almada" style="width:100%;display:block">'
-            f'<img src="data:image/svg+xml;base64,{city}" alt="City buildings" '
-            'style="position:absolute;inset:0;width:100%;height:100%">'
             f'<img src="data:image/svg+xml;base64,{station}" alt="Gare do Oriente" '
             f'style="position:absolute;left:{x/2400*100}%;top:{y/1780*100}%;width:{width/2400*100}%;'
             f'height:{height/1780*100}%">'
-            f'<img src="data:image/svg+xml;base64,{campus}" alt="Nova SBE presentation" '
-            f'style="position:absolute;left:{27/2400*100}%;top:{508/1780*100}%;'
-            f'width:{178/2400*100}%;height:{110/1780*100}%"></div>')
+            f'<img src="data:image/svg+xml;base64,{city}" alt="City buildings" '
+            'style="position:absolute;inset:0;width:100%;height:100%"></div>')
     monument = st.selectbox("Landmark", LANDMARKS, format_func=lambda item: item.name)
     st.write(monument_description(monument, SITES))
     if monument.kind == "monastery":
