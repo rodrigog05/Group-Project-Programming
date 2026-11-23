@@ -83,7 +83,9 @@ test("night image is deferred and only requested at night", () => {
   const b = browser();
   assert.equal(b.run("night.src"), undefined);
   b.receive({ night: true });
-  assert.equal(b.run("night.src"), "world_100_night.webp");
+  const nightImage = new URL(b.run("night.src"), "http://localhost");
+  assert.equal(nightImage.pathname, "/world_100_night.webp");
+  assert.equal(nightImage.searchParams.get("v"), b.run("ART_VERSION"));
 });
 
 test("bulk buy is available only within reach with cash and cargo room", () => {

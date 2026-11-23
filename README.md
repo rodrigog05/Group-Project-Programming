@@ -49,6 +49,8 @@ Press **E** at the **Lisbon Stock Exchange** to open the illustrated trading flo
 
 Shares you still own at market close pay **5%** of their closing value. Selling goods at a listed store raises only that store's share price by **10% at close**, once per game day. Claiming payment for a boat repair does the same for Tagus Shipyard. The game rounds the closing price and each store's total dividend to the nearest dollar, with 50¢ rounded up. Select **Leave** to return to the street and advance the market clock.
 
+**Tool Market** and **The Pottery Shop** are both in Oriente. Their former locations are apartment buildings. Shares from either former listing transfer one-for-one to the remaining shop for that product, keeping their purchase cost and unpaid dividends.
+
 The market clock and production run while the map has focus. Click outside the map to pause street play. Each day has 60 seconds of daylight followed by 60 seconds of night. The market settles every 120 game seconds. Trade shortcuts appear only within reach of the right supplier, with enough cash and free cargo space. On foot, the ferry costs $2. With a vehicle, bridges charge a $3 toll toward Lisbon.
 
 Destination starts at **No destination**, with no route drawn. Choose a building to show directions, or choose **No destination** to cancel them. Reaching the selected building resets the selector and clears the line. Ferry stops keep your final destination selected. Starting a new game clears any previous destination.

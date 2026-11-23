@@ -54,8 +54,8 @@ def test_shipped_vector_assets_match_their_sources_and_contain_no_photographs():
 
 
 def test_overlapping_shop_names_translate_without_changing_identifiers():
-    assert localize_place_names("Oriente Tool Market · Tool Market") == "Oriente Tool Market · Tool Market"
-    assert localize_place_names("Mercado das Nações · Estaleiro do Tejo") == "Nations Market · Tagus Shipyard"
+    assert localize_place_names("Oriente Tool Market · Tool Market") == "Tool Market · Tool Market"
+    assert localize_place_names("Mercado das Nações · Estaleiro do Tejo") == "The Pottery Shop · Tagus Shipyard"
     assert localize_place_names("Nova SBE · Carcavelos") == "Nova SBE · Carcavelos"
     assert localize_place_names("Portagem · Ponte 25 de Abril → Lisboa") == (
         "Toll · Ponte 25 de Abril → Lisbon"

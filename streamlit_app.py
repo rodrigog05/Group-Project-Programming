@@ -185,8 +185,8 @@ def exchange_ticket(rows):
     with st.container(key="exchange_order"):
         store, shares = st.columns((2, 1))
         asset = store.selectbox("Store", exchange.ASSETS, format_func=lambda item: item.name)
-        quantity = shares.number_input("Shares", 1, asset.cap)
-    selected = next(row for row in rows if row["symbol"] == asset.symbol)
+        selected = next(row for row in rows if row["symbol"] == asset.symbol)
+        quantity = shares.number_input("Shares", 1, max(asset.cap, selected["owned"]))
     price = selected["price"]
     st.markdown(f"**\\${price:,} per share** · **{selected['owned']} owned**  \n"
                 f"Trade total **\\${price * quantity:,}** · Closing price **\\${selected['next_price']:,}**  \n"
@@ -314,7 +314,8 @@ def destination_point(name):
     if name == MONASTERY:
         left, _, right, bottom = LANDMARKS[0].bounds
         return (left+right)/2, bottom+16
-    return entrance(PLACES[name])
+    site = PLACES.get(name)
+    return entrance(site) if site else None
 
 
 def places():
@@ -326,7 +327,7 @@ def places():
     arrived = point is not None and (
         building_at(town) == destination or (town.x-point[0])**2 + (town.y-point[1])**2 <= 28**2
     )
-    if st.session_state.pop("reset_destination", False) or arrived:
+    if st.session_state.pop("reset_destination", False) or arrived or (point is None and destination != DEFAULT_DESTINATION):
         st.session_state.destination = DEFAULT_DESTINATION
     site_inside = PLACES.get(name, MONASTERY) if name else None
     if site_inside is not None and site_inside != MONASTERY and site_inside.role == "EXCHANGE":
@@ -531,7 +532,7 @@ def market():
             st.markdown(f"**Profit \\${price - cost} per {trade.product.lower()}** · You carry "
                         f"{town.supplies[index]} {trade.supply.lower()} and {town.goods[index]} {trade.product.lower()}")
     with st.expander("Details: market table, today's results and recipes"):
-        snapshot = market_snapshot(town, TRADES, INDUSTRIES, SITES)
+        snapshot = market_snapshot(town, TRADES, INDUSTRIES, OPEN_SITES)
         if snapshot.event_title:
             st.info(f"{snapshot.event_title} · {snapshot.event_detail}")
         st.dataframe([{

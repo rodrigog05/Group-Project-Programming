@@ -23,20 +23,20 @@ class ExchangeIntegrationTest(unittest.TestCase):
     def test_dividends_are_taxed_once_and_continue_after_reload(self):
         town = Town()
         town.cash = 400
-        self.assertTrue(buy_shares(town, "BAIXA", 4))
-        self.assertEqual((town.cash, town.daily_expenses), (160, 0))
+        self.assertTrue(buy_shares(town, "BRIDGE25", 4))
+        self.assertEqual((town.cash, town.daily_expenses), (100, 0))
         advance_clock(town, DAY_SECONDS)
-        self.assertEqual(town.last_day_summary["dividends"], 12)
-        self.assertEqual((town.last_day_summary["profit"], town.last_day_summary["tax"]), (12, 2))
-        self.assertEqual(town.cash, 170)
+        self.assertEqual(town.last_day_summary["dividends"], 15)
+        self.assertEqual((town.last_day_summary["profit"], town.last_day_summary["tax"]), (15, 3))
+        self.assertEqual(town.cash, 112)
         restored, _ = unpack_save(json.loads(json.dumps(pack_save(town, 1000))))
         restored.settle_day(1)
         restored.sync_market(DAY_SECONDS+1)
-        self.assertEqual((restored.cash, restored.taxes_paid_total), (170, 2))
-        self.assertEqual(restored.exchange["total_dividends"]["BAIXA"], 12)
+        self.assertEqual((restored.cash, restored.taxes_paid_total), (112, 3))
+        self.assertEqual(restored.exchange["total_dividends"]["BRIDGE25"], 15)
         advance_clock(restored, DAY_SECONDS)
-        self.assertEqual((restored.cash, restored.taxes_paid_total), (180, 4))
-        self.assertEqual(restored.exchange["total_dividends"]["BAIXA"], 24)
+        self.assertEqual((restored.cash, restored.taxes_paid_total), (124, 6))
+        self.assertEqual(restored.exchange["total_dividends"]["BRIDGE25"], 30)
 
     def test_skipped_wall_clock_days_do_not_create_offline_dividends(self):
         town = Town()
@@ -52,22 +52,22 @@ class ExchangeIntegrationTest(unittest.TestCase):
     def test_real_sales_raise_the_named_store_price_at_close(self):
         town = Town()
         town.cash = 400
-        buy_shares(town, "BAIXA", 1)
-        market = next(site for site in SITES if site.name == "Tool Market")
+        buy_shares(town, "BRIDGE25", 1)
+        market = next(site for site in SITES if site.name == "Oriente Tool Market")
         town.x, town.y = market.door[0], market.door[1]+18
         town.goods[0] = 2
         town.interact()
-        self.assertEqual(town.exchange["sales_today"]["BAIXA"], 2)
-        self.assertEqual(town.exchange["quotes"]["BAIXA"], 60)
+        self.assertEqual(town.exchange["sales_today"]["BRIDGE25"], 2)
+        self.assertEqual(town.exchange["quotes"]["BRIDGE25"], 75)
         previous = deepcopy(town.exchange)
         supplier = next(site for site in SITES if site.role == "SUPPLIER")
         town.x, town.y = supplier.door[0], supplier.door[1]+18
         town.interact()
         self.assertEqual(town.exchange, previous)
         advance_clock(town, DAY_SECONDS)
-        self.assertEqual(town.exchange["quotes"]["BAIXA"], 66)
+        self.assertEqual(town.exchange["quotes"]["BRIDGE25"], 83)
         self.assertEqual(town.exchange["quotes"]["BELEM"], 45)
-        self.assertEqual(town.last_day_summary["dividends"], 3)
+        self.assertEqual(town.last_day_summary["dividends"], 4)
 
     def test_paid_bridge_tolls_are_independent_of_store_shares(self):
         town = Town()
@@ -88,7 +88,7 @@ class ExchangeIntegrationTest(unittest.TestCase):
         town.interact_industry("SHIPYARD")
         self.assertEqual(town.exchange["sales_today"]["ALMADA"], 1)
         advance_clock(town, DAY_SECONDS)
-        self.assertEqual((town.exchange["quotes"]["ALMADA"], town.exchange["quotes"]["BAIXA"]), (44, 60))
+        self.assertEqual((town.exchange["quotes"]["ALMADA"], town.exchange["quotes"]["BRIDGE25"]), (44, 75))
 
     def test_realized_share_profit_is_taxed_without_taxing_returned_principal(self):
         town = Town()
@@ -102,8 +102,8 @@ class ExchangeIntegrationTest(unittest.TestCase):
 
     def test_portfolio_and_store_sales_roundtrip_before_market_close(self):
         town = Town()
-        buy_shares(town, "ALFAMA", 1)
-        shop = next(site for site in SITES if site.name == "The Pottery Shop")
+        buy_shares(town, "TRAM", 1)
+        shop = next(site for site in SITES if site.name == "Mercado das Nações")
         town.x, town.y = shop.door[0], shop.door[1] + 18
         town.goods[2] = 2
         town.interact()
@@ -112,8 +112,8 @@ class ExchangeIntegrationTest(unittest.TestCase):
         restored, _ = unpack_save(json.loads(json.dumps(pack_save(town, 1000))))
         self.assertEqual(restored.exchange, before)
         advance_clock(restored, DAY_SECONDS - 63.5)
-        self.assertEqual(restored.exchange["quotes"]["ALFAMA"], 39)
-        self.assertEqual(restored.last_day_summary["dividends"], 2)
+        self.assertEqual(restored.exchange["quotes"]["TRAM"], 55)
+        self.assertEqual(restored.last_day_summary["dividends"], 3)
 
 
 if __name__ == "__main__":

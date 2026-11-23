@@ -91,7 +91,7 @@ def test_exchange_shows_every_stock_and_holding_on_the_board():
     app.run()
     assert not app.exception
     assert board()["Daily Bread Market"] == ("$50", "1", "+$5 (+11.1%)")
-    assert board()["Tool Market"] == ("$60", "0", "—")
+    assert board()["Tool Market"] == ("$75", "0", "—")
     click(app, "Leave")
     assert app.session_state.inside is None
 
