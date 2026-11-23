@@ -421,7 +421,7 @@ function draw() {
     context.lineWidth = 2;
     context.strokeStyle = "#142e33";
     context.stroke();
-    if (near) {
+    if (near && !site.label_on_map) {
       context.font = "bold 15px system-ui";
       context.textAlign = "center";
       context.lineWidth = 4;

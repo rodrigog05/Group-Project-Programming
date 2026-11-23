@@ -21,6 +21,11 @@ def shift_south(points):
     """Shift every (x, y) pair in a flat coordinate tuple that lies on the south bank."""
     return tuple(value if index % 2 == 0 else south(value) for index, value in enumerate(points))
 VASCO_NORTH_X = 2035
+NORTH_AVENUE_Y = 124
+NORTH_JUNCTIONS = (238, 478, 718, 958, 1225, 1495, 1775, VASCO_NORTH_X, 2350)
+NORTH_QUARTERS = ((115, "Belém Riverside"), (355, "Alcântara Loomworks"),
+                  (600, "Baixa Arcade"), (835, "Alfama Heights"), (1090, "Beato Foundries"),
+                  (1370, "Marvila Workshops"), (1900, "Oriente Gardens"))
 BRIDGE_TOLL = 3
 # Plots without a business are apartment blocks, small parks or fountain squares,
 # so they never look like a shop the player could use.
@@ -183,7 +188,7 @@ class LisbonScene:
         self.poly((0, 105, 440, 105, 380, 151, 0, 167), "#c4c6a4", smooth=True)
         self.poly((680, 104, 1030, 104, 1120, 146, 720, 157), "#c0c4a4", smooth=True)
         for x in (238, 478, 718, 958):
-            self.road((x, 140, x, 653), 30)
+            self.road((x, NORTH_AVENUE_Y, x, 653), 30)
         for y in (301, 486):
             self.road((0, y, WORLD_WIDTH, y), 39)
         self.road((0, 660, WORLD_WIDTH, 660), 35)
@@ -196,9 +201,11 @@ class LisbonScene:
         self.rect(0, 697, 1200, RIVER_TOP, "#eee5cf")
         for x in range(-15, 1220, 52):
             self.line((x, 707, x+13, 701, x+26, 707, x+39, 713, x+52, 707), "#a5a294", 2, smooth=True)
-        for name, x in (("BELÉM", 28), ("ALCÂNTARA", 268), ("BAIXA · CHIADO", 508),
-                        ("ALFAMA · GRAÇA", 748), ("BEATO", 988)):
-            self.text(x, 124, name, 10, "#6e7767", True)
+        self.road((NORTH_JUNCTIONS[0], NORTH_AVENUE_Y, NORTH_JUNCTIONS[-1], NORTH_AVENUE_Y), 26)
+        for x in NORTH_JUNCTIONS:
+            self.rect(x-12, NORTH_AVENUE_Y-11, x+12, NORTH_AVENUE_Y+12, "#747a77")
+        for x, name in NORTH_QUARTERS:
+            self.text(x, 96, name, 12, "#485b52", True, "center")
         for site in self.sites:
             if site.y < RIVER_TOP:
                 self.building(site)
@@ -231,9 +238,7 @@ class LisbonScene:
     def expanded_north(self):
         self.rect(1200, 104, WORLD_WIDTH, RIVER_TOP, "#d9d7bf")
         for x in (1225, 1495, 1775, VASCO_NORTH_X, 2350):
-            self.road((x, 140, x, 660), 29)
-        self.text(1300, 122, "MARVILA", 19, "#6b7d6c", True)
-        self.text(1810, 122, "PARQUE DAS NAÇÕES", 19, "#6b7d6c", True)
+            self.road((x, NORTH_AVENUE_Y, x, 660), 29)
         self.rect(*ORIENTE_PARK_BOUNDS, "#b7c5a0")
         self.line((1830, 610, 1910, 545, 1990, 610), "#ece3c7", 13, smooth=True)
         self.text(1910, 635, "JARDIM", 7, "#5f7650", True, "center")
@@ -374,8 +379,8 @@ class LisbonScene:
         for x in south_verticals:
             for y, horizontal_width in ((1110, 34), (1370, 34), (1570, 34)):
                 self.road_junction(x, y, 30, horizontal_width)
-        self.text(1290, 1010, "CACILHAS", 20, "#65795e", True)
-        self.text(2070, 1010, "SEIXAL", 20, "#65795e", True)
+        self.text(1290, 1010, "GINJAL QUAYS", 17, "#65795e", True)
+        self.text(2070, 1010, "SEIXAL TIDE MILLS", 17, "#65795e", True)
         self.text(2020, 1392, "QUINTAS DA MARGEM SUL", 12, "#708461", True)
         for x in range(700, 1100, 35):
             self.line((x, 1430, x+12, 1520), "#aaab71", 7)
@@ -633,7 +638,7 @@ class LisbonScene:
             counter_y = window_y-3 if north else window_y+10
             self.rect(left+8, counter_y, right-8, counter_y+3, "#a37b52")
             sign_y = bottom-8 if north else top+8
-            self.text(pier.x, sign_y, f"BILHETES  ${FERRY_FARE}", 6, "#3f4c4c", True, "center")
+            self.text(pier.x, sign_y, f"FERRY TICKETS €{FERRY_FARE}", 6, "#3f4c4c", True, "center")
             self.text(pier.x+30, pier.y-1, pier.name.upper(), 7, "#3c5d61", True, "w")
 
     def exchange_building(self, site, guide):

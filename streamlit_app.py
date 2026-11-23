@@ -237,7 +237,7 @@ def play_street(site_inside=None):
             {"name": place_name(site.name), "x": site.door[0], "y": site.door[1], "color": site.color}
             for site in OPEN_SITES
         ] + [
-            {"name": pier.name, "x": pier.x, "y": pier.y, "color": "#91dfff"}
+            {"name": pier.name, "x": pier.x, "y": pier.y, "color": "#91dfff", "label_on_map": True}
             for pier in FERRY_PIERS
         ],
     )

@@ -7,7 +7,8 @@ classroom into the WebP format used by all building interiors.
 from html import escape
 from pathlib import Path
 
-from lisbon_scene import SCENERY_PLOTS
+from ferry import FERRY_FARE, FERRY_PIERS
+from lisbon_scene import NORTH_AVENUE_Y, NORTH_JUNCTIONS, NORTH_QUARTERS, SCENERY_PLOTS
 from tycoon import SITES
 from place_names import localize_place_names
 
@@ -294,8 +295,36 @@ def apartments(d, x, y, index, night):
     d.add('</g>')
 
 
+def map_wayfinding(d, night):
+    """Update the streets and signs baked into the original browser map."""
+    verge, curb, asphalt = (("#334946", "#666e68", "#47514f") if night else
+                            ("#bdc5aa", "#b4ac98", "#747a77"))
+    ink = "#f8e5b5" if night else "#314c45"
+    d.rect(0, 72, 2400, 66, verge)
+    for x in range(20, 2400, 48):
+        d.ellipse(x, 78, 8, 4, "#476254" if night else "#819a77")
+    y = NORTH_AVENUE_Y
+    lanes = f"M{NORTH_JUNCTIONS[0]} {y}H{NORTH_JUNCTIONS[-1]}"
+    lanes += "".join(f"M{x} {y}V144" for x in NORTH_JUNCTIONS)
+    d.path(lanes, stroke=curb, width=34)
+    d.path(lanes, stroke=asphalt, width=26)
+    for left, right in zip(NORTH_JUNCTIONS, NORTH_JUNCTIONS[1:]):
+        d.add(f'<path d="M{left+18} {y}H{right-18}" stroke="#d8cda9" stroke-dasharray="9 14"/>')
+    for x, name in NORTH_QUARTERS:
+        d.text(x, 101, name, 14, ink)
+    for x, name in ((1290, "Ginjal Quays"), (2070, "Seixal Tide Mills")):
+        d.rect(x-4, 1175, 180, 32, "#293f43", 4)
+        d.text(x+86, 1197, name, 15, "#ffe7ad")
+    for pier in FERRY_PIERS:
+        _, top, _, bottom = pier.kiosk
+        y = bottom-8 if pier.north else top+8
+        d.rect(pier.x-30, y-5, 60, 10, "#263e46")
+        d.text(pier.x, y+2.5, f"Ferry tickets €{FERRY_FARE}", 7.2, "#fff4ce")
+
+
 def city_svg(night=False):
     d = Drawing(2400, 1780)
+    map_wayfinding(d, night)
     for site in SITES:
         if site.name in CLOSED:
             continue

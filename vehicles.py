@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 
 from lisbon_scene import (WORLD_WIDTH, VASCO_NORTH_X, RIVER_TOP, RIVER_BOTTOM, bridge_center, south,
-                          SOUTH_PARK_BOUNDS, SOUTH_PARK_TUNNEL)
+                          SOUTH_PARK_BOUNDS, SOUTH_PARK_TUNNEL, NORTH_AVENUE_Y, NORTH_JUNCTIONS)
 
 
 @dataclass(frozen=True)
@@ -41,10 +41,11 @@ def in_tunnel(x, y):
 # Center lines and half-widths match LisbonScene's paved lanes. Pavements,
 # parks and the waterfront promenade do not grant the driving speed bonus.
 ROAD_SEGMENTS = (
-    tuple((x, 140, x, 653, 15) for x in (238, 478, 718, 958))
+    ((NORTH_JUNCTIONS[0], NORTH_AVENUE_Y, NORTH_JUNCTIONS[-1], NORTH_AVENUE_Y, 13),)
+    + tuple((x, NORTH_AVENUE_Y, x, 653, 15) for x in NORTH_JUNCTIONS[:4])
     + tuple((0, y, WORLD_WIDTH, y, 19.5) for y in (301, 486))
     + ((0, 660, WORLD_WIDTH, 660, 17.5),)
-    + tuple((x, 140, x, 660, 14.5) for x in (1225, 1495, 1775, VASCO_NORTH_X, 2350))
+    + tuple((x, NORTH_AVENUE_Y, x, 660, 14.5) for x in NORTH_JUNCTIONS[4:])
     + tuple((0, south(y), WORLD_WIDTH, south(y), 17) for y in (1110, 1370, 1570))
     + tuple((x, south(1060), x, south(1580), 15) for x in (620, 1190, 1495, 1775, VASCO_NORTH_X, 2350))
     + ((0, south(1058), WORLD_WIDTH, south(1058), 12), (300, RIVER_BOTTOM+2, 300, south(1058), 16),
