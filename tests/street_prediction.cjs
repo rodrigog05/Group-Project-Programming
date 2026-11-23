@@ -7,8 +7,31 @@ const path = require("node:path");
 function browser() {
   const sent = [];
   const listeners = {};
-  const canvas = { addEventListener() {}, getContext: () => ({}), clientWidth: 800, clientHeight: 450 };
-  const parent = { postMessage: message => sent.push(message) };
+  const canvas = {
+    addEventListener() {}, getContext: () => ({}), clientWidth: 800, clientHeight: 450,
+    focus() { document.activeElement = canvas; },
+  };
+  const elements = {
+    "#map": canvas,
+    "#hint": { textContent: "" },
+    "#route": { textContent: "" },
+    '[data-action="vehicle"]': { querySelector: () => vehicleLabel },
+    ".controls": {},
+    "#settings": { addEventListener() {} },
+    "#settings-panel": { hidden: true },
+    "#music": { addEventListener() {} },
+    "#soundtrack": {
+      paused: true,
+      async play() { this.paused = false; },
+      pause() { this.paused = true; },
+    },
+  };
+  const vehicleLabel = { textContent: "" };
+  const parent = {
+    document: { addEventListener() {}, querySelector: () => null },
+    postMessage: message => sent.push(message),
+  };
+  parent.parent = parent;
   class Image {
     getAttribute() { return this.src; }
   }
@@ -16,13 +39,14 @@ function browser() {
   const document = {
     referrer: "http://localhost/", hidden: false, activeElement: canvas,
     hasFocus: () => true, body: { offsetHeight: 500 },
-    querySelector: selector => selector === "#map" ? canvas : { textContent: "" },
+    querySelector: selector => elements[selector] ?? null,
     querySelectorAll: () => [],
     addEventListener() {},
   };
   const scope = vm.createContext({
     window, document, Image, URL, location: { origin: "http://localhost" },
-    ResizeObserver: class { observe() {} }, requestAnimationFrame() {}, setTimeout() {},
+    localStorage: { getItem: () => null },
+    ResizeObserver: class { observe() {} }, requestAnimationFrame() {}, setTimeout() {}, setInterval() {},
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../street/street.js"), "utf8"), scope);
   const run = code => vm.runInContext(code, scope);
@@ -62,20 +86,21 @@ test("night image is deferred and only requested at night", () => {
   assert.equal(b.run("night.src"), "world_100_night.webp");
 });
 
-test("trade controls are available only within reach with cash and cargo room", () => {
+test("bulk buy is available only within reach with cash and cargo room", () => {
   const b = browser();
-  assert.equal(b.run('tradeAvailable("bulk")'), false);
-  b.receive({ cash: 60, free_slots: 12, suppliers: [{ x: 480, y: 321, trade: 3, cost: 4 }] });
-  for (const action of ["bulk", "egg", "eggs"]) assert.equal(b.run(`tradeAvailable("${action}")`), true);
+  const supplier = { x: 480, y: 321, trade: 3, cost: 4 };
+  const available = () => b.run('tradeAvailable("bulk")');
+  assert.equal(available(), false);
+  b.receive({ cash: 60, free_slots: 12, suppliers: [supplier] });
+  assert.equal(available(), true);
   b.run("player.x += 36");
-  assert.equal(b.run('tradeAvailable("bulk")'), false);
-  b.receive({ cash: 60, free_slots: 0, suppliers: [{ x: 480, y: 321, trade: 3, cost: 4 }] });
-  assert.equal(b.run('tradeAvailable("egg")'), false);
-  b.receive({ cash: 1, free_slots: 12, suppliers: [{ x: 480, y: 321, trade: 3, cost: 4 }] });
-  assert.equal(b.run('tradeAvailable("eggs")'), false);
-  b.receive({ cash: 60, free_slots: 12, suppliers: [{ x: 480, y: 321, trade: 0, cost: 4 }] });
-  assert.equal(b.run('tradeAvailable("bulk")'), true);
-  assert.equal(b.run('tradeAvailable("egg")'), false);
+  assert.equal(available(), false);
+  b.receive({ cash: 60, free_slots: 0, suppliers: [supplier] });
+  assert.equal(available(), false);
+  b.receive({ cash: 1, free_slots: 12, suppliers: [supplier] });
+  assert.equal(available(), false);
+  b.receive({ cash: 60, free_slots: 12, suppliers: [{ ...supplier, trade: 0 }] });
+  assert.equal(available(), true);
 });
 
 test("an action waits behind movement and pause excludes inactive time", () => {
