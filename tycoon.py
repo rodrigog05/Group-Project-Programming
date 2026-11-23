@@ -851,7 +851,6 @@ class Town:
                 self.tier2_total_sold += quantity
                 self.tier2_revenue_today += revenue
                 self.message = f"Sold {quantity} × Precision Machinery for ${revenue}."
-                self.congratulate(quantity, "precision machinery", action="sold")
                 record_trade(self, site, quantity)
                 self.add_cash(revenue, business=True)
                 return
@@ -882,7 +881,6 @@ class Town:
             self.supplies[index] += quantity
             self.message = (f"You now carry {self.supplies[index]} × {trade.supply}. "
                             f"Bought {quantity} for ${cost}.")
-            self.congratulate(quantity, trade.supply.lower())
         elif site.role == "FACTORY":
             order = self.orders[index]
             automated = self.logistics["factories"].get(site.name, {})
@@ -926,7 +924,6 @@ class Town:
             self.total_sold[index] += quantity
             self.revenue_today[index] += revenue
             self.message = f"Sold {quantity} × {trade.product} to customers for ${revenue}."
-            self.congratulate(quantity, trade.product.lower(), action="sold")
             record_trade(self, site, quantity)
             self.add_cash(revenue, business=True)
 
