@@ -251,7 +251,10 @@ def test_basics_slide_assets_exist():
 
 def test_closed_buildings_cannot_be_entered_and_are_not_destinations():
     from browser_game import CLOSED_SITES, OPEN_SITES, street_event
-    assert CLOSED_SITES == {"Motorworks Garage", "Armazém do Seixal", "Pastéis de Belém", "Tool Market", "The Pottery Shop"}
+    assert CLOSED_SITES == {
+        "Motorworks Garage", "Armazém do Seixal", "Pastéis de Belém", "Tool Market", "The Pottery Shop",
+        "Foundry Precision Works",
+    }
     assert [site.name for site in OPEN_SITES if site.role == "GARAGE"] == ["Cacilhas Dealership"]
     assert [site.name for site in OPEN_SITES if site.role == "WAREHOUSE"] == ["Foundry Warehouse"]
     town = Town()
@@ -264,7 +267,7 @@ def test_closed_buildings_cannot_be_entered_and_are_not_destinations():
             assert (town.goods[0], town.goods[2]) == (1, 1)
     app = new_app()
     options = app.selectbox[0].options
-    assert not {"Motorworks Garage", "Seixal Warehouse", "Belem Pastry Shop"} & set(options)
+    assert not {"Motorworks Garage", "Seixal Warehouse", "Belem Pastry Shop", "Foundry Precision Works"} & set(options)
     assert {"Cacilhas Dealership", "Foundry Warehouse", "Palmela Farm", "Tagus Shipyard"} <= set(options)
     assert options.count("Tool Market") == options.count("The Pottery Shop") == 1
     assert not {"Oriente Tool Market", "Nations Market"} & set(options)
@@ -291,6 +294,29 @@ def test_market_shows_four_route_cards_and_the_goal_bar():
     assert "Profit \\$10 per bread" in text and "Goldenfield Farm" in text
     assert "Armazém de Cereais" not in text
     assert "Pastéis" not in text
+
+
+def test_legacy_precision_machinery_is_settled_and_removed_from_the_market():
+    from tycoon import Order
+
+    app = new_app()
+    town = app.session_state.town
+    town.tier2_goods = 2
+    town.tier2_order = Order(1, 12)
+    town.tier2_price = 72
+    town.discovered_recipes = ["precision_machinery"]
+    app.run()
+    assert app.metric[0].value == "$276"
+    assert app.metric[1].value == "0 / 12"
+    assert app.session_state.town.reserved == 0
+    assert "$216" in app.session_state.town.message
+    click(app, "Market & recipes")
+
+    assert "Precision Machinery" not in app.dataframe[0].value["Product"].tolist()
+    assert not any("Precision Machinery" in markdown.value for markdown in app.markdown)
+    assert app.session_state.town.cash == 276
+    assert app.session_state.town.tier2_goods == 0
+    assert app.session_state.town.tier2_order is None
 
 
 # ----- Next-move hint and the production countdown -----

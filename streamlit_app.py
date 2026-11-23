@@ -15,7 +15,7 @@ import innovation
 from place_names import localize_place_names, place_name
 from browser_game import (COLLISION_MAP, MONASTERY, OPEN_SITES, bag_full, next_move, STREET_LIFE, building_at, greeting, scene_for,
                           entrance, place_vehicle_on_road, art_version, player_colors, player_shapes, player_svg, street_event,
-                          street_input)
+                          settle_retired_machinery, street_input)
 from journal_market import market_snapshot
 from journal_recipes import RECIPE_BY_KEY
 from lisbon_landmarks import LANDMARKS
@@ -82,6 +82,8 @@ if "town" not in st.session_state:
     except SAVE_ERRORS:
         st.error("Could not open your save. Reload to try again.")
         st.stop()
+
+settle_retired_machinery(st.session_state.town)
 
 
 def act(operation, *args):
@@ -232,7 +234,6 @@ def district_exchange():
 def production_batches(town):
     """Uncollected batches, separate from the items already in the bag."""
     orders = [(trade.product, order) for trade, order in zip(TRADES, town.orders)]
-    orders.append(("Precision machinery", town.tier2_order))
     orders.extend((INDUSTRIES[role].product, order) for role, order in town.industry_orders.items())
     batches = [{"product": product, "quantity": order.quantity,
              "seconds": max(0.0, order.ready_at - town.elapsed)}
@@ -250,7 +251,7 @@ def play_street(site_inside=None):
     nearby = town.nearby()
     pier = nearby_pier(town.x, town.y)
     hint = "Follow the marked entrances to buy, make, and sell."
-    if nearby:
+    if nearby and nearby.name in PLACES:
         hint = f"{place_name(nearby.name)} · {site_status(nearby)}"
     if pier:
         hint = f"{pier.name} · Take the ferry for $2"
@@ -573,7 +574,8 @@ def market():
             "Product": row.product, "Materials held": row.raw_stock, "Material cost": row.raw_cost,
             "Sale price": row.price, "Stock": row.stock_label, "In production": row.orders,
             "Buyers / jobs": row.remaining_buyers, "Sold today": row.sold_today,
-        } for row in snapshot.rows if not row.key.startswith("innovation:") and row.product != "Pastéis"], hide_index=True)
+        } for row in snapshot.rows
+            if not row.key.startswith("innovation:") and row.key != "tier2" and row.product != "Pastéis"], hide_index=True)
         st.write(f"Revenue \\${town.daily_revenue:,} · Expenses \\${town.daily_expenses:,} · "
                  f"Net \\${town.daily_net_profit:,}")
         if town.last_day_summary:
@@ -581,12 +583,11 @@ def market():
             st.caption(f"Day {summary['day']} settled · Tax \\${summary['tax']:,} · "
                        f"Dividends \\${summary['dividends']:,}")
         st.markdown("**Discovered recipes**")
-        if not town.discovered_recipes:
+        recipes = [RECIPE_BY_KEY[key] for key in town.discovered_recipes
+                   if RECIPE_BY_KEY[key].role not in {"RESEARCH", "TIER2"}]
+        if not recipes:
             st.caption("Operate a production site to discover its recipe.")
-        for key in town.discovered_recipes:
-            recipe = RECIPE_BY_KEY[key]
-            if recipe.role == "RESEARCH":
-                continue
+        for recipe in recipes:
             ingredients = ", ".join(f"{quantity} × {name}" for name, quantity in recipe.ingredients)
             st.write(f"**{recipe.title}** · {ingredients} · {recipe.seconds}s")
 
@@ -1421,7 +1422,7 @@ with st.container(key="foundry_hud"):
         st.caption(f"{town.reserved} slots reserved for goods awaiting collection.")
         items = [(trade.supply, town.supplies[i]) for i, trade in enumerate(TRADES)]
         items += [(trade.product, town.goods[i]) for i, trade in enumerate(TRADES)]
-        items += [("Eggs", town.eggs), ("Precision machinery", town.tier2_goods)]
+        items.append(("Eggs", town.eggs))
         items += [(INDUSTRIES[role].product, quantity) for role, quantity in town.industry_goods.items()]
         items += [(recipe.product, town.innovation["goods"][recipe.key]) for recipe in innovation.TIER3_RECIPES]
         for name, quantity in items:

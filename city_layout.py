@@ -2,7 +2,10 @@
 
 ROAD_COLOR = "#293b46"
 COMPACT_ROLES = frozenset({"SUPPLIER", "FACTORY", "PUBLIC SHOP", "WAREHOUSE", "TIER2"})
-CLOSED = frozenset({"Motorworks Garage", "Armazém do Seixal", "Pastéis de Belém", "Tool Market", "The Pottery Shop"})
+CLOSED = frozenset({
+    "Motorworks Garage", "Armazém do Seixal", "Pastéis de Belém", "Tool Market", "The Pottery Shop",
+    "Foundry Precision Works",
+})
 
 
 def plot_bounds(x, y):

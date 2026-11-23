@@ -125,6 +125,7 @@ The tests need no network, accounts or secrets.
 - The chosen look applies to the player on the street and on the ferry. The illustrated building scenes were drawn once from the desktop game, so the player inside them keeps the default look.
 - Nova SBE opens a game-style classroom scene of three team members presenting Foundry Town to the professors, inspired by the supplied reference. It has no research or workshop controls.
 - To keep the town simple, the only car dealership is Cacilhas Dealership (your first vehicle needs a ferry ride), Foundry Warehouse is the only warehouse, and eggs and Pastéis de Belém were removed. The engine keeps these buildings for older saves; on the map their plots show apartment blocks and they cannot be entered.
+- Apartments replace Foundry Precision Works. When an older save opens, each carried or pending unit of Precision Machinery is converted to cash at that save's last machinery price, freeing the occupied and reserved bag slots. The conversion is recorded with the next normal save.
 - Contracts, delivery routes and business ownership were taken out of the menus to keep the game simple. Research and advanced crafting were also retired from the browser menus; legacy innovation fields remain readable in saves. Their rules (`contracts.py`, `logistics.py`, `businesses.py`, `innovation.py`) remain in the engine, with their tests, because older saves still store their fields.
 
 ## Project structure
