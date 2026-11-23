@@ -80,6 +80,46 @@ def test_character_save_validation_and_legacy_default():
         unpack_save(saved)
 
 
+def test_level_dialogs_and_saved_progress(tmp_path, monkeypatch):
+    path = tmp_path / "game.sqlite3"
+    monkeypatch.setenv("FOUNDRY_LOCAL_DB", str(path))
+    store = LocalSave(path)
+    town, revision = store.load()
+    town.total_sold[0] = 1
+    town.cash = 500
+    town.won = True
+    store.save(town, revision)
+    app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
+    click(app, "Continue")
+    assert "### Level 1 complete!" in [item.value for item in app.markdown]
+    click(app, "Continue to Level 2")
+    assert store.load()[0].first_trade_acknowledged
+    assert "### Level 2 complete!" in [item.value for item in app.markdown]
+    click(app, "Not now")
+    assert not store.load()[0].milestone_acknowledged
+    click(app, "Continue to Level 3")
+    assert store.load()[0].milestone_acknowledged
+    app.session_state.town.add_cash(1500)
+    app.run()
+    assert "### You successfully completed the game! Good job!" in [item.value for item in app.markdown]
+    click(app, "Finish")
+    assert store.load()[0].game_completed_acknowledged
+    reloaded = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
+    click(reloaded, "Continue")
+    assert "Game complete!" in [item.text for item in reloaded.progress]
+
+
+def test_level_progress_defaults_for_old_saves_and_rejects_invalid_flags():
+    old = pack_save(Town(), 1_000)
+    for key in ("first_trade_acknowledged", "game_completed_acknowledged"):
+        old["state"].pop(key)
+    restored, _ = unpack_save(old)
+    assert not restored.first_trade_acknowledged and not restored.game_completed_acknowledged
+    old["state"]["first_trade_acknowledged"] = "yes"
+    with pytest.raises(ValueError, match="Invalid level progress"):
+        unpack_save(old)
+
+
 def test_waterfront_video_is_muted_and_only_in_the_start_menu(monkeypatch):
     monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()

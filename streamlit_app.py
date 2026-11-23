@@ -610,33 +610,33 @@ def close_tutorial():
     st.session_state.tutorial_step = 0
 
 
-@st.dialog("Foundry Town · Lisbon", width="large", dismissible=False)
 def start_menu():
-    with st.container(key="foundry_waterfront"):
-        st.video(
-            str(ROOT / "street" / "lisbon_waterfront.webm"),
-            format="video/webm",
-            autoplay=True,
-            loop=True,
-            muted=True,
-        )
-    st.html("""<script>
-        (() => {
-            const setSpeed = () => {
-                const video = document.querySelector(".st-key-foundry_waterfront video");
-                if (video) {
-                    video.playbackRate = 0.5;
-                    observer.disconnect();
-                }
-            };
-            const observer = new MutationObserver(setSpeed);
-            observer.observe(document.body, { childList: true, subtree: true });
-            setSpeed();
-        })();
-    </script>""", unsafe_allow_javascript=True)
-    with st.container(key="foundry_start"):
-        fullscreen_control("menu")
-        start_menu_card()
+    with st.container(key="foundry_menu_screen"):
+        with st.container(key="foundry_waterfront"):
+            st.video(
+                str(ROOT / "street" / "lisbon_waterfront.webm"),
+                format="video/webm",
+                autoplay=True,
+                loop=True,
+                muted=True,
+            )
+        st.html("""<script>
+            (() => {
+                const setSpeed = () => {
+                    const video = document.querySelector(".st-key-foundry_waterfront video");
+                    if (video) {
+                        video.playbackRate = 0.5;
+                        observer.disconnect();
+                    }
+                };
+                const observer = new MutationObserver(setSpeed);
+                observer.observe(document.body, { childList: true, subtree: true });
+                setSpeed();
+            })();
+        </script>""", unsafe_allow_javascript=True)
+        with st.container(key="foundry_start"):
+            fullscreen_control("menu")
+            start_menu_card()
 
 
 def character_choices(prefix, current):
@@ -795,6 +795,7 @@ def cloud_account():
 
 def enter_game(*, new_game=False):
     if new_game:
+        st.session_state.level3_deferred = False
         st.session_state.reset_destination = True
         st.session_state.town_page = "Game"
         st.session_state.show_tutorial = True
@@ -842,24 +843,14 @@ st.html(f"""
   .st-key-foundry_hud [data-testid="stProgress"] > div {{
     padding-bottom: 0;
   }}
-  section[role="dialog"]:has(.st-key-foundry_start) {{
+  .st-key-foundry_menu_screen {{
     position: fixed !important;
     inset: 0 !important;
-    transform: none !important;
+    z-index: 9999;
     width: 100vw !important;
-    max-width: none !important;
     height: 100dvh !important;
-    max-height: none !important;
-    margin: 0;
-    border-radius: 0;
+    overflow-y: auto;
     background: #17343b url("data:image/webp;base64,{waterfront}") center / cover;
-  }}
-  section[role="dialog"]:has(.st-key-foundry_start) > :first-child:not(:has(.st-key-foundry_start)) {{
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
   }}
   .st-key-foundry_waterfront {{
     position: fixed;
@@ -1008,6 +999,31 @@ st.html(f"""
     .st-key-foundry_route [data-testid="stColumn"]:nth-child(3) {{ grid-column: 1 / -1; }}
   }}
   body:has(.st-key-foundry_start) #foundry-fullscreen-game {{ display: none; }}
+  body:has(.st-key-foundry_level_overlay)::before {{
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    background: rgba(10, 25, 32, 0.68);
+  }}
+  .st-key-foundry_level_overlay {{
+    position: fixed;
+    z-index: 9999;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(32rem, calc(100vw - 2rem));
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    padding: clamp(1.25rem, 3vw, 2rem);
+    border: 2px solid #ffc66c;
+    border-radius: 14px;
+    background: #16303a;
+    color: #fff7e6;
+    text-align: center;
+    box-shadow: 0 18px 54px #0b1c28aa;
+  }}
+  .st-key-foundry_level_overlay h3 {{ color: #ffc66c; }}
 </style>
 """)
 page = st.session_state.get("town_page", "Game")
@@ -1022,8 +1038,15 @@ with st.container(key="foundry_hud"):
     day.metric("Day", town.day)
     with display:
         fullscreen_control("game")
-    goal = "Goal reached! Keep growing." if town.won else f"\\${town.cash:,} of the \\$500 goal"
-    goal_bar.progress(1.0 if town.won else max(0.0, min(town.cash / 500, 1.0)), text=goal)
+    if town.game_completed_acknowledged:
+        goal, progress = "Game complete!", 1.0
+    elif town.milestone_acknowledged:
+        goal, progress = f"Level 3 · {town.cash:,} / 2,000", min(town.cash / 2000, 1.0)
+    elif town.first_trade_acknowledged:
+        goal, progress = f"Level 2 · {town.cash:,} / 500", min(town.cash / 500, 1.0)
+    else:
+        goal, progress = f"Level 1 · {int(any(town.total_sold))} of the 1 trade needed", float(any(town.total_sold))
+    goal_bar.progress(max(0.0, progress), text=goal)
     with menu.popover("Menu", key=f"town_menu_{page}", width="stretch"):
         for label in PAGES:
             st.button(label, type="primary" if page == label else "secondary", width="stretch",
@@ -1050,9 +1073,28 @@ with st.container(key="foundry_hud"):
 def play_notices():
     if st.session_state.save_error:
         st.error(st.session_state.save_error)
-    if town.won and not town.milestone_acknowledged:
-        st.success("You reached the $500 cash milestone.")
-        button("Continue building", Town.continue_after_milestone)
+    if town.cash >= 500 and town.first_trade_acknowledged and not town.milestone_acknowledged and st.session_state.get("level3_deferred"):
+        button("Continue to Level 3", Town.continue_after_milestone)
+
+
+def level_dialog(level):
+    with st.container(key="foundry_level_overlay"):
+        if level == 1:
+            st.markdown("### Level 1 complete!")
+            st.write("You finished your first trade. Good job! Reach 500 cash to complete Level 2.")
+            button("Continue to Level 2", Town.acknowledge_first_trade, type="primary", width="stretch")
+        elif level == 2:
+            st.markdown("### Level 2 complete!")
+            st.write("You reached 500 cash. Would you like to continue to Level 3 and aim for 2,000?")
+            button("Continue to Level 3", Town.continue_after_milestone, type="primary", width="stretch")
+            st.button("Not now", width="stretch", on_click=st.session_state.update,
+                      kwargs={"level3_deferred": True})
+        else:
+            st.markdown("### You successfully completed the game! Good job!")
+            st.write("You reached 2,000 cash and completed Level 3.")
+            button("Finish", Town.acknowledge_game_completed, type="primary", width="stretch")
+        if st.session_state.save_error:
+            st.error(st.session_state.save_error)
 
 
 if page == "Game":
@@ -1071,3 +1113,13 @@ elif st.session_state.get("show_tutorial"):
     tutorial()
 elif st.session_state.get("show_character_editor"):
     character_editor()
+elif any(town.total_sold) and not town.first_trade_acknowledged:
+    level_dialog(1)
+elif town.cash >= 500 and town.first_trade_acknowledged and not town.milestone_acknowledged and not st.session_state.get("level3_deferred"):
+    level_dialog(2)
+elif town.cash >= 2000 and town.milestone_acknowledged and not town.game_completed_acknowledged:
+    level_dialog(3)
+else:
+    # Streamlit may keep the previous overlay mounted for one rerun after its button removes it.
+    st.html('<style>.st-key-foundry_level_overlay { display: none !important; } '
+            'body:has(.st-key-foundry_level_overlay)::before { display: none !important; }</style>')

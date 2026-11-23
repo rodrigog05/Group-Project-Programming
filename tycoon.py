@@ -251,7 +251,9 @@ class Town:
         self.x, self.y = 480.0, 321.0
         self.facing = 1
         self.won = False
+        self.first_trade_acknowledged = False
         self.milestone_acknowledged = False
+        self.game_completed_acknowledged = False
         self.bag_size = BAG_SIZE
         self.warehouse_level = 0
         self.speed_until = 0
@@ -309,10 +311,25 @@ class Town:
         return sold
 
     def continue_after_milestone(self):
-        if not self.won:
+        if self.cash < CASH_GOAL or not self.first_trade_acknowledged:
             return False
+        self.won = True
         self.milestone_acknowledged = True
-        self.message = "Cash milestone complete! Visit Nova SBE in Carcavelos for our Foundry Town presentation."
+        self.message = "Level 3 started. Reach 2,000 cash to complete Foundry Town!"
+        return True
+
+    def acknowledge_first_trade(self):
+        if not any(self.total_sold):
+            return False
+        self.first_trade_acknowledged = True
+        self.message = "Level 1 complete! Reach 500 cash to finish Level 2."
+        return True
+
+    def acknowledge_game_completed(self):
+        if not self.milestone_acknowledged or self.cash < 2000:
+            return False
+        self.game_completed_acknowledged = True
+        self.message = "You successfully completed the game! Good job!"
         return True
 
     def create_delivery_route(self, kind, source, destination):
@@ -1176,6 +1193,8 @@ def unpack_save(data):
     state["logistics"] = logistics.normalize_state(state.get("logistics"), SITES, businesses_state=state["businesses"])
     state["contracts"] = contracts.normalize_state(state.get("contracts"))
     state.setdefault("milestone_acknowledged", False)
+    state.setdefault("first_trade_acknowledged", False)
+    state.setdefault("game_completed_acknowledged", False)
     state.setdefault("monastery_visits", 0)
     profile = state.setdefault("profile", deepcopy(town.profile))
     if (not isinstance(profile, dict) or not isinstance(profile.get("name"), str)
@@ -1188,6 +1207,8 @@ def unpack_save(data):
         raise ValueError("Invalid monastery visit bonus in save")
     if type(state["milestone_acknowledged"]) is not bool:
         raise ValueError("Invalid cash milestone state in save")
+    if type(state["first_trade_acknowledged"]) is not bool or type(state["game_completed_acknowledged"]) is not bool:
+        raise ValueError("Invalid level progress in save")
     if data["version"] != 1 or state.keys() != vars(town).keys():
         raise ValueError("Unsupported Foundry Town save")
     pools = state["tourist_buyers"]
