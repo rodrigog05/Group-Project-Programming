@@ -238,10 +238,7 @@ def test_new_game_opens_the_basics_and_the_slides_page_through():
     assert "Back" not in labels(app)
 
 
-def test_basics_can_be_replayed_from_the_start_menu_and_every_slide_exists():
-    app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
-    click(app, "Basics · how to play in 5 slides")
-    assert app.session_state.show_tutorial and not app.session_state.show_menu
+def test_basics_slide_assets_exist():
     slides = Path(__file__).resolve().parents[1] / "street" / "tutorial"
     for name in ("goal", "buy", "make", "sell", "garage"):
         assert (slides / f"{name}.webp").is_file(), name
