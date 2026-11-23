@@ -49,7 +49,7 @@ BRIDGE_TOLL = 3
 # so they never look like a shop the player could use.
 SCENERY_PLOTS = (
     ((1540, 160), "flats"), ((1280, 345), "fountain"), ((2080, 345), "flats"),
-    ((700, south(1180)), "flats"), ((940, south(1180)), "park"), ((1280, south(1180)), "flats"),
+    ((268, 345), "flats"), ((940, south(1180)), "park"), ((1820, 345), "flats"),
     ((1800, south(1180)), "fountain"),
     ((1280, south(1430)), "park"), ((1540, south(1430)), "flats"), ((1800, south(1430)), "park"),
 )

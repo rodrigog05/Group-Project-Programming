@@ -62,6 +62,10 @@ ROAD_SEGMENTS = (
 _grain_x,_grain_y=plot_center(2060,south(1430))
 ROAD_SEGMENTS += ((_grain_x,_grain_y+75,_grain_x,south(1570),6),)
 
+# Keep the relocated workshop and market accessible from the southern avenue.
+_tools_plot_centers = (plot_center(x, south(1180)) for x in (700, 1280))
+ROAD_SEGMENTS += tuple((x, y+55, x, south(1370), 8) for x, y in _tools_plot_centers)
+
 
 def road_projection(x, y, segment):
     x1, y1, x2, y2, _ = segment
