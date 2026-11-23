@@ -86,6 +86,26 @@ test("night image is deferred and only requested at night", () => {
   assert.match(b.run("night.src"), /^world_100_night\.webp(?:\?v=[^&]+)?$/);
 });
 
+test("F activates the suggested route only when the button is available", () => {
+  const b = browser();
+  b.run(`
+    let routeClicks = 0;
+    const routeButton = { disabled: false, click() { routeClicks++; } };
+    window.parent.document.querySelector = selector =>
+      selector === ".st-key-show_suggested_route button" ? routeButton : null;
+    const pressRoute = (options = {}) => handleHudShortcut({
+      key: "f", preventDefault() {}, ...options,
+    });
+  `);
+  assert.equal(b.run("pressRoute()"), true);
+  assert.equal(b.run("pressRoute({ ctrlKey: true })"), false);
+  assert.equal(b.run("pressRoute({ shiftKey: true })"), false);
+  assert.equal(b.run("pressRoute({ repeat: true })"), false);
+  assert.equal(b.run('window.parent.document.activeElement = { tagName: "INPUT" }; pressRoute()'), false);
+  assert.equal(b.run("window.parent.document.activeElement = null; routeButton.disabled = true; pressRoute()"), false);
+  assert.equal(b.run("routeClicks"), 1);
+});
+
 test("bulk buy is available only within reach with cash and cargo room", () => {
   const b = browser();
   const supplier = { x: 480, y: 321, trade: 3, cost: 4 };

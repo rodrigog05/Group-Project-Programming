@@ -342,6 +342,7 @@ def places():
         hint = next_move(town, name)
         target = hint and hint["target"]
         route_button.button(f"Show route to {place_name(target)}" if target else "Show route", width="stretch",
+                            key="show_suggested_route",
                             disabled=not (st.session_state.show_hints and target and target != destination),
                             on_click=st.session_state.update, kwargs={"destination": target})
         if town.message:
@@ -1231,9 +1232,11 @@ st.html(f"""
   .st-key-foundry_hud [data-testid="stColumn"]:nth-child(1) {{ margin-right: 1rem; }}
   .st-key-foundry_hud [data-testid="stColumn"]:nth-child(5) {{ margin-left: 1rem; }}
   .st-key-foundry_hud [data-testid="stColumn"]:nth-child(7) {{ margin-left: 1rem; }}
-  /* The Inventory button shows its key, I, as a small keyboard key */
-  .st-key-inventory [data-testid="stPopoverButton"] [data-testid="stMarkdownContainer"] p::after {{
-    content: "I";
+  .st-key-inventory {{ --key-label: "I"; }}
+  .st-key-show_suggested_route {{ --key-label: "F"; }}
+  :is(.st-key-inventory [data-testid="stPopoverButton"], .st-key-show_suggested_route button)
+    [data-testid="stMarkdownContainer"] p::after {{
+    content: var(--key-label);
     display: inline-block;
     margin-left: 0.5rem;
     min-width: 1.15rem;
