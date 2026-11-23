@@ -45,28 +45,32 @@ document.addEventListener("visibilitychange", () => {
     soundtrack.pause();
   }
 });
-// Images are cached by the browser. Bump ART_VERSION whenever a map, scene or vehicle image changes, so
-// players get the new art (street.js itself is always loaded fresh by index.html).
-const ART_VERSION = "2026-11-23.2";
-const asset = (path) => `${path}?v=${ART_VERSION}`;
+// Images are cached by the browser. Python sends art_version, a fingerprint of every picture in street/
+// (browser_game.art_version), so changed art gets a new address and players never see stale pictures.
+// Images start loading with the first update, once the version is known. (street.js itself is always
+// loaded fresh by index.html.)
+let artVersion = null;
+const asset = (path) => `${path}?v=${artVersion}`;
 const day = new Image();
 const night = new Image();
-day.src = asset("world_100_day.webp");
 const stationArt = { day: new Image(), night: new Image() };
-stationArt.day.src = asset("oriente_day.svg");
 const cityArt = { day: new Image(), night: new Image() };
-cityArt.day.src = asset("city_day.svg");
 
 const directions = {
   arrowleft: "left", a: "left", arrowright: "right", d: "right",
   arrowup: "up", w: "up", arrowdown: "down", s: "down",
 };
 const actions = { e: "interact", v: "vehicle" };  // V parks the vehicle and brings it back
-const vehicleArt = Object.fromEntries(["motorcycle", "car", "van", "f1"].map(key => {
-  const art = new Image();
-  art.src = asset(`vehicles/${key}.svg`);
-  return [key, art];
-}));
+const vehicleArt = Object.fromEntries(["motorcycle", "car", "van", "f1"].map(key => [key, new Image()]));
+
+function loadArt(version) {
+  artVersion = version;
+  day.src = asset("world_100_day.webp");
+  stationArt.day.src = asset("oriente_day.svg");
+  cityArt.day.src = asset("city_day.svg");
+  for (const [key, art] of Object.entries(vehicleArt)) art.src = asset(`vehicles/${key}.svg`);
+  loadRider();
+}
 const held = new Map();
 const parentOrigin = document.referrer ? new URL(document.referrer).origin : location.origin;
 let state;
@@ -117,6 +121,7 @@ window.addEventListener("message", (event) => {
   if (pending && next.ack !== eventId) return;
   // Python's reply to the map's own movement, as opposed to a page update such as Visit or Leave.
   const ownReply = pending && next.ack === eventId;
+  if (artVersion === null) loadArt(next.art_version || "1");
   if (next.night && !night.getAttribute("src")) night.src = asset("world_100_night.webp");
   if (next.night && !stationArt.night.getAttribute("src")) stationArt.night.src = asset("oriente_night.svg");
   if (next.night && !cityArt.night.getAttribute("src")) cityArt.night.src = asset("city_night.svg");
@@ -447,7 +452,7 @@ function draw() {
     context.fill();
     const lamp = HEADLAMPS[state.vehicle] || HEADLAMPS.car;
     if (state.night) drawBeam(lamp[0], lamp[1], lamp[2], 70);  // Starts right at the vehicle's headlamp
-    const art = vehicleArt[state.vehicle];
+    const art = vehicleImage(state.vehicle);
     if (art?.complete && art.naturalWidth) context.drawImage(art, -30, -31, 60, 36);
   } else {
     context.ellipse(0, 2, 14, 5, 0, 0, Math.PI * 2);
@@ -455,14 +460,15 @@ function draw() {
     drawWalker();
   }
   context.restore();
-  if (!state.vehicle && state.player_name) {  // The player's name above their head, as in the desktop game
+  if (state.player_name) {  // The player's name above their head (or their vehicle), as in the desktop game
+    const nameY = player.y - (state.vehicle ? 38 : 50);
     context.font = "bold 9px system-ui, sans-serif";
     context.textAlign = "center";
     context.lineWidth = 3;
     context.strokeStyle = "#1b2927cc";
-    context.strokeText(state.player_name, player.x, player.y - 50);
+    context.strokeText(state.player_name, player.x, nameY);
     context.fillStyle = "#fff8ea";
-    context.fillText(state.player_name, player.x, player.y - 50);
+    context.fillText(state.player_name, player.x, nameY);
   }
   drawTimer();
   drawHint("street");
@@ -627,6 +633,32 @@ function drawStreetLife(t, left, top, width, height) {
     context.arc(x, y - 9.5, 3.2, 0, Math.PI * 2);
     context.fill();
   }
+}
+
+// Of the vehicles, only the motorcycle shows its rider: repaint their jacket, hand and helmet in the player's
+// colours (the car, van and F1 car hide the driver). Each look is built once from the SVG's text.
+const RIDER_COLOURS = { "#3d7eaa": "outfit", "#efb78c": "skin", "#20343f": "accent" };
+const riderArt = new Map();
+let riderSource = null;
+function loadRider() {
+  if (typeof fetch !== "function") return;
+  fetch(asset("vehicles/motorcycle.svg")).then(response => response.text()).then(text => { riderSource = text; })
+    .catch(() => {});  // Without it, the motorcycle keeps its original rider
+}
+
+function vehicleImage(key) {
+  const colours = state.player_colors;
+  if (key !== "motorcycle" || !riderSource || !colours) return vehicleArt[key];
+  const look = [colours.outfit, colours.skin, colours.accent].join();
+  if (!riderArt.has(look)) {
+    let svg = riderSource;
+    for (const [original, part] of Object.entries(RIDER_COLOURS)) svg = svg.split(original).join(colours[part]);
+    const image = new Image();
+    image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+    riderArt.set(look, image);
+  }
+  const art = riderArt.get(look);
+  return art.complete && art.naturalWidth ? art : vehicleArt[key];
 }
 
 // The player's look comes from Python (browser_game.player_shapes), which also draws the character editor's

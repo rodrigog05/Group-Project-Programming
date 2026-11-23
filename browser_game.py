@@ -478,6 +478,20 @@ def street_event(town, event):
     return None
 
 
+# ----- Art version: a fingerprint of the pictures, so browsers never show stale cached art -----
+
+def art_version(folder):
+    """A short hash of every image in the street map's folder; it changes whenever any picture changes."""
+    import hashlib
+    from pathlib import Path
+    digest = hashlib.sha1()
+    for path in sorted(Path(folder).rglob("*")):
+        if path.suffix in (".webp", ".svg", ".png"):
+            digest.update(str(path.relative_to(folder)).encode())
+            digest.update(path.read_bytes())
+    return digest.hexdigest()[:12]
+
+
 # ----- The player's look (skin, hair and outfit from the desktop game's character editor) -----
 
 LEGS = "#192c39"
@@ -511,6 +525,14 @@ def player_shapes(profile):
         "Wizard": [["poly", [[-9, -29], [1, -45], [10, -29]], accent], ["rect", -9, -30, 19, 2, outfit]],
     }
     return shapes + hats[costume]
+
+
+def player_colors(profile):
+    """The look's colours, for repainting the rider on the motorcycle."""
+    costume = profile.get("costume") if profile.get("costume") in COSTUMES else "Builder"
+    outfit, accent = COSTUMES[costume]
+    return {"skin": BODY_COLORS.get(profile.get("body"), BODY_COLORS["Peach"]),
+            "hair": HAIR_COLORS.get(profile.get("hair"), HAIR_COLORS["Chestnut"]), "outfit": outfit, "accent": accent}
 
 
 def player_svg(profile, size=160):
