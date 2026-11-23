@@ -4,12 +4,53 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from browser_game import OPEN_SITES, entrance, greeting, next_move
-from tycoon import Order, Town, TRADES
+from tycoon import Order, Town, TRADES, pack_save, unpack_save
 from scene_buttons import click_scene
 
 
 def scene_data(app):
     return json.loads(app.get("component_instance")[0].proto.json_args)
+
+
+def test_browser_inventory_and_routes_hide_retired_content_from_older_saves():
+    town = Town()
+    town.eggs = 1
+    town.industry_goods["PASTELARIA"] = 1
+    town.industry_orders["PASTELARIA"] = Order(1, 7)
+    town.innovation["levels"]["metallurgy"] = 1
+    town.innovation["goods"]["alloy_components"] = 1
+    town.innovation["orders"]["alloy_components"] = {"quantity": 1, "remaining": 10}
+    town.tier2_goods = 1
+    town.goods[3] = 2
+    town.orders[3] = Order(1, 4)
+    town.discovered_recipes = ["pasteis", "alloy_components", "bread", "precision_machinery", "boat_repair"]
+    saved = pack_save(town, 0)
+    restored, _ = unpack_save(saved)
+
+    app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
+    app.session_state.town = restored
+    app.run()
+    assert not app.exception
+    assert {item.value for item in app.text} == {
+        "Iron ore: 0", "Timber: 0", "Clay: 0", "Wheat: 0",
+        "Tools: 0", "Furniture: 0", "Pottery: 0", "Bread: 2", "Precision machinery: 1",
+    }
+    assert [batch["product"] for batch in scene_data(app)["production"]] == ["Bread"]
+    assert any("Older save data occupies 3 bag slots" in caption.value for caption in app.caption)
+
+    next(button for button in app.button if button.label == "Market & recipes").click().run()
+    assert not app.exception
+    assert set(app.dataframe[0].value["Product"]) == {
+        "Tools", "Furniture", "Pottery", "Bread", "Precision Machinery", "Boat repair",
+    }
+    descriptions = [element.value for element in app.markdown]
+    assert any("**3 Sell** at Tool Market" in item for item in descriptions)
+    assert any("**3 Sell** at The Pottery Shop" in item for item in descriptions)
+    assert all(any(title in item for item in descriptions)
+               for title in ("**Bread**", "**Precision Machinery**", "**Boat repair**"))
+    assert not any(name in item for item in descriptions
+                   for name in ("Pastéis", "Eggs", "Alloy Components", "Oriente Tool Market", "Nations Market"))
+    assert pack_save(app.session_state.town, 0) == saved
 
 
 @pytest.mark.parametrize("trade", range(len(TRADES)))
