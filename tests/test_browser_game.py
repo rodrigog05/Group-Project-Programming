@@ -118,21 +118,23 @@ def test_exchange_opens_trading_screen_and_can_buy_sell_and_leave():
     assert any(heading.value == "Bolsa de Lisboa" for heading in app.title)
     assert any(heading.value == "Trade shares" for heading in app.subheader)
     assert any(panel.label == "Share prices and holdings" for panel in app.expander)
+    assert any(select.label == "Store" and select.options[0] == "Daily Bread Market" for select in app.selectbox)
     assert any("0 owned" in quote.value for quote in app.markdown)
     assert not app.get("component_instance")
 
     click(app, "Buy shares")
     assert app.metric[0].value == "$15"
     assert any("1 owned" in quote.value for quote in app.markdown)
+    assert any("Dividend at close" in quote.value and "$2" in quote.value for quote in app.markdown)
     click(app, "Buy shares")
     assert app.metric[0].value == "$15"
     assert "You need $45" in app.session_state.town.message
 
     click(app, "Sell shares")
-    assert app.metric[0].value == "$55"
+    assert app.metric[0].value == "$60"
     assert any("0 owned" in quote.value for quote in app.markdown)
     click(app, "Sell shares")
-    assert app.metric[0].value == "$55"
+    assert app.metric[0].value == "$60"
     assert "You only own 0 shares" in app.session_state.town.message
     click(app, "Leave exchange")
     assert app.session_state.inside is None

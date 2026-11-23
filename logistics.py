@@ -9,8 +9,7 @@ import math
 from types import SimpleNamespace
 
 import businesses
-from exchange import record_bridge
-from logistics_paths import bridge_used, path_length, point_on_path, road_path
+from logistics_paths import path_length, point_on_path, road_path
 
 
 SCHEMA_VERSION = 1
@@ -301,7 +300,6 @@ def _charge_northbound_toll(town, route, table, phase):
     town.toll_count_today += 1
     town.tolls_paid_total += BRIDGE_TOLL
     route["tolls_spent"] += BRIDGE_TOLL
-    record_bridge(town, bridge_used(route_path(route, table)))
 
 
 def _dispatch(town, state, route, table):

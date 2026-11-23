@@ -257,6 +257,7 @@ class LogisticsTest(unittest.TestCase):
     def test_south_to_north_van_pays_bridge_toll_on_arrival_once(self):
         town = FakeTown()
         town.exchange["holdings"]["BRIDGE25"] = 1
+        shares_before = deepcopy(town.exchange)
         route = add(town, source="Iron Hill Mine", destination="Ironworks")
         tick(town, .1)
         set_route_enabled(town, route["id"], False)
@@ -264,7 +265,7 @@ class LogisticsTest(unittest.TestCase):
         paid = town.cash
         tick(town, route["duration"]-.1)
         self.assertEqual((town.cash, town.tolls_today, town.toll_count_today, town.tolls_paid_total), (paid-3, 3, 1, 3))
-        self.assertEqual(town.exchange["pending_cents"]["BRIDGE25"], 1)
+        self.assertEqual(town.exchange, shares_before)
         tick(town, route["duration"]+10)
         self.assertEqual((town.tolls_today, route["tolls_spent"], town.toll_count_today), (3, 3, 1))
 
@@ -273,12 +274,13 @@ class LogisticsTest(unittest.TestCase):
             with self.subTest(kind=kind):
                 town = FakeTown()
                 town.exchange["holdings"]["BRIDGE25"] = 1
+                shares_before = deepcopy(town.exchange)
                 route = add(town, kind, "Quinta de Palmela", "Sunrise Bakery")
                 tick(town, .1)
                 set_route_enabled(town, route["id"], False)
                 tick(town, route["duration"]*2+10)
                 self.assertEqual((town.tolls_today, route["tolls_spent"]), (3, 3) if kind == "van" else (0, 0))
-                self.assertEqual(town.exchange["pending_cents"]["BRIDGE25"], 0)
+                self.assertEqual(town.exchange, shares_before)
 
     def test_exact_event_clocks_match_partitioned_frames_for_continuous_supply(self):
         large, frames = FakeTown(), FakeTown()

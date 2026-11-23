@@ -11,7 +11,7 @@ from lisbon_landmarks import LANDMARK_SOLIDS
 from vehicles import VEHICLES, WALK_SPEED, on_road
 from tourism import new_tourist_pools, tourism_bonus
 from exchange import (initial_state as new_exchange_state, normalize_state as normalize_exchange_state,
-                      advance_city, record_trade, record_bridge, settle_exchange)
+                      record_trade, settle_exchange)
 import innovation
 import logistics
 import contracts
@@ -459,10 +459,10 @@ class Town:
     def daily_net_profit(self):
         return self.daily_revenue-self.daily_expenses
 
-    def settle_day(self, day):
+    def settle_day(self, day, *, pay_daily_dividends=True):
         if day <= self.last_tax_day:
             return
-        dividends = settle_exchange(self, day)
+        dividends = settle_exchange(self, day, pay_daily_dividends=pay_daily_dividends)
         profit = self.daily_net_profit
         rate = innovation.tax_rate(self, DAILY_TAX_PERCENT)
         tax = (max(0, profit)*rate+50)//100
@@ -486,7 +486,7 @@ class Town:
         self.market_elapsed = max(self.market_elapsed, elapsed)
         if self.day == previous_day:
             return
-        self.settle_day(previous_day)
+        self.settle_day(previous_day, pay_daily_dividends=self.day == previous_day + 1)
         businesses.reset_day(self)
         contracts.reset_day(self)
         innovation.reset_day(self)
@@ -754,7 +754,6 @@ class Town:
                 self.tolls_today += BRIDGE_TOLL
                 self.tolls_paid_total += BRIDGE_TOLL
                 self.toll_count_today += 1
-                record_bridge(self, name)
                 self.message = f"Portagem · Ponte {name} → Lisboa: -${BRIDGE_TOLL}."
                 self.notice = self.message
                 self.notice_until = self.elapsed+4

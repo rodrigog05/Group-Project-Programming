@@ -2,7 +2,6 @@
 import math
 import random
 
-from exchange import advance_city
 from ferry import FERRY_FARE, FERRY_PIERS, nearby_pier, ride_ferry
 import businesses
 import lisbon_scene as scene
@@ -362,7 +361,6 @@ def visit(town, position, label):
 
 def advance_clock(town, seconds):
     town.advance(seconds)
-    advance_city(town, seconds)
     town.advance_deliveries(seconds)
     town.advance_contracts(seconds)
     town.advance_businesses(seconds)
