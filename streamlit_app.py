@@ -714,7 +714,7 @@ def cloud_account():
         with st.form("cloud_account", clear_on_submit=True):
             email = st.text_input("Email")
             password = st.text_input("Password", type="password")
-            sign_in = st.form_submit_button("Sign in")
+            sign_in = st.form_submit_button("Sign in", type="primary")
             sign_up = st.form_submit_button("Create account")
         if not (sign_in or sign_up):
             return
@@ -931,6 +931,40 @@ st.html(f"""
     color: #c3d6e0;
     font-size: 0.875rem;
     text-transform: none;
+  }}
+  .st-key-foundry_account [data-testid="stForm"] {{
+    border-color: #587182;
+  }}
+  .st-key-foundry_account [data-testid="stWidgetLabel"] p {{
+    color: #f5f8fc;
+  }}
+  .st-key-foundry_account [data-testid="stTextInputRootElement"] {{
+    background: #f0f4f8;
+    color-scheme: light;
+  }}
+  .st-key-foundry_account [data-testid="stTextInputRootElement"] :is(input, button) {{
+    color: #132231;
+  }}
+  .st-key-foundry_account [data-testid="stBaseButton-primaryFormSubmit"] {{
+    background: #ddb679;
+    border-color: #ddb679;
+    color: #132231;
+  }}
+  .st-key-foundry_account [data-testid="stBaseButton-primaryFormSubmit"]:hover {{
+    background: #f0cc91;
+  }}
+  .st-key-foundry_account [data-testid="stBaseButton-secondaryFormSubmit"] {{
+    background: #264153;
+    border-color: #819eaf;
+    color: #f5f8fc;
+  }}
+  .st-key-foundry_account [data-testid="stBaseButton-secondaryFormSubmit"]:hover {{
+    background: #36576c;
+  }}
+  .st-key-foundry_account [data-testid="stTextInputRootElement"]:focus-within,
+  .st-key-foundry_account [data-testid="stFormSubmitButton"] button:focus-visible {{
+    outline: 2px solid #f7d390;
+    outline-offset: 3px;
   }}
   .foundry-fullscreen {{
     position: fixed;
