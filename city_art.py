@@ -12,8 +12,8 @@ from lisbon_scene import BRIDGE_TOLL, NORTH_AVENUE_Y, NORTH_JUNCTIONS, NORTH_QUA
 from tycoon import SITES
 from place_names import localize_place_names
 
-COMPACT_ROLES = frozenset({"SUPPLIER", "FACTORY", "PUBLIC SHOP", "WAREHOUSE", "TIER2"})
-CLOSED = frozenset({"Motorworks Garage", "Armazém do Seixal", "Pastéis de Belém"})
+from city_layout import (COMPACT_ROLES, CLOSED, ROAD_COLOR, plot_bounds, plot_center,
+                         apartment_transform, legacy_transform)
 
 
 class Drawing:
@@ -63,16 +63,27 @@ def roof(d, x, y, w, color="#a8654e"):
     d.path(f'M{x-4} {y+14}h{w+8}', stroke="#efe0be", width=2)
 
 
-def sidewalk(d, x, y, night, east=False, south=False):
-    # Clear just the old building and its signage. Roads, curbs and trees stay intact.
+def plot_ground(x,y,night):
+    east,south=x>=1200,y>1080
     ground = ("#546464" if night else "#c5c9a6") if south else (
         ("#5c696e" if east else "#5e696d") if night else "#dad7bf" if east else "#dfd5bd")
     if south and y < 1300:
         ground = "#586668" if night else "#cfceb0"
-    if (x, y) == (1280, 530):
-        # The old farm painted its entire city block green, beyond the building.
-        d.rect(1245, 508, 230, 134, ground)
-    d.rect(x-4, y-24, 192, 132, ground)
+    return ground
+
+
+def sidewalk(d, x, y, night, east=False, south=False):
+    left,top,right,bottom = plot_bounds(x,y)
+    d.rect(left,top,right-left,bottom-top,plot_ground(x,y,night))
+
+
+def begin_plot(d,x,y,site_name=None):
+    left,top,right,bottom=plot_bounds(x,y)
+    key=f"plot-{x}-{y}"
+    d.add(f'<defs><clipPath id="{key}"><rect x="{left}" y="{top}" '
+          f'width="{right-left}" height="{bottom-top}"/></clipPath></defs>')
+    label=f' data-site="{escape(site_name,quote=True)}"' if site_name else ""
+    d.add(f'<g clip-path="url(#{key})"{label}>')
 
 
 def planter(d, x, y, night):
@@ -89,11 +100,11 @@ def signs(d, site, night):
                     "PUBLIC SHOP": ("SELL PRODUCTS", "#377e68"),
                     "TIER2": ("MAKE & SELL", "#72618f"),
                     "WAREHOUSE": ("STORAGE", "#65727f")}[site.role]
-    d.rect(x+20, y-14, 136, 13, color, 2)
-    d.path(f'M{x+24} {y-12}h128', stroke="#e8d7af", width=.7)
-    d.text(x+88, y-4, badge, 8)
-    d.rect(x+3, y+4, 174, 13, "#263f46" if night else "#365258", 2)
-    d.text(x+90, y+13, site.name, 7.5)
+    d.rect(x+20, y+3, 136, 11, color, 2)
+    d.path(f'M{x+24} {y+5}h128', stroke="#e8d7af", width=.7)
+    d.text(x+88, y+11, badge, 7.5)
+    d.rect(x+3, y+110, 174, 11, "#263f46" if night else "#365258", 2)
+    d.text(x+90, y+118, site.name, 7.5)
 
 
 def shell(d, site, wall, night, roof_color="#a8654e"):
@@ -265,7 +276,9 @@ def warehouse(d, site, night):
 
 def apartments(d, x, y, index, night):
     sidewalk(d, x, y, night, east=x>=1200, south=y>1080)
-    d.add(f'<g data-kind="lisbon-apartments" transform="translate({x} {y})">')
+    begin_plot(d,x,y)
+    px,py,scale=apartment_transform(x,y)
+    d.add(f'<g data-kind="lisbon-apartments" transform="translate({px} {py}) scale({scale})">')
     palettes = ("#e5ce95", "#99b7ae", "#cf927b", "#b0c6bd")
     # A row of narrow Lisbon houses, rather than a uniform slab.
     for number, (left, w, top) in enumerate(((4,54,1),(59,55,-9),(115,57,-1))):
@@ -292,7 +305,7 @@ def apartments(d, x, y, index, night):
     d.rect(80,29,4,5,"#ce685c")
     d.rect(86,29,4,5,"#e9dfbd")
     d.rect(92,29,4,5,"#7eabc0")
-    d.add('</g>')
+    d.add('</g></g>')
 
 
 def translated_map_signs(d, night):
@@ -342,8 +355,8 @@ def translated_map_signs(d, night):
 
 def map_wayfinding(d, night):
     """Update the streets and signs baked into the original browser map."""
-    verge, curb, asphalt = (("#334946", "#666e68", "#47514f") if night else
-                            ("#bdc5aa", "#b4ac98", "#747a77"))
+    verge, curb, asphalt = (("#334946", "#666e68", ROAD_COLOR) if night else
+                            ("#bdc5aa", "#b4ac98", ROAD_COLOR))
     ink = "#f8e5b5" if night else "#314c45"
     d.rect(0, 72, 2400, 66, verge)
     for x in range(20, 2400, 48):
@@ -363,17 +376,178 @@ def map_wayfinding(d, night):
         d.text(pier.x, y+2.5, f"Ferry tickets €{FERRY_FARE}", 7.2, "#fff4ce")
 
 
+def bridge_connections(d, night):
+    """Continuous quay approaches, matching the deck and the playable road segments."""
+    import math
+    from lisbon_scene import (LisbonScene, RIVER_TOP, RIVER_BOTTOM, VASCO_NORTH_X,
+                              bridge_center, south)
+    curb = "#73827e" if night else "#b4ac98"
+    road = ROAD_COLOR
+    deck = ROAD_COLOR
+    stone = "#81918b" if night else "#c3c9c1"
+    paint = "#d6cfad" if night else "#eee3c5"
+
+    def polygon(points, fill):
+        d.path("M"+"L".join(f'{x:.2f} {y:.2f}' for x,y in points)+"Z", fill)
+
+    def strip(a, b, width, fill):
+        dx,dy=b[0]-a[0],b[1]-a[1]
+        length=math.hypot(dx,dy)
+        nx,ny=-dy/length*width/2,dx/length*width/2
+        polygon(((a[0]+nx,a[1]+ny),(b[0]+nx,b[1]+ny),
+                 (b[0]-nx,b[1]-ny),(a[0]-nx,a[1]-ny)),fill)
+
+    def junction(x,y,vertical,horizontal):
+        for extra,fill in ((5,curb),(0,road)):
+            values=LisbonScene._cross_outline(x,y,vertical/2+extra,horizontal/2+extra,4)
+            polygon(list(zip(values[::2],values[1::2])),fill)
+
+    # Widen gently from the city street to the deck. The old narrow ramp ended
+    # against a broad, angled curb cap, making the north end appear disconnected.
+    x=VASCO_NORTH_X
+    start_y=RIVER_TOP-20
+    bx=bridge_center(start_y,True)
+    end_y=RIVER_TOP+22
+    ex=bridge_center(end_y,True)
+    for start_half,mid_half,end_half,fill in ((21,29,29,stone),(16,22.5,22.5,deck)):
+        polygon(((x-start_half,660),(x+start_half,660),(bx+mid_half,start_y),
+                 (ex+end_half,end_y),(ex-end_half,end_y),(bx-mid_half,start_y)),fill)
+    junction(x,660,29,35)
+    # The waterfront tram rails cross the road at grade rather than blocking it.
+    for y in (681,691):
+        d.path(f'M{x-19} {y}h44',stroke="#84938b" if night else "#91978c",width=1.2)
+    d.add(f'<path d="M{x} 678L{bx} {start_y}L{ex} {end_y}" fill="none" '
+          f'stroke="{paint}" stroke-width="1" stroke-dasharray="6 9"/>')
+
+    # Erase only the old land-side road. Its starting point was inside the deck,
+    # causing an offset at the join. Preserve the river and nearby vegetation.
+    d.add('<defs><clipPath id="south-bridge-land"><rect x="1800" y="1080" width="280" height="180"/></clipPath></defs>')
+    d.add('<g clip-path="url(#south-bridge-land)">')
+    strip((bridge_center(RIVER_BOTTOM+2,True),RIVER_BOTTOM+2),
+          (x,south(1058)),46,"#586668" if night else "#cfceb0")
+    d.add('</g>')
+    end=(bridge_center(RIVER_BOTTOM+19,True),RIVER_BOTTOM+19)
+    town=(x,south(1058))
+    for width,fill in ((42,curb),(32,road)):
+        d.path(f'M{end[0]} {end[1]}L{town[0]} {town[1]}',stroke=fill,width=width)
+    d.add(f'<path d="M{end[0]} {end[1]}L{town[0]} {town[1]}" fill="none" '
+          f'stroke="{paint}" stroke-width="1" stroke-dasharray="9 14"/>')
+    # Replace the final deck section over the repaired ramp, without a square gap.
+    a=(bridge_center(RIVER_BOTTOM-25,True),RIVER_BOTTOM-25)
+    strip(a,end,58,stone)
+    strip(a,end,45,deck)
+    d.add(f'<path d="M{a[0]} {a[1]}L{end[0]} {end[1]}" fill="none" '
+          f'stroke="{paint}" stroke-width="1" stroke-dasharray="6 9"/>')
+    junction(*town,32,24)
+
+
+def legacy_building(d,site,night):
+    """Place retained game artwork inside its street-bounded plot, not across curbs."""
+    from base64 import b64encode
+    from io import BytesIO
+    from PIL import Image
+    sidewalk(d,site.x,site.y,night,east=site.x>=1200,south=site.y>1080)
+    begin_plot(d,site.x,site.y)
+    px,py,scale=legacy_transform(site.x,site.y,site.role)
+    d.add(f'<g transform="translate({px} {py}) scale({scale}) translate({-site.x} {-site.y})">')
+    mode="night" if night else "day"
+    with Image.open(Path(__file__).resolve().parent / "street" / f"world_100_{mode}.webp") as source:
+        tile=source.crop((site.x-12,site.y-24,site.x+196,site.y+172))
+        data=BytesIO()
+        tile.save(data,format="PNG")
+        encoded=b64encode(data.getvalue()).decode("ascii")
+    d.add(f'<image x="{site.x-12}" y="{site.y-24}" width="208" height="196" href="data:image/png;base64,{encoded}"/>')
+    x,y=site.x,site.y
+    if site.role=="GARAGE":
+        d.rect(x+9,y+4,158,15,"#a5443d")
+        d.text(x+88,y+15,"CACILHAS DEALERSHIP",6.8)
+    elif site.role=="CASINO":
+        d.rect(x+43,y+43,90,13,"#523457",2)
+        d.text(x+88,y+52,"Lisbon Casino",7.5,"#ffe7bd")
+    elif site.role=="SHIPYARD":
+        d.rect(x+11,y+75,154,15,"#2b4954")
+        d.text(x+88,y+86,"Tagus Shipyard",8)
+    elif site.role=="EXCHANGE":
+        d.rect(x+24,y+10,128,12,"#647476" if night else "#ded5bb")
+        d.text(x+88,y+19,"LISBON STOCK EXCHANGE",6.5,"#f3dfae" if night else "#344f5b")
+    elif site.role=="RESEARCH":
+        d.rect(x+8,y+70,156,18,"#244b5b")
+        d.text(x+86,y+82,"E  Present Foundry Town",8)
+    d.add('</g>')
+    if site.role in ("EXCHANGE","SHIPYARD","RESEARCH"):
+        left,top,right,_=plot_bounds(x,y)
+        label={"EXCHANGE":"STOCK EXCHANGE","SHIPYARD":"BOAT REPAIRS","RESEARCH":"PRESENTATION"}[site.role]
+        d.rect(left,top,right-left,21,plot_ground(x,y,night))
+        d.rect((left+right)/2-88,top+2,176,15,"#315e6a")
+        d.text((left+right)/2,top+13,label,8.5)
+    d.add('</g>')
+
+
+def continuous_roads(d,night):
+    """Paint one asphalt surface from the actual driving network, above plot backgrounds."""
+    from lisbon_scene import PARK_BOUNDS,RIVER_TOP,RIVER_BOTTOM,bridge_center
+    from vehicles import ROAD_SEGMENTS
+    curb="#657572" if night else "#b4ac98"
+    paint="#ced0b3" if night else "#e5d7b6"
+    # The garden tunnel stays underground. Clipping also protects all park edges.
+    d.add('<defs><mask id="visible-roads"><rect width="2400" height="1780" fill="white"/>')
+    for left,top,right,bottom in PARK_BOUNDS:
+        d.rect(left,top,right-left,bottom-top,"black")
+    d.add('</mask></defs><g mask="url(#visible-roads)">')
+    for extra,color in ((10,curb),(0,ROAD_COLOR)):
+        d.add(f'<g data-road-layer="{"curb" if extra else "asphalt"}">')
+        for x1,y1,x2,y2,half in ROAD_SEGMENTS:
+            d.path(f'M{x1} {y1}L{x2} {y2}',stroke=color,width=half*2+extra)
+        d.add('</g>')
+    for x1,y1,x2,y2,half in ROAD_SEGMENTS:
+        d.add(f'<path data-road-surface="{ROAD_COLOR}" d="M{x1} {y1}L{x2} {y2}" '
+              f'stroke="{paint}" stroke-width="1" stroke-dasharray="9 14"/>')
+    d.add('</g>')
+    # Restore bridge towers and cables over the freshly unified deck surface.
+    for fraction in (.236,.769):
+        y=RIVER_TOP+(RIVER_BOTTOM-RIVER_TOP)*fraction
+        x=bridge_center(y,True)
+        for side in (-1,1):
+            d.path(f'M{x+side*29} {y+12}L{x+side*15} {y-40}',stroke="#c3d7d4",width=4)
+            for spread in (-37,-22,0,23,38):
+                ty=y+spread
+                tx=bridge_center(ty,True)+side*26
+                d.path(f'M{x+side*15} {y-39}L{tx} {ty}',stroke="#c3d7d4",width=1)
+    for fraction in (.17,.72):
+        y=RIVER_TOP+(RIVER_BOTTOM-RIVER_TOP)*fraction
+        for x in (267,327):
+            d.rect(x,y-34,7,48,"#98534b")
+        d.path(f'M273 {y-30}h54',stroke="#a65c4e",width=5)
+        d.path(f'M273 {y-22}L327 {y+6}M273 {y+6}L327 {y-22}',stroke="#bd7d68",width=2)
+    if night:
+        for fraction in (.1,.3,.5,.7,.9):
+            y=RIVER_TOP+(RIVER_BOTTOM-RIVER_TOP)*fraction
+            for side in (-1,1):
+                d.ellipse(bridge_center(y,True)+side*26,y,1.4,1.4,"#fff1b0")
+
+
 def city_svg(night=False):
     d = Drawing(2400, 1780)
     map_wayfinding(d, night)
     translated_map_signs(d, night)
+    bridge_connections(d, night)
+    # Clear the complete former footprints before placing any centered models.
+    # Roads are painted last, so no restoration patch can cover the asphalt.
+    for site in SITES:
+        height=196 if site.role=="GARAGE" and site.name not in CLOSED else 136
+        d.rect(site.x-12,site.y-24,208,height,plot_ground(site.x,site.y,night))
+    for (x,y),kind in SCENERY_PLOTS:
+        if kind=="flats":
+            d.rect(x-12,y-24,208,136,plot_ground(x,y,night))
     for site in SITES:
         if site.name in CLOSED:
             continue
         if site.role not in COMPACT_ROLES:
             continue
         sidewalk(d, site.x, site.y, night, east=site.x>=1200, south=site.y>1080)
-        d.add(f'<g data-site="{escape(site.name, quote=True)}">')
+        begin_plot(d,site.x,site.y,site.name)
+        cx,cy=plot_center(site.x,site.y)
+        d.add(f'<g transform="translate({cx-site.x-88} {cy-site.y-64})">')
         if site.role == "PUBLIC SHOP":
             (tool_shop, furniture_shop, pottery_shop, bread_shop)[site.trade](d, site, night)
         elif site.role == "SUPPLIER":
@@ -385,24 +559,15 @@ def city_svg(night=False):
         planter(d, site.x+13, site.y+91, night)
         planter(d, site.x+166, site.y+91, night)
         signs(d, site, night)
-        d.add('</g>')
+        d.add('</g></g>')
     locations = [pos for pos, kind in SCENERY_PLOTS if kind == "flats"]
     locations += [(site.x, site.y) for site in SITES if site.name in CLOSED]
     for index, (x,y) in enumerate(locations):
         apartments(d, x, y, index, night)
-    # The dealership keeps its own building model; replace its old English sign.
-    dealer = next(site for site in SITES if site.name == "Cacilhas Dealership")
-    d.rect(dealer.x+9, dealer.y+4, 158, 15, "#a5443d")
-    d.text(dealer.x+88, dealer.y+15, "CACILHAS DEALERSHIP", 6.8)
-    casino = next(site for site in SITES if site.role == "CASINO")
-    d.rect(casino.x+43, casino.y+43, 90, 13, "#523457", 2)
-    d.text(casino.x+88, casino.y+52, "Lisbon Casino", 7.5, "#ffe7bd" if night else "#f6dca9")
-    shipyard = next(site for site in SITES if site.role == "SHIPYARD")
-    d.rect(shipyard.x+11, shipyard.y+75, 154, 15, "#2b4954")
-    d.text(shipyard.x+88, shipyard.y+86, "Tagus Shipyard", 8)
-    exchange = next(site for site in SITES if site.role == "EXCHANGE")
-    d.rect(exchange.x+24, exchange.y+10, 128, 12, "#647476" if night else "#ded5bb")
-    d.text(exchange.x+88, exchange.y+19, "LISBON STOCK EXCHANGE", 6.5, "#f3dfae" if night else "#344f5b")
+    for site in SITES:
+        if site.role not in COMPACT_ROLES and site.name not in CLOSED:
+            legacy_building(d,site,night)
+    continuous_roads(d,night)
     return d.svg()
 
 
@@ -563,9 +728,8 @@ def tutorial_svg(name):
     root = Path(__file__).resolve().parent / "street"
     base = b64encode((root / "world_100_day.webp").read_bytes()).decode("ascii")
     overlay = city_svg().split('>', 1)[1].rsplit('</svg>', 1)[0]
-    campus = b64encode((root / "nova_presentation_signs.svg").read_bytes()).decode("ascii")
     world = (f'<image width="2400" height="1780" href="data:image/webp;base64,{base}"/>'
-             f'{overlay}<image x="27" y="508" width="178" height="110" href="data:image/svg+xml;base64,{campus}"/>')
+             f'{overlay}')
     d = Drawing(650, 406)
     d.rect(0, 0, 650, 406, "#193941")
     if name == "goal":

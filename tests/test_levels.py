@@ -72,6 +72,8 @@ def test_browser_level_dialogs_and_progress():
             app.run()
         assert not app.exception
         assert any(item.value == f'Level {level} complete!' for item in app.subheader)
+        if level == 2:  # Dollar amounts are escaped, not shown as a maths formula
+            assert any(r'reached \$500 cash' in item.value and r'\$2,000' in item.value for item in app.markdown)
         if level == 3:
             assert any(item.value == 'You successfully completed the game! Good job!' for item in app.markdown)
         next(button for button in app.button if button.label == label).click().run()

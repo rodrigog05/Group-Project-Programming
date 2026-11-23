@@ -51,6 +51,7 @@ def initial_state():
         "holdings": _zeros(),
         "cost_basis": _zeros(),
         "quotes": {asset.symbol: asset.base_price for asset in ASSETS},
+        "previous_quotes": {asset.symbol: asset.base_price for asset in ASSETS},
         "legacy_dividends": _zeros(),
         "total_dividends": _zeros(),
         "sales_today": _zeros(),
@@ -83,6 +84,7 @@ def normalize_state(value):
         return item if isinstance(item, dict) else {}
 
     holdings, basis, quotes = mapping("holdings"), mapping("cost_basis"), mapping("quotes")
+    previous_quotes = mapping("previous_quotes")
     pending = mapping("pending_cents" if version == 1 else "legacy_dividends")
     dividends, sales = mapping("total_dividends"), mapping("sales_today")
     for asset in ASSETS:
@@ -91,11 +93,15 @@ def normalize_state(value):
         result["holdings"][symbol] = owned
         result["cost_basis"][symbol] = _whole(basis.get(symbol), owned * asset.base_price) if owned else 0
         quote = _whole(quotes.get(symbol)) or asset.base_price
+        previous = _whole(previous_quotes.get(symbol))
         if version == 1:
             low = (asset.base_price * 75 + 50) // 100
             high = (asset.base_price * 125 + 50) // 100
             quote = min(high, max(low, quote))
+            if previous:
+                previous = min(high, max(low, previous))
         result["quotes"][symbol] = quote
+        result["previous_quotes"][symbol] = previous or quote
         credit = _whole(pending.get(symbol))
         # Round legacy fractional dividends up once so no earned credit is lost.
         result["legacy_dividends"][symbol] = (credit + 99) // 100 if version == 1 else credit
@@ -215,6 +221,7 @@ def settle_exchange(town, day, *, pay_daily_dividends=True):
         return 0
     statement = _statement()
     statement["day"] = day
+    state["previous_quotes"] = dict(state["quotes"])
     for asset in ASSETS:
         symbol = asset.symbol
         closing_price = _closing_price(state, symbol)
@@ -243,10 +250,13 @@ def portfolio_rows(town):
     for asset in ASSETS:
         symbol = asset.symbol
         price = state["quotes"][symbol]
+        previous = state.get("previous_quotes", {}).get(symbol) or price
+        change = price - previous
         closing_price = _closing_price(state, symbol)
         owned = state["holdings"][symbol]
         rows.append({
             "symbol": symbol, "name": asset.name, "price": price, "owned": owned,
+            "previous_close": previous, "day_change": change, "day_change_percent": change / previous * 100,
             "cost_basis": state["cost_basis"][symbol], "value": owned * price,
             "next_dividend": _daily_dividend(closing_price, owned) + state["legacy_dividends"][symbol],
             "next_price": closing_price,

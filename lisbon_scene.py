@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 import math
 import random
+from city_layout import ROAD_COLOR, apartment_bounds
 from lisbon_landmarks import draw_landmarks, light_landmarks
 
 # The Tejo is wide enough that crossing takes a vehicle or the ferry. Everything on the
@@ -87,7 +88,7 @@ def vehicle_park_blocked(x, y, radius=10):
     return any(left-radius < x < right+radius and top-radius < y < bottom+radius
                for left, top, right, bottom in PARK_BOUNDS)
 SCENERY_BLOCKS = tuple(
-    (x, y, x+176, y+104) if kind == "flats"
+    apartment_bounds(x,y) if kind == "flats"
     else (x+FOUNTAIN_BASIN[0], y+FOUNTAIN_BASIN[1], x+FOUNTAIN_BASIN[2], y+FOUNTAIN_BASIN[3])
     for (x, y), kind in SCENERY_PLOTS if kind != "park"
 )
@@ -171,7 +172,7 @@ class LisbonScene:
 
     def road(self, points, width=42):
         self.line(points, "#b4ac98", width+10, capstyle="round", joinstyle="round")
-        self.line(points, "#747a77", width, capstyle="round", joinstyle="round")
+        self.line(points, ROAD_COLOR, width, capstyle="round", joinstyle="round")
         self.line(points, "#e4d8b9", 1, dash=(9, 14))
 
     @staticmethod
@@ -193,7 +194,7 @@ class LisbonScene:
         outer_v, outer_h = vertical_width/2+5, horizontal_width/2+5
         inner_v, inner_h = vertical_width/2, horizontal_width/2
         self.poly(self._cross_outline(x, y, outer_v, outer_h, 4), "#b4ac98")
-        self.poly(self._cross_outline(x, y, inner_v, inner_h, 3), "#747a77")
+        self.poly(self._cross_outline(x, y, inner_v, inner_h, 3), ROAD_COLOR)
 
     def draw(self):
         self.rect(0, 104, WORLD_WIDTH, WORLD_BOTTOM, "#dfd5bd")
@@ -217,7 +218,7 @@ class LisbonScene:
         self.rect(0, 697, 1200, RIVER_TOP, "#eee5cf")
         for x in range(-15, 1220, 52):
             self.line((x, 707, x+13, 701, x+26, 707, x+39, 713, x+52, 707), "#a5a294", 2, smooth=True)
-        for half, side, bevel, color in ((18, 20, 7, "#b4ac98"), (13, 15, 5, "#747a77")):
+        for half, side, bevel, color in ((18, 20, 7, "#b4ac98"), (13, 15, 5, ROAD_COLOR)):
             points = north_avenue_outline(half, side, bevel)
             self.poly(tuple(n for point in points for n in point), color)
         for left, right in zip(NORTH_JUNCTIONS, NORTH_JUNCTIONS[1:]):
@@ -537,7 +538,8 @@ class LisbonScene:
         self.rect(0, OLD_RIVER_BOTTOM+2, WORLD_WIDTH, OLD_RIVER_BOTTOM+9, "#f1e8ce")
         self.road((0, 1058, WORLD_WIDTH, 1058), 24)
         self.road((300, 902, 300, 1058), 32)
-        self.road((bridge_center(south(902), True), 902, VASCO_NORTH_X, 1058), 32)
+        self.road((bridge_center(RIVER_BOTTOM+19, True), RIVER_BOTTOM+19-SOUTH_SHIFT,
+                   VASCO_NORTH_X, 1058), 32)
         self.road_junction(300, 1058, 32, 24)
         self.road_junction(VASCO_NORTH_X, 1058, 32, 24)
         self.text(144, 1021, "ALMADA", 20, "#65795e", True)
@@ -613,7 +615,7 @@ class LisbonScene:
         self.road((VASCO_NORTH_X, 660, *start), 32)
         self.line((start[0]+7, start[1]+7, end[0]+7, end[1]+7), "#638d8f", 59)
         self.line((*start, *end), "#c3c9c1", 58)
-        self.line((*start, *end), "#747e7e", 45)
+        self.line((*start, *end), ROAD_COLOR, 45)
         self.line((*start, *end), "#eee3c5", 1, dash=(6, 9))
         for y in self.across_river(.236, .769):
             x = bridge_center(y, True)

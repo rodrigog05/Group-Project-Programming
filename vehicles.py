@@ -1,5 +1,6 @@
 """Vehicle costs, reusable trunk capacity and the town's painted road network."""
 from dataclasses import dataclass
+from city_layout import plot_center
 
 from lisbon_scene import (WORLD_WIDTH, VASCO_NORTH_X, RIVER_TOP, RIVER_BOTTOM, bridge_center, south,
                           SOUTH_PARK_BOUNDS, SOUTH_PARK_TUNNEL, NORTH_AVENUE_Y, NORTH_JUNCTIONS)
@@ -49,12 +50,17 @@ ROAD_SEGMENTS = (
     + tuple((0, south(y), WORLD_WIDTH, south(y), 17) for y in (1110, 1370, 1570))
     + tuple((x, south(1060), x, south(1580), 15) for x in (620, 1190, 1495, 1775, VASCO_NORTH_X, 2350))
     + ((0, south(1058), WORLD_WIDTH, south(1058), 12), (300, RIVER_BOTTOM+2, 300, south(1058), 16),
-       (bridge_center(RIVER_BOTTOM+2, True), RIVER_BOTTOM+2, VASCO_NORTH_X, south(1058), 16),
+       (bridge_center(RIVER_BOTTOM+19, True), RIVER_BOTTOM+19, VASCO_NORTH_X, south(1058), 16),
        # Bridge decks span the river from quay to quay.
        (300, RIVER_TOP-23, 300, RIVER_BOTTOM+35, 27),
        (bridge_center(RIVER_TOP-20, True), RIVER_TOP-20, bridge_center(RIVER_BOTTOM+19, True), RIVER_BOTTOM+19, 22.5),
        (VASCO_NORTH_X, 660, bridge_center(RIVER_TOP-20, True), RIVER_TOP-20, 16))
 )
+
+# The centered grain depot has a deeper forecourt than the old roadside model.
+# A short service apron joins its doorstep access to the southern avenue.
+_grain_x,_grain_y=plot_center(2060,south(1430))
+ROAD_SEGMENTS += ((_grain_x,_grain_y+75,_grain_x,south(1570),6),)
 
 
 def road_projection(x, y, segment):

@@ -1,6 +1,7 @@
 """Foundry Town's Streamlit interface."""
 from base64 import b64encode
 from copy import deepcopy
+from html import escape
 import os
 from pathlib import Path
 from time import monotonic
@@ -157,47 +158,73 @@ def show_directions(label):
     st.session_state.inside = None
 
 
+def exchange_quotes(rows):
+    st.subheader("All stocks", anchor=False)
+    cells = []
+    for row in rows:
+        change = row["day_change"]
+        sign = "+" if change > 0 else "−"
+        movement = f"{sign}${abs(change):,} ({row['day_change_percent']:+.1f}%)" if change else "—"
+        style = "gain" if change > 0 else "loss" if change < 0 else "flat"
+        cells.append(
+            f'<tr><th scope="row">{escape(row["name"])}</th><td>${row["price"]:,}</td>'
+            f'<td class="{style}">{movement}</td></tr>'
+        )
+    st.html('<table class="exchange-board"><thead><tr><th scope="col">Store</th>'
+            '<th scope="col">Price</th><th scope="col">Last change</th></tr></thead><tbody>'
+            + "".join(cells) + "</tbody></table>")
+    st.caption("Last change is measured from the previous close.")
+
+
+def exchange_ticket(rows):
+    st.subheader("Trade shares", anchor=False)
+    asset = st.selectbox("Store", exchange.ASSETS, format_func=lambda item: item.name)
+    quantity = st.number_input("Shares", 1, asset.cap)
+    selected = next(row for row in rows if row["symbol"] == asset.symbol)
+    price = selected["price"]
+    st.markdown(f"**\\${price:,} per share** · **{selected['owned']} owned**  \n"
+                f"Cost for {quantity} · **\\${price * quantity:,}**  \n"
+                f"Dividend at close · **\\${selected['next_dividend']:,}**")
+    if selected["next_price"] > price:
+        st.markdown(f"Price at close · **\\${selected['next_price']:,}**")
+    with st.container(key="exchange_actions"):
+        buy, sell = st.columns(2)
+        buy.button("Buy shares", width="stretch", type="primary", on_click=inside,
+                   args=(exchange.buy_shares, asset.symbol, quantity))
+        sell.button("Sell shares", width="stretch", on_click=inside,
+                    args=(exchange.sell_shares, asset.symbol, quantity))
+    if reply := st.session_state.get("reply"):
+        st.info(reply.replace("$", "\\$"))
+    with st.expander("Share prices and holdings"):
+        st.dataframe(
+            [{"Store": row["name"], "Price": row["price"], "Owned": row["owned"],
+              "Next dividend": row["next_dividend"], "Last dividend": row["last_payout"]}
+             for row in rows], hide_index=True,
+        )
+
+
 def district_exchange():
     rows = exchange.portfolio_rows(town)
     floor = b64encode((ROOT / "street" / "scenes" / "lisbon_exchange.webp").read_bytes()).decode("ascii")
     st.html(f"""<style>
         .st-key-exchange_floor {{
-            background-image: linear-gradient(180deg, #0a1623bf, transparent 38%, #0a162366),
-                              url("data:image/webp;base64,{floor}");
+            --exchange-art: url("data:image/webp;base64,{floor}");
         }}
     </style>""")
     with st.container(key="exchange_floor"):
         with st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"):
             st.title("Bolsa de Lisboa", anchor=False, width="content")
             st.button("Leave exchange", key="exchange_leave", shortcut="Escape", on_click=leave_building)
-        with st.container(key="exchange_ticket"):
-            st.subheader("Trade shares", anchor=False)
-            asset = st.selectbox("Store", exchange.ASSETS, format_func=lambda item: item.name)
-            quantity = st.number_input("Shares", 1, asset.cap)
-            selected = next(row for row in rows if row["symbol"] == asset.symbol)
-            price = selected["price"]
-            st.markdown(f"**\\${price:,} per share** · **{selected['owned']} owned**  \n"
-                        f"Cost for {quantity} · **\\${price * quantity:,}**  \n"
-                        f"Dividend at close · **\\${selected['next_dividend']:,}**")
-            if selected["next_price"] > price:
-                st.markdown(f"Price at close · **\\${selected['next_price']:,}**")
-            st.markdown(f"Hold shares at close to earn **{exchange.DAILY_DIVIDEND_PERCENT}%** of their closing value. "
-                        f"Selling goods or collecting repair payment at the business raises its price "
-                        f"**{exchange.PRICE_INCREASE_PERCENT}%** once at close.")
-            with st.container(key="exchange_actions"):
-                buy, sell = st.columns(2)
-                buy.button("Buy shares", width="stretch", type="primary", on_click=inside,
-                           args=(exchange.buy_shares, asset.symbol, quantity))
-                sell.button("Sell shares", width="stretch", on_click=inside,
-                            args=(exchange.sell_shares, asset.symbol, quantity))
-            if reply := st.session_state.get("reply"):
-                st.info(reply.replace("$", "\\$"))
-            with st.expander("Share prices and holdings"):
-                st.dataframe(
-                    [{"Store": row["name"], "Price": row["price"], "Owned": row["owned"],
-                      "Next dividend": row["next_dividend"], "Last dividend": row["last_payout"]}
-                     for row in rows], hide_index=True,
-                )
+        with st.container(key="exchange_panels"):
+            ticket, quotes = st.columns((1, 1.07))
+            with ticket.container(key="exchange_ticket"):
+                exchange_ticket(rows)
+            with quotes.container(key="exchange_quotes"):
+                exchange_quotes(rows)
+            with st.container(key="exchange_rules"):
+                st.markdown(f"Hold shares at close to earn **{exchange.DAILY_DIVIDEND_PERCENT}%** of their closing value. "
+                            f"Sell goods or collect repair payment at that business to raise its price "
+                            f"**{exchange.PRICE_INCREASE_PERCENT}%** at close, once per day.")
 
 
 def production_batches(town):
@@ -310,11 +337,11 @@ def places():
         district_exchange()
         return
     with st.container(key="foundry_route"):
-        route_button, options, feedback = st.columns((2, 1, 4), vertical_alignment="center")
-        with options.popover("Route options", width="stretch"):
-            destination = st.selectbox("Destination", [DEFAULT_DESTINATION, *PLACES, MONASTERY],
-                                       format_func=place_name, key="destination")
-            st.toggle("💡 Show hints", value=True, key="show_hints")
+        # One row: the latest message, then Destination, Show route and the hints switch.
+        feedback, choose, route_button, hints = st.columns((4, 2, 2, 1), vertical_alignment="center")
+        destination = choose.selectbox("Destination", [DEFAULT_DESTINATION, *PLACES, MONASTERY],
+                                       format_func=place_name, key="destination", label_visibility="collapsed")
+        hints.toggle("💡 Show hints", value=True, key="show_hints")
         hint = next_move(town, name)
         target = hint and hint["target"]
         route_button.button(f"Show route to {place_name(target)}" if target else "Show route", width="stretch",
@@ -537,18 +564,14 @@ def landmarks():
     map_art = b64encode((ROOT / "street" / "world_100_day.webp").read_bytes()).decode("ascii")
     station = b64encode(station_svg().encode()).decode("ascii")
     city = b64encode((ROOT / "street" / "city_day.svg").read_bytes()).decode("ascii")
-    campus = b64encode((ROOT / "street" / "nova_presentation_signs.svg").read_bytes()).decode("ascii")
     x, y, width, height = ORIENTE_BOUNDS
     st.html(f'<div style="position:relative"><img src="data:image/webp;base64,{map_art}" '
             'alt="Foundry Town · Lisbon and Almada" style="width:100%;display:block">'
-            f'<img src="data:image/svg+xml;base64,{city}" alt="City buildings" '
-            'style="position:absolute;inset:0;width:100%;height:100%">'
             f'<img src="data:image/svg+xml;base64,{station}" alt="Gare do Oriente" '
             f'style="position:absolute;left:{x/2400*100}%;top:{y/1780*100}%;width:{width/2400*100}%;'
             f'height:{height/1780*100}%">'
-            f'<img src="data:image/svg+xml;base64,{campus}" alt="Nova SBE presentation" '
-            f'style="position:absolute;left:{27/2400*100}%;top:{508/1780*100}%;'
-            f'width:{178/2400*100}%;height:{110/1780*100}%"></div>')
+            f'<img src="data:image/svg+xml;base64,{city}" alt="City buildings" '
+            'style="position:absolute;inset:0;width:100%;height:100%"></div>')
     monument = st.selectbox("Landmark", LANDMARKS, format_func=lambda item: item.name)
     st.write(monument_description(monument, SITES))
     if monument.kind == "monastery":
@@ -722,7 +745,7 @@ def start_menu_rules():
         "**Trade route** · Buy materials at a yellow store, make products at a blue store, sell them at a green "
         "market. Example: wheat at Goldenfield Farm → bread at Sunrise Bakery → Daily Bread Market.\n\n"
         "**Getting around** · The ferry crosses the Tagus for $2 on foot; with a vehicle the bridges charge "
-        "$3 toward Lisbon. Choose **Route options → Destination** to see the route.".replace("$", "\\$"))
+        "$3 toward Lisbon. Choose a **Destination** next to the message above the map to see the route.".replace("$", "\\$"))
 
 
 def cloud_account():
@@ -828,8 +851,10 @@ st.html(f"""
     padding: clamp(1rem, 3vw, 2.5rem);
     border-radius: 0.875rem;
     background-color: #132231;
+    background-image: linear-gradient(180deg, #10223165, transparent 26%), var(--exchange-art);
     background-position: 35% center;
     background-size: cover;
+    background-repeat: no-repeat;
     color: #f5f8fc;
   }}
   .st-key-exchange_floor h1 {{
@@ -838,16 +863,21 @@ st.html(f"""
     font-size: clamp(1.3rem, 4vw, 2.5rem);
     text-shadow: 0 2px 6px #09131d;
   }}
-  .st-key-exchange_ticket {{
-    max-width: 26rem;
-    margin: clamp(1.75rem, 8dvh, 5rem) 0 0 auto;
-    padding: clamp(1rem, 2.5vw, 1.5rem);
+  .st-key-exchange_panels {{
+    max-width: min(57rem, 63%);
+    margin: clamp(4rem, 12dvh, 7rem) 0 0 auto;
+  }}
+  .st-key-exchange_quotes, .st-key-exchange_ticket {{
+    padding: clamp(0.9rem, 1.6vw, 1.35rem);
     border: 1px solid #587482;
     border-radius: 0.875rem;
-    background: #102331f7;
-    box-shadow: 0 12px 35px #07111b73;
+    background: #102331ed;
+    box-shadow: 0 12px 35px #07111b66;
   }}
-  .st-key-exchange_ticket h2 {{
+  .st-key-exchange_quotes h2, .st-key-exchange_quotes [data-testid="stCaptionContainer"] p {{
+    color: #e7eff5;
+  }}
+  .st-key-exchange_ticket h2, .st-key-exchange_quotes h2 {{
     padding: 0;
     color: #ffd997;
     font-size: 1.375rem;
@@ -857,6 +887,30 @@ st.html(f"""
   .st-key-exchange_ticket .stMarkdown p {{ color: #e7eff5; }}
   .st-key-exchange_ticket .stMarkdown strong {{ color: #ffd997; }}
   .st-key-exchange_ticket details {{ border-color: #587482; }}
+  .exchange-board {{
+    width: 100%;
+    border-collapse: collapse;
+    color: #f0f5f9;
+    font-size: 0.86rem;
+  }}
+  .exchange-board th, .exchange-board td {{
+    padding: 0.5rem 0.3rem;
+    border-bottom: 1px solid #6f899654;
+    text-align: left;
+  }}
+  .exchange-board thead th {{ color: #d3e2ea; font-size: 0.75rem; }}
+  .exchange-board tbody th {{ font-weight: 500; }}
+  .exchange-board td {{ white-space: nowrap; font-variant-numeric: tabular-nums; }}
+  .exchange-board .gain {{ color: #90e7b5; }}
+  .exchange-board .loss {{ color: #ffb1ab; }}
+  .exchange-board .flat {{ color: #b6c8d3; }}
+  .st-key-exchange_rules {{
+    padding: 0.75rem 1rem;
+    border-radius: 0.65rem;
+    background: #102331ed;
+  }}
+  .st-key-exchange_rules .stMarkdown p {{ color: #e7eff5; }}
+  .st-key-exchange_rules .stMarkdown strong {{ color: #ffd997; }}
   .st-key-exchange_floor button[data-testid="stBaseButton-secondary"] {{
     border-color: #819eaf;
     background: #244254;
@@ -879,15 +933,21 @@ st.html(f"""
     outline: 2px solid #ffd997;
     outline-offset: 3px;
   }}
-  @media (max-width: 640px) {{
+  @media (max-width: 1050px) {{
     .st-key-exchange_floor {{
-      background-position: center, 30% center;
-      background-size: cover, auto calc(100% + 12rem);
+      --exchange-image-height: clamp(35rem, 76vw, 56rem);
+      background-image: linear-gradient(180deg, #10223165, transparent 7rem,
+                        transparent calc(var(--exchange-image-height) - 12rem),
+                        #132231 calc(var(--exchange-image-height) - 5rem)), var(--exchange-art);
+      background-position: center top, 34% -5rem;
+      background-size: cover, auto var(--exchange-image-height);
     }}
-    .st-key-exchange_ticket {{
+    .st-key-exchange_panels {{
       max-width: none;
-      margin-top: clamp(4rem, 24vw, 8rem);
+      margin-top: clamp(9rem, 25vw, 17rem);
     }}
+  }}
+  @media (max-width: 640px) {{
     .st-key-exchange_actions [data-testid="stHorizontalBlock"] {{
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -898,11 +958,12 @@ st.html(f"""
   body:has(.st-key-exchange_floor) .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
     grid-template-columns: minmax(0, 1fr) auto auto;
   }}
-  body:has(.st-key-exchange_floor) .st-key-foundry_hud [data-testid="stColumn"]:is(:nth-child(1), :nth-child(3), :nth-child(4), :nth-child(5)) {{
+  body:has(.st-key-exchange_floor) .st-key-foundry_hud [data-testid="stColumn"]:is(:nth-child(1), :nth-child(3), :nth-child(4), :nth-child(5), :nth-child(6)) {{
     display: none;
   }}
-  body:has(.st-key-exchange_floor) .st-key-foundry_hud [data-testid="stColumn"]:is(:nth-child(2), :nth-child(6), :nth-child(7)) {{
+  body:has(.st-key-exchange_floor) .st-key-foundry_hud [data-testid="stColumn"]:is(:nth-child(2), :nth-child(7), :nth-child(8)) {{
     grid-row: 1;
+    grid-column: auto;
   }}
   .st-key-foundry_hud [data-testid="stProgress"] {{
     display: grid;
@@ -913,9 +974,9 @@ st.html(f"""
   .st-key-foundry_hud [data-testid="stProgress"] > div {{
     padding-bottom: 0;
   }}
-  section[role="dialog"]:has(.st-key-level_complete) {{
-    top: 50%;
-    transform: translateY(-50%);
+  /* Centre the level-complete box on screen. (Moving the box itself pushed its top out of view.) */
+  [data-testid="stDialog"]:has(.st-key-level_complete) {{
+    align-items: center;
   }}
   section[role="dialog"]:has(.st-key-foundry_start) {{
     position: fixed !important;
@@ -1106,6 +1167,9 @@ st.html(f"""
     font-size: 1rem;
     padding: 0;
   }}
+  .st-key-foundry_hud [data-testid="stHeading"] [data-testid="stMarkdownContainer"] {{
+    margin-bottom: 0;
+  }}
   .st-key-foundry_hud [data-testid="stMetric"] {{
     display: flex;
     flex-direction: row;
@@ -1131,10 +1195,32 @@ st.html(f"""
     gap: 0.375rem 0.75rem;
   }}
   .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
-    grid-template-columns: repeat(4, auto) minmax(8rem, 1fr) auto auto;
+    grid-template-columns: repeat(4, auto) minmax(8rem, 1fr) auto auto auto;
+    column-gap: 1.25rem;
+  }}
+  /* More room between the groups: title | cash, bag, day | goal bar and Inventory | Fullscreen, Menu */
+  .st-key-foundry_hud [data-testid="stColumn"]:nth-child(1) {{ margin-right: 1rem; }}
+  .st-key-foundry_hud [data-testid="stColumn"]:nth-child(5) {{ margin-left: 1rem; }}
+  .st-key-foundry_hud [data-testid="stColumn"]:nth-child(7) {{ margin-left: 1rem; }}
+  /* The Inventory button shows its key, I, as a small keyboard key */
+  .st-key-inventory [data-testid="stPopoverButton"] [data-testid="stMarkdownContainer"] p::after {{
+    content: "I";
+    display: inline-block;
+    margin-left: 0.5rem;
+    min-width: 1.15rem;
+    padding: 0 0.3rem;
+    border-radius: 4px;
+    background: #f4f1ea;
+    color: #2b2f36;
+    box-shadow: 0 2px 0 #a9a49a;
+    font: 700 0.72rem/1.15rem system-ui, sans-serif;
+    text-align: center;
   }}
   .st-key-foundry_route > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
-    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(10rem, 15rem) auto auto;
+  }}
+  .st-key-foundry_route [data-testid="stAlert"] > div {{  /* A slim message, as tall as the controls beside it */
+    padding-block: 0.4rem;
   }}
   :is(.st-key-foundry_hud, .st-key-foundry_route) [data-testid="stColumn"] {{
     width: auto !important;
@@ -1146,12 +1232,14 @@ st.html(f"""
   }}
   @media (max-width: 740px) {{
     .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
-      grid-template-columns: repeat(4, auto) minmax(0, 1fr) auto;
+      grid-template-columns: repeat(4, auto) minmax(0, 1fr) auto auto;
     }}
-    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(5) {{
-      grid-column: 1 / -1;
-      grid-row: 2;
-    }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(5) {{ grid-row: 2; grid-column: 1 / 6; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(6) {{ grid-row: 2; grid-column: 6 / -1; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(7) {{ grid-row: 1; grid-column: 6; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(8) {{ grid-row: 1; grid-column: 7; }}
+    .st-key-foundry_hud [data-testid="stColumn"] {{ margin: 0 !important; }}  /* Less room on small screens */
+    .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{ column-gap: 0.9rem; }}
   }}
   @media (max-width: 560px) {{
     .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"],
@@ -1161,15 +1249,22 @@ st.html(f"""
     .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
       grid-template-columns: minmax(0, 1fr) auto auto;
     }}
-    .st-key-foundry_hud [data-testid="stColumn"]:is(:nth-child(2), :nth-child(3), :nth-child(4)) {{
-      grid-row: 2;
-    }}
-    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(5) {{ grid-row: 3; }}
-    .st-key-foundry_hud [data-testid="stColumn"]:is(:nth-child(6), :nth-child(7)) {{ grid-row: 1; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(1) {{ grid-row: 1; grid-column: 1; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(2) {{ grid-row: 2; grid-column: 1; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(3) {{ grid-row: 2; grid-column: 2; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(4) {{ grid-row: 2; grid-column: 3; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(5) {{ grid-row: 3; grid-column: 1 / 3; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(6) {{ grid-row: 3; grid-column: 3; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(7) {{ grid-row: 1; grid-column: 2; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(8) {{ grid-row: 1; grid-column: 3; }}
     .st-key-foundry_route > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
       grid-template-columns: minmax(0, 1fr) auto;
     }}
-    .st-key-foundry_route [data-testid="stColumn"]:nth-child(3) {{ grid-column: 1 / -1; }}
+    /* Phones: the message, then Destination with the hints switch, then Show route */
+    .st-key-foundry_route [data-testid="stColumn"]:nth-child(1) {{ grid-column: 1 / -1; }}
+    .st-key-foundry_route [data-testid="stColumn"]:nth-child(2) {{ grid-row: 2; grid-column: 1; }}
+    .st-key-foundry_route [data-testid="stColumn"]:nth-child(4) {{ grid-row: 2; grid-column: 2; }}
+    .st-key-foundry_route [data-testid="stColumn"]:nth-child(3) {{ grid-row: 3; grid-column: 1 / -1; }}
   }}
   body:has(.st-key-foundry_start) #foundry-fullscreen-game {{ display: none; }}
 </style>
@@ -1179,11 +1274,11 @@ PAGES = {"Game": places, "Market & recipes": market, "Landmarks": landmarks}
 if page not in PAGES:  # A page from an older version of the game
     page = st.session_state.town_page = "Game"
 with st.container(key="foundry_hud"):
-    title, cash, cargo, day, goal_bar, display, menu = st.columns(7, vertical_alignment="center")
+    title, cash, cargo, day, goal_bar, bag, display, menu = st.columns(8, vertical_alignment="center")
     title.title("Foundry Town")
     cash.metric("Cash", f"${town.cash:,}")
     cargo.metric("Bag", f"{town.cargo} / {town.carry_capacity}")
-    with cargo.popover("Inventory"):
+    with bag.popover("Inventory", key="inventory"):  # Next to the goal bar; I opens it (street.js)
         st.caption(f"{town.reserved} slots reserved for goods awaiting collection.")
         items = [(trade.supply, town.supplies[i]) for i, trade in enumerate(TRADES)]
         items += [(trade.product, town.goods[i]) for i, trade in enumerate(TRADES)]
@@ -1228,7 +1323,7 @@ def level_complete():
             1: "You sold your first product! Next: reach $500 cash to complete Level 2.",
             2: "You reached $500 cash! Continue to Level 3 and reach $2,000 cash?",
             3: "You successfully completed the game! Good job!",
-        }[level])
+        }[level].replace("$", "\\$"))  # A pair of $ signs would otherwise show as a maths formula
         label = {1: "Continue to Level 2", 2: "Continue to Level 3", 3: "Keep playing"}[level]
         if st.button(label, type="primary"):
             act(Town.acknowledge_level)

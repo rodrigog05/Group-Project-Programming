@@ -50,8 +50,6 @@ const night = new Image();
 day.src = "world_100_day.webp";
 const stationArt = { day: new Image(), night: new Image() };
 stationArt.day.src = "oriente_day.svg";
-const campusSigns = new Image();
-campusSigns.src = "nova_presentation_signs.svg";
 const cityArt = { day: new Image(), night: new Image() };
 cityArt.day.src = "city_day.svg";
 
@@ -393,10 +391,9 @@ function draw() {
   context.setTransform(ratio * scale, 0, 0, ratio * scale, -left * ratio * scale, -top * ratio * scale);
   context.drawImage(state.night && night.naturalWidth ? night : day, 0, 0);
   const city = state.night && night.naturalWidth ? cityArt.night : cityArt.day;
-  if (city.complete && city.naturalWidth) context.drawImage(city, 0, 0);
   const station = state.night && night.naturalWidth ? stationArt.night : stationArt.day;
   if (station.complete && station.naturalWidth && state.station_bounds) context.drawImage(station, ...state.station_bounds);
-  if (campusSigns.complete && campusSigns.naturalWidth) context.drawImage(campusSigns, 27, 508, 178, 110);
+  if (city.complete && city.naturalWidth) context.drawImage(city, 0, 0);
 
   if (state.route?.points?.length > 1) {
     context.save();
@@ -1258,8 +1255,32 @@ function frame(now) {
 }
 
 canvas.addEventListener("pointerdown", () => { ferry = null; });
+// I opens the Inventory popover above the map, from the map or anywhere on the page.
+function openInventory() {
+  for (const page of pageDocuments()) {
+    const button = page.querySelector(".st-key-inventory button");
+    if (button) {
+      button.click();
+      return true;
+    }
+  }
+  return false;
+}
+
+for (const page of pageDocuments()) {
+  page.addEventListener("keydown", (event) => {
+    if (event.key.toLowerCase() !== "i" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (typingOnPage() || dialogOpen()) return;
+    if (openInventory()) event.preventDefault();
+  });
+}
+
 canvas.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
+  if (key === "i" && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey && !ferry) {
+    if (openInventory()) event.preventDefault();
+    return;
+  }
   if (ferry) {
     if (key === "escape") ferry = null;
     event.preventDefault();

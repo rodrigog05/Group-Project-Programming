@@ -368,8 +368,17 @@ def advance_clock(town, seconds):
 
 
 def place_vehicle_on_road(town):
-    """Return an active vehicle to the road when leaving a building or loading an old save."""
-    if not town.vehicle or town.can_walk(town.x, town.y, roads_only=True):
+    """Recover changed footprints when loading; active vehicles return to paved roads."""
+    if not town.vehicle:
+        if town.can_walk(town.x,town.y):
+            return
+        # An old save can be beside a building that was moved into the plot center.
+        candidates=((town.x+dx,town.y+dy) for dx in range(-160,161,10) for dy in range(-160,161,10))
+        valid=[point for point in candidates if town.can_walk(*point)]
+        if valid:
+            town.x,town.y=min(valid,key=lambda point: math.dist(point,(town.x,town.y)))
+        return
+    if town.can_walk(town.x, town.y, roads_only=True):
         return
     x, y = town.x, town.y
 
