@@ -12,6 +12,22 @@ MAP_BOTTOM = 1080
 WORLD_WIDTH, WORLD_BOTTOM = 2400, 1600 + SOUTH_SHIFT
 
 
+def north_avenue_outline(half_width, verge_width, bevel):
+    """Perimeter of the avenue and its nine southbound approaches."""
+    xs, y = NORTH_JUNCTIONS, NORTH_AVENUE_Y
+    left, right = xs[0] - verge_width, xs[-1] + verge_width
+    top, bottom = y - half_width, y + half_width
+    points = [(left + bevel, top), (right - bevel, top), (right, top + bevel)]
+    for x in reversed(xs):
+        if x != xs[-1]:
+            points.extend([(x + verge_width + bevel, bottom), (x + verge_width, bottom + bevel)])
+        points.extend([(x + verge_width, y + 33), (x - verge_width, y + 33)])
+        if x != xs[0]:
+            points.extend([(x - verge_width, bottom + bevel), (x - verge_width - bevel, bottom)])
+    points.append((left, top + bevel))
+    return points
+
+
 def south(y):
     """Move a south-bank y coordinate from the old narrow-river layout to the current one."""
     return y + SOUTH_SHIFT if y > OLD_RIVER_BOTTOM else y
@@ -201,9 +217,11 @@ class LisbonScene:
         self.rect(0, 697, 1200, RIVER_TOP, "#eee5cf")
         for x in range(-15, 1220, 52):
             self.line((x, 707, x+13, 701, x+26, 707, x+39, 713, x+52, 707), "#a5a294", 2, smooth=True)
-        self.road((NORTH_JUNCTIONS[0], NORTH_AVENUE_Y, NORTH_JUNCTIONS[-1], NORTH_AVENUE_Y), 26)
-        for x in NORTH_JUNCTIONS:
-            self.rect(x-12, NORTH_AVENUE_Y-11, x+12, NORTH_AVENUE_Y+12, "#747a77")
+        for half, side, bevel, color in ((18, 20, 7, "#b4ac98"), (13, 15, 5, "#747a77")):
+            points = north_avenue_outline(half, side, bevel)
+            self.poly(tuple(n for point in points for n in point), color)
+        for left, right in zip(NORTH_JUNCTIONS, NORTH_JUNCTIONS[1:]):
+            self.line((left+24, NORTH_AVENUE_Y, right-24, NORTH_AVENUE_Y), "#e4d8b9", 1, dash=(9, 14))
         for x, name in NORTH_QUARTERS:
             self.text(x, 96, name, 12, "#485b52", True, "center")
         for site in self.sites:

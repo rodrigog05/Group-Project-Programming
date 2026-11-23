@@ -8,7 +8,7 @@ from html import escape
 from pathlib import Path
 
 from ferry import FERRY_FARE, FERRY_PIERS
-from lisbon_scene import NORTH_AVENUE_Y, NORTH_JUNCTIONS, NORTH_QUARTERS, SCENERY_PLOTS
+from lisbon_scene import NORTH_AVENUE_Y, NORTH_JUNCTIONS, NORTH_QUARTERS, SCENERY_PLOTS, north_avenue_outline
 from tycoon import SITES
 from place_names import localize_place_names
 
@@ -304,12 +304,11 @@ def map_wayfinding(d, night):
     for x in range(20, 2400, 48):
         d.ellipse(x, 78, 8, 4, "#476254" if night else "#819a77")
     y = NORTH_AVENUE_Y
-    lanes = f"M{NORTH_JUNCTIONS[0]} {y}H{NORTH_JUNCTIONS[-1]}"
-    lanes += "".join(f"M{x} {y}V144" for x in NORTH_JUNCTIONS)
-    d.path(lanes, stroke=curb, width=34)
-    d.path(lanes, stroke=asphalt, width=26)
+    for half, side, bevel, fill in ((18, 20, 7, curb), (13, 15, 5, asphalt)):
+        points = north_avenue_outline(half, side, bevel)
+        d.path("M" + "L".join(f"{x} {y}" for x, y in points) + "Z", fill=fill)
     for left, right in zip(NORTH_JUNCTIONS, NORTH_JUNCTIONS[1:]):
-        d.add(f'<path d="M{left+18} {y}H{right-18}" stroke="#d8cda9" stroke-dasharray="9 14"/>')
+        d.add(f'<path d="M{left+24} {y}H{right-24}" stroke="#d8cda9" stroke-dasharray="9 14"/>')
     for x, name in NORTH_QUARTERS:
         d.text(x, 101, name, 14, ink)
     for pier in FERRY_PIERS:
