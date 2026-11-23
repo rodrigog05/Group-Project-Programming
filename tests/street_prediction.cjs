@@ -106,6 +106,23 @@ test("F activates the suggested route only when the button is available", () => 
   assert.equal(b.run("routeClicks"), 1);
 });
 
+test("G opens Destination without activating Show route", () => {
+  const b = browser();
+  b.run(`
+    let opened = 0;
+    const destination = { click() { opened++; } };
+    window.parent.document.querySelector = selector =>
+      selector === ".st-key-destination button" ? destination : null;
+    const press = (key, options = {}) => handleHudShortcut({ key, preventDefault() {}, ...options });
+  `);
+  assert.equal(b.run('press("g")'), true);
+  assert.equal(b.run('press("f")'), false);
+  assert.equal(b.run('press("g", { repeat: true })'), false);
+  assert.equal(b.run('press("g", { ctrlKey: true })'), false);
+  assert.equal(b.run('window.parent.document.activeElement = { tagName: "INPUT" }; press("g")'), false);
+  assert.equal(b.run("opened"), 1);
+});
+
 test("bulk buy is available only within reach with cash and cargo room", () => {
   const b = browser();
   const supplier = { x: 480, y: 321, trade: 3, cost: 4 };

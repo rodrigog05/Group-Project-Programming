@@ -1264,11 +1264,17 @@ function frame(now) {
 
 canvas.addEventListener("pointerdown", () => { ferry = null; });
 // These buttons live outside the map iframe, but their shortcuts work in both places.
+const HUD_SHORTCUTS = {
+  i: ".st-key-inventory button",
+  f: ".st-key-show_suggested_route button",
+  g: ".st-key-destination button",
+};
+
 function handleHudShortcut(event) {
   const key = event.key.toLowerCase();
-  const selector = key === "i" ? ".st-key-inventory button" :
-    key === "f" && !event.shiftKey ? ".st-key-show_suggested_route button" : null;
+  const selector = HUD_SHORTCUTS[key];
   if (!selector || event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return false;
+  if (event.shiftKey && key !== "i") return false;
   if (ferry || typingOnPage() || dialogOpen()) return false;
   for (const page of pageDocuments()) {
     const button = page.querySelector(selector);
