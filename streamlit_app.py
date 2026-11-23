@@ -1126,6 +1126,9 @@ st.html(f"""
     font-size: 1rem;
     padding: 0;
   }}
+  .st-key-foundry_hud [data-testid="stHeading"] [data-testid="stMarkdownContainer"] {{
+    margin-bottom: 0;
+  }}
   .st-key-foundry_hud [data-testid="stMetric"] {{
     display: flex;
     flex-direction: row;
@@ -1151,10 +1154,13 @@ st.html(f"""
     gap: 0.375rem 0.75rem;
   }}
   .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
-    grid-template-columns: repeat(4, auto) minmax(8rem, 22rem) auto minmax(0, 1fr) auto auto;
+    grid-template-columns: repeat(4, auto) minmax(8rem, 1fr) auto auto auto;
+    column-gap: 1.25rem;
   }}
-  .st-key-foundry_hud [data-testid="stColumn"]:nth-child(7) {{ grid-column: 8; }}
-  .st-key-foundry_hud [data-testid="stColumn"]:nth-child(8) {{ grid-column: 9; }}
+  /* More room between the groups: title | cash, bag, day | goal bar and Inventory | Fullscreen, Menu */
+  .st-key-foundry_hud [data-testid="stColumn"]:nth-child(1) {{ margin-right: 1rem; }}
+  .st-key-foundry_hud [data-testid="stColumn"]:nth-child(5) {{ margin-left: 1rem; }}
+  .st-key-foundry_hud [data-testid="stColumn"]:nth-child(7) {{ margin-left: 1rem; }}
   /* The Inventory button shows its key, I, as a small keyboard key */
   .st-key-inventory [data-testid="stPopoverButton"] [data-testid="stMarkdownContainer"] p::after {{
     content: "I";
@@ -1191,6 +1197,8 @@ st.html(f"""
     .st-key-foundry_hud [data-testid="stColumn"]:nth-child(6) {{ grid-row: 2; grid-column: 6 / -1; }}
     .st-key-foundry_hud [data-testid="stColumn"]:nth-child(7) {{ grid-row: 1; grid-column: 6; }}
     .st-key-foundry_hud [data-testid="stColumn"]:nth-child(8) {{ grid-row: 1; grid-column: 7; }}
+    .st-key-foundry_hud [data-testid="stColumn"] {{ margin: 0 !important; }}  /* Less room on small screens */
+    .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{ column-gap: 0.9rem; }}
   }}
   @media (max-width: 560px) {{
     .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"],
