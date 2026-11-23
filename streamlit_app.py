@@ -712,8 +712,12 @@ def cloud_account():
             st.rerun()
         return
 
+    st.subheader("Save your progress online")
+    st.caption("Sign in or create an account to keep playing on another device.")
     with st.expander("Sign in for cloud saves"):
-        st.caption("Signing in opens your cloud save. A new account can save your current guest game.")
+        st.write("Returning player? Sign in, then choose Continue to open your saved game. "
+                 "New player? Choose Create account. If you already started as a guest, "
+                 "an empty account will keep that progress.")
         with st.form("cloud_account", clear_on_submit=True):
             email = st.text_input("Email")
             password = st.text_input("Password", type="password")
@@ -863,7 +867,35 @@ st.html(f"""
     color-scheme: dark;
   }}
   .st-key-foundry_start:has(details[open]) {{ margin-top: 1.5rem; }}
-  .st-key-foundry_start details p {{ color: #fff7e6; line-height: 1.5; }}
+  .st-key-foundry_start details,
+  .st-key-foundry_start [data-testid="stExpanderDetails"],
+  .st-key-foundry_start [data-testid="stForm"] {{
+    background: #16303a;
+    color: #fff7e6;
+  }}
+  .st-key-foundry_start details > summary,
+  .st-key-foundry_start details[open] > summary {{
+    background: #294650;
+    color: #fff7e6;
+  }}
+  .st-key-foundry_start details > summary:is(:hover, :focus-visible) {{
+    background: #355863;
+    color: #fff7e6;
+  }}
+  .st-key-foundry_start details > summary:focus-visible {{
+    outline: 2px solid #ffc66c;
+    outline-offset: -2px;
+  }}
+  .st-key-foundry_start details p {{ color: inherit; line-height: 1.5; }}
+  .st-key-foundry_start h3,
+  .st-key-foundry_start [data-testid="stWidgetLabel"] {{ color: #fff7e6; }}
+  .st-key-foundry_start [data-baseweb="input"],
+  .st-key-foundry_start [data-baseweb="base-input"],
+  .st-key-foundry_start input,
+  .st-key-foundry_start [data-baseweb="input"] button {{
+    background: #10252d;
+    color: #fff7e6;
+  }}
   .st-key-foundry_start details strong {{ color: #ffc66c; }}
   .st-key-foundry_start h1 {{ color: #ffc66c; }}
   .st-key-foundry_start [data-testid="stCaptionContainer"] p {{ color: #a9e2ce; }}
