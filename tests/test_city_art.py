@@ -6,9 +6,10 @@ from browser_game import COLLISION_MAP, building_at, entrance
 from city_art import CLOSED, COMPACT_ROLES, city_svg, presentation_svg
 from tycoon import COLLISION_BOUNDS, SITES, Town
 from place_names import PLACE_NAMES, localize_place_names
+from city_layout import plot_center, apartment_bounds
 
 
-def test_compact_buildings_have_walkable_yards_and_keep_their_entrances():
+def test_compact_buildings_have_walkable_yards_and_centered_entrances():
     town = Town()
     for site in SITES:
         if site.role not in COMPACT_ROLES or site.name in CLOSED:
@@ -18,18 +19,20 @@ def test_compact_buildings_have_walkable_yards_and_keep_their_entrances():
         assert site.solid_bounds in COLLISION_BOUNDS
         assert list(site.solid_bounds) in COLLISION_MAP["boxes"]
         assert not town.can_walk((left+right)/2, (top+bottom)/2)
-        assert town.can_walk(site.x+8, site.y+64), site.name
-        assert town.can_walk(site.x+168, site.y+64), site.name
+        assert town.can_walk(left-16, (top+bottom)/2), site.name
+        assert town.can_walk(right+16, (top+bottom)/2), site.name
         town.x, town.y = entrance(site)
         assert town.can_walk(town.x, town.y), site.name
         assert building_at(town) == site.name
-        assert site.door == (site.x+88, site.y+104)
+        cx,cy=plot_center(site.x,site.y)
+        assert site.door == (cx,cy+40)
+        assert ((left+right)/2,(top+bottom)/2) == (cx,cy)
 
 
 def test_closed_apartments_keep_their_full_collision_footprint():
     for site in SITES:
         if site.name in CLOSED:
-            assert site.solid_bounds == site.bounds
+            assert site.solid_bounds == apartment_bounds(site.x,site.y)
 
 
 def test_shipped_vector_assets_match_their_sources_and_contain_no_photographs():

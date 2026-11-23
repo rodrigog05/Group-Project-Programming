@@ -152,13 +152,13 @@ class Site:
     @property
     def solid_bounds(self):
         """Building footprint; the rest of a compact trading plot is walkable paving."""
-        if self.role in ("SUPPLIER", "FACTORY", "PUBLIC SHOP", "WAREHOUSE", "TIER2") and self.name != "Armazém do Seixal":
-            return self.x + 24, self.y + 24, self.x + 152, self.y + 104
-        return self.bounds
+        from city_layout import building_bounds
+        return building_bounds(self.x,self.y,self.role,self.name)
 
     @property
     def door(self):
-        return self.x + 88, self.y + 104
+        left,_,right,bottom = self.solid_bounds
+        return (left+right)/2,bottom
 
 SITES = (
     Site("Iron Hill Mine", "SUPPLIER", 0, 1010, south(935), "#d6a46e"),
