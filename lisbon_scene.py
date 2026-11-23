@@ -537,7 +537,8 @@ class LisbonScene:
         self.rect(0, OLD_RIVER_BOTTOM+2, WORLD_WIDTH, OLD_RIVER_BOTTOM+9, "#f1e8ce")
         self.road((0, 1058, WORLD_WIDTH, 1058), 24)
         self.road((300, 902, 300, 1058), 32)
-        self.road((bridge_center(south(902), True), 902, VASCO_NORTH_X, 1058), 32)
+        self.road((bridge_center(RIVER_BOTTOM+19, True), RIVER_BOTTOM+19-SOUTH_SHIFT,
+                   VASCO_NORTH_X, 1058), 32)
         self.road_junction(300, 1058, 32, 24)
         self.road_junction(VASCO_NORTH_X, 1058, 32, 24)
         self.text(144, 1021, "ALMADA", 20, "#65795e", True)

@@ -170,27 +170,42 @@ def district_exchange():
         with st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"):
             st.title("Bolsa de Lisboa", anchor=False, width="content")
             st.button("Leave exchange", key="exchange_leave", shortcut="Escape", on_click=leave_building)
-        with st.container(key="exchange_ticket"):
-            st.subheader("Trade shares", anchor=False)
-            asset = st.selectbox("Investment", exchange.ASSETS, format_func=lambda item: item.name)
-            quantity = st.number_input("Shares", 1, asset.cap)
-            selected = next(row for row in rows if row["symbol"] == asset.symbol)
-            st.markdown(f"Buy **\\${selected['ask']:,}** · Sell **\\${selected['bid']:,}** per share  \n"
-                        f"**{selected['owned']} owned** · Purchase total **\\${selected['ask'] * quantity:,}**")
-            with st.container(key="exchange_actions"):
-                buy, sell = st.columns(2)
-                buy.button("Buy shares", width="stretch", type="primary", on_click=inside,
-                           args=(exchange.buy_shares, asset.symbol, quantity))
-                sell.button("Sell shares", width="stretch", on_click=inside,
-                            args=(exchange.sell_shares, asset.symbol, quantity))
-            if reply := st.session_state.get("reply"):
-                st.info(reply.replace("$", "\\$"))
-            with st.expander("Share prices and holdings"):
-                st.dataframe(
-                    [{"Investment": row["name"], "Buy": row["ask"], "Sell": row["bid"],
-                      "Owned": row["owned"], "Cost basis": row["cost_basis"], "Last dividend": row["last_payout"]}
-                     for row in rows], hide_index=True,
-                )
+        quotes_column, ticket_column = st.columns((1.45, 1), gap="large")
+        with quotes_column:
+            with st.container(key="exchange_quotes"):
+                st.subheader("All stocks", anchor=False)
+                st.caption(f"Day {town.day} · Current prices per share")
+                st.dataframe([
+                    {"Symbol": row["symbol"], "Stock": row["name"],
+                     "Buy": f"${row['ask']:,}", "Sell": f"${row['bid']:,}",
+                     "Day change": f"${row['day_change']:+d}",
+                     "Change %": f"{row['day_change_percent']:+.2f}%"}
+                    for row in rows
+                ], hide_index=True, width="stretch")
+                st.caption("Day change compares the buy price with the previous close. "
+                           "Prices update at the end of each game day.")
+        with ticket_column:
+            with st.container(key="exchange_ticket"):
+                st.subheader("Trade shares", anchor=False)
+                asset = st.selectbox("Investment", exchange.ASSETS, format_func=lambda item: item.name)
+                quantity = st.number_input("Shares", 1, asset.cap)
+                selected = next(row for row in rows if row["symbol"] == asset.symbol)
+                st.markdown(f"Buy **\\${selected['ask']:,}** · Sell **\\${selected['bid']:,}** per share  \n"
+                            f"**{selected['owned']} owned** · Purchase total **\\${selected['ask'] * quantity:,}**")
+                with st.container(key="exchange_actions"):
+                    buy, sell = st.columns(2)
+                    buy.button("Buy shares", width="stretch", type="primary", on_click=inside,
+                               args=(exchange.buy_shares, asset.symbol, quantity))
+                    sell.button("Sell shares", width="stretch", on_click=inside,
+                                args=(exchange.sell_shares, asset.symbol, quantity))
+                if reply := st.session_state.get("reply"):
+                    st.info(reply.replace("$", "\\$"))
+                with st.expander("Share prices and holdings"):
+                    st.dataframe(
+                        [{"Investment": row["name"], "Buy": row["ask"], "Sell": row["bid"],
+                          "Owned": row["owned"], "Cost basis": row["cost_basis"], "Last dividend": row["last_payout"]}
+                         for row in rows], hide_index=True,
+                    )
 
 
 def production_batches(town):
@@ -830,6 +845,17 @@ st.html(f"""
     color: #fff3d4;
     font-size: clamp(1.3rem, 4vw, 2.5rem);
     text-shadow: 0 2px 6px #09131d;
+  }}
+  .st-key-exchange_quotes {{
+    margin-top: clamp(1.75rem, 8dvh, 5rem);
+    padding: 1rem;
+    border: 1px solid #587482;
+    border-radius: 0.875rem;
+    background: #102331f2;
+    color: #e7eff5;
+  }}
+  .st-key-exchange_quotes h2, .st-key-exchange_quotes [data-testid="stCaptionContainer"] p {{
+    color: #e7eff5;
   }}
   .st-key-exchange_ticket {{
     max-width: 26rem;
