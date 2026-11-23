@@ -61,7 +61,7 @@ const directions = {
   arrowleft: "left", a: "left", arrowright: "right", d: "right",
   arrowup: "up", w: "up", arrowdown: "down", s: "down",
 };
-const actions = { e: "interact", q: "bulk", v: "vehicle" };  // V parks the vehicle and brings it back
+const actions = { e: "interact", v: "vehicle" };  // V parks the vehicle and brings it back
 const vehicleArt = Object.fromEntries(["motorcycle", "car", "van", "f1"].map(key => {
   const art = new Image();
   art.src = asset(`vehicles/${key}.svg`);
@@ -90,20 +90,6 @@ let reportedHeight;
 
 function send(type, data = {}) {
   window.parent.postMessage({ isStreamlitMessage: true, type, ...data }, parentOrigin);
-}
-
-function tradeAvailable(action) {
-  if (action !== "bulk") return true;
-  if (!state || state.free_slots <= 0) return false;
-  const supplier = (state.suppliers || []).find(site => Math.hypot(site.x-player.x, site.y-player.y) <= 35);
-  if (!supplier) return false;
-  return state.cash >= supplier.cost;
-}
-
-function updateTradeButtons() {
-  for (const button of document.querySelectorAll('[data-action="bulk"]')) {
-    button.hidden = !tradeAvailable(button.dataset.action);
-  }
 }
 
 function frameHeight() {
@@ -154,7 +140,6 @@ window.addEventListener("message", (event) => {
   player = { x: next.x, y: next.y };
   facing = next.facing;
   state = next;
-  updateTradeButtons();
   vehicleButton.hidden = !state.vehicle && !state.stowed_vehicle;
   const vehicleLabel = state.vehicle ? "Leave vehicle" : "Bring back vehicle";
   const labelText = vehicleButton.querySelector("span");
@@ -331,7 +316,6 @@ function update(now) {
   const seconds = lastFrame ? Math.min(0.05, (now - lastFrame) / 1000) : 0;
   lastFrame = now;
   if (!state) return;
-  updateTradeButtons();
   const active = !ferry && !document.hidden && document.hasFocus() && document.activeElement === canvas;
   if (active && !queuedAction && seconds && bufferedSeconds < 2 && segments.length < 120) {
     const values = new Set(held.values());
@@ -1356,6 +1340,7 @@ window.addEventListener("pagehide", (event) => {
 
 canvas.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
+  if (key === "m" && !ferry && shortcutPages.some(page => page.defaultView?.foundryMenuShortcut?.(event))) return;
   if (handleHudShortcut(event)) return;
   if (ferry) {
     if (key === "escape") ferry = null;
@@ -1374,7 +1359,7 @@ canvas.addEventListener("keydown", (event) => {
   if (!Object.hasOwn(directions, key) && !Object.hasOwn(actions, key)) return;
   event.preventDefault();
   if (directions[key]) held.set(key, directions[key]);
-  if (actions[key] && !event.repeat && tradeAvailable(actions[key])) queuedAction = actions[key];
+  if (actions[key] && !event.repeat) queuedAction = actions[key];
 });
 
 window.addEventListener("keyup", (event) => held.delete(event.key.toLowerCase()));

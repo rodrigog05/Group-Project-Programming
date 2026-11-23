@@ -79,17 +79,18 @@ def test_street_movement_collision_and_snapshot_restore():
 
 def test_street_interactions_require_a_nearby_entrance_and_respect_capacity():
     town = Town()
-    assert street_input(town, input_event(action="bulk"))
+    assert not street_input(town, input_event(action="bulk"))
     assert (town.cash, town.cargo) == (60, 0)
     farm = next(site for site in SITES if site.name == "Goldenfield Farm")
     town.x, town.y = entrance(farm)
     assert street_input(town, input_event(action="egg"))
     assert (town.cash, town.eggs) == (58, 1)
-    assert street_input(town, input_event(action="bulk"))
-    assert (town.cash, town.supplies[3]) == (42, 4)
+    assert not street_input(town, input_event(action="bulk"))
+    assert not street_input(town, input_event(action="eggs"))
+    assert (town.cash, town.supplies[3], town.eggs) == (58, 0, 1)
     town.bag_size = town.cargo
     assert street_input(town, input_event(action="interact"))
-    assert (town.cash, town.supplies[3]) == (42, 4)
+    assert (town.cash, town.supplies[3]) == (58, 0)
 
 
 def test_street_ferry_and_invalid_input():
@@ -122,7 +123,7 @@ def test_batched_turns_match_sequential_validation_and_snapshot_restore():
 def test_invalid_batch_cannot_move_trade_or_advance_time(segments):
     town = Town()
     before = vars(town).copy()
-    assert not street_input(town, {"segments": segments, "action": "bulk"})
+    assert not street_input(town, {"segments": segments, "action": "interact"})
     assert vars(town) == before
 
 
@@ -131,9 +132,9 @@ def test_batch_collision_precedes_trade():
     farm = next(site for site in SITES if site.name == "Goldenfield Farm")
     town.x, town.y = entrance(farm)
     assert street_input(town, {"segments": [input_event(dy=-1, seconds=.25)] * 2,
-                               "action": "bulk"})
+                               "action": "interact"})
     assert town.can_walk(town.x, town.y)
-    assert town.supplies[3] == 4 and town.cash == 44
+    assert town.supplies[3] == 1 and town.cash == 56
 
 
 def test_browser_collision_map_matches_python_walls():
