@@ -664,6 +664,21 @@ def start_menu_card():
     town = st.session_state.town
     can_continue = bool(st.session_state.revision or st.session_state.get("started"))
     st.caption(f"Continue with ${town.cash:,} in cash." if can_continue else "Start with $60 and a 12-slot bag.")
+    if cloud:
+        cloud_account()
+    if st.button("Basics · how to play in 5 slides", width="stretch"):
+        open_tutorial()
+        st.rerun()
+    with st.expander("Rules & How to Play"):
+        st.markdown(
+            "**Goal** · Start with $60 and grow to $500, then keep growing through trading, vehicles and "
+            "business ownership.\n\n"
+            "**Controls** · Move with **WASD** or the **arrow keys**. Press **E** at a door to go inside and **Esc** "
+            "to leave. Inside: **E** buys, makes or sells, **Q** buys up to four.\n\n"
+            "**Trade route** · Buy materials at a yellow store, make products at a blue store, sell them at a green "
+            "market. Example: wheat at Goldenfield Farm → bread at Sunrise Bakery → Daily Bread Market.\n\n"
+            "**Getting around** · The ferry crosses the Tagus for $2 on foot; with a vehicle the bridges charge "
+            "$3 toward Lisbon. Choose **Route options → Destination** to see the route.".replace("$", "\\$"))
     new, resume = st.columns(2)
     if new.button("New Game", width="stretch", type="primary"):
         if can_continue:
@@ -684,21 +699,6 @@ def start_menu_card():
         if cancel.button("Keep my progress"):
             st.session_state.confirm_restart = False
             st.rerun()
-    if st.button("Basics · how to play in 5 slides", width="stretch"):
-        open_tutorial()
-        st.rerun()
-    with st.expander("Rules & How to Play"):
-        st.markdown(
-            "**Goal** · Start with $60 and grow to $500, then keep growing through trading, vehicles and "
-            "business ownership.\n\n"
-            "**Controls** · Move with **WASD** or the **arrow keys**. Press **E** at a door to go inside and **Esc** "
-            "to leave. Inside: **E** buys, makes or sells, **Q** buys up to four.\n\n"
-            "**Trade route** · Buy materials at a yellow store, make products at a blue store, sell them at a green "
-            "market. Example: wheat at Goldenfield Farm → bread at Sunrise Bakery → Daily Bread Market.\n\n"
-            "**Getting around** · The ferry crosses the Tagus for $2 on foot; with a vehicle the bridges charge "
-            "$3 toward Lisbon. Choose **Route options → Destination** to see the route.".replace("$", "\\$"))
-    if cloud:
-        cloud_account()
 
 
 def cloud_account():
@@ -712,7 +712,7 @@ def cloud_account():
             st.rerun()
         return
 
-    with st.expander("Sign in for cloud saves"):
+    with st.expander("Sign up or sign in for cloud saves"):
         st.caption("Signing in opens your cloud save. A new account can save your current guest game.")
         with st.form("cloud_account", clear_on_submit=True):
             email = st.text_input("Email")
