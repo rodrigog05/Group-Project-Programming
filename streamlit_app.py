@@ -580,8 +580,7 @@ TUTORIAL = (
 
 def dismiss_tutorial():
     """The dialog's X: forget the tutorial too, or the next rerun would open it again."""
-    st.session_state.show_tutorial = False
-    st.session_state.tutorial_step = 0
+    close_tutorial()
 
 
 @st.dialog("Basics", width="large", on_dismiss=dismiss_tutorial)
@@ -604,25 +603,28 @@ def tutorial():
     back.button("Back", disabled=step == 0, width="stretch", on_click=st.session_state.update,
                 kwargs={"tutorial_step": step - 1})
     last = len(TUTORIAL) - 1
-    # Skip jumps to the last slide, whose button starts the game.
+    finish_label = "Back to menu" if st.session_state.get("tutorial_from_menu") else "Start playing"
     skip.button("Skip", disabled=step == last, width="stretch", on_click=st.session_state.update,
                 kwargs={"tutorial_step": last})
     if step < last:
         forward.button("Next", type="primary", width="stretch", on_click=st.session_state.update,
                        kwargs={"tutorial_step": step + 1})
-    elif forward.button("Start playing", type="primary", width="stretch"):
+    elif forward.button(finish_label, type="primary", width="stretch"):
         close_tutorial()
         # A button inside a dialog only reruns the dialog; rerun the whole page so it closes.
         st.rerun()
 
 
 def open_tutorial():
+    st.session_state.tutorial_from_menu = True
     st.session_state.show_menu = False
     st.session_state.show_tutorial = True
     st.session_state.tutorial_step = 0
 
 
 def close_tutorial():
+    if st.session_state.pop("tutorial_from_menu", False):
+        st.session_state.show_menu = True
     st.session_state.show_tutorial = False
     st.session_state.tutorial_step = 0
 
@@ -761,6 +763,7 @@ def cloud_account():
 
 def enter_game(*, new_game=False):
     if new_game:
+        st.session_state.tutorial_from_menu = False
         st.session_state.reset_destination = True
         st.session_state.town_page = "Game"
         st.session_state.show_tutorial = True

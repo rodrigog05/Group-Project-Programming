@@ -401,7 +401,21 @@ function draw() {
   if (state.route?.points?.length > 1) {
     context.save();
     context.beginPath();
-    state.route.points.forEach(([x, y], index) => index ? context.lineTo(x, y) : context.moveTo(x, y));
+    // Use the same predicted position as the sprite, even between server replies.
+    context.moveTo(player.x, player.y);
+    const points = state.route.points;
+    let first = 1;
+    while (first < points.length - 1) {
+      const [x, y] = points[first];
+      const [nextX, nextY] = points[first + 1];
+      const dx = nextX - x, dy = nextY - y;
+      const length = Math.hypot(dx, dy);
+      const px = player.x - x, py = player.y - y;
+      // Drop a passed vertex only while following its outgoing segment.
+      if (length && (px * dx + py * dy < 0 || Math.abs(px * dy - py * dx) > 3 * length)) break;
+      first++;
+    }
+    for (let i = first; i < points.length; i++) context.lineTo(...points[i]);
     context.strokeStyle = "#89e3ff";
     context.lineWidth = 4;
     context.lineCap = "round";
