@@ -98,6 +98,8 @@ def test_pages_and_service_controls():
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     for place in ("Nova SBE · Carcavelos", "Bolsa de Lisboa", "Foundry Warehouse", "Foundry Casino"):
         choose_place(app, place)
+        if place == "Bolsa de Lisboa":
+            click(app, "Leave exchange")
     for page in ("Market & recipes", "Landmarks"):
         click(app, page)
         assert app.session_state.town_page == page
@@ -107,29 +109,34 @@ def test_pages_and_service_controls():
     assert app.session_state.town_page == "Game"
 
 
-def test_exchange_shows_trade_controls_on_entry_and_can_buy_and_sell():
+def test_exchange_opens_trading_screen_and_can_buy_sell_and_leave():
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     click(app, "New Game")
     click(app, "Skip")
     click(app, "Start playing")
     choose_place(app, "Bolsa de Lisboa")
+    assert any(heading.value == "Bolsa de Lisboa" for heading in app.title)
     assert any(heading.value == "Trade shares" for heading in app.subheader)
     assert any(panel.label == "Share prices and holdings" for panel in app.expander)
-    assert any("0 owned" in caption.value for caption in app.caption)
+    assert any("0 owned" in quote.value for quote in app.markdown)
+    assert not app.get("component_instance")
 
     click(app, "Buy shares")
     assert app.metric[0].value == "$15"
-    assert any("1 owned" in caption.value for caption in app.caption)
+    assert any("1 owned" in quote.value for quote in app.markdown)
     click(app, "Buy shares")
     assert app.metric[0].value == "$15"
     assert "You need $45" in app.session_state.town.message
 
     click(app, "Sell shares")
     assert app.metric[0].value == "$55"
-    assert any("0 owned" in caption.value for caption in app.caption)
+    assert any("0 owned" in quote.value for quote in app.markdown)
     click(app, "Sell shares")
     assert app.metric[0].value == "$55"
     assert "You only own 0 shares" in app.session_state.town.message
+    click(app, "Leave exchange")
+    assert app.session_state.inside is None
+    assert app.get("component_instance")
 
 
 def test_crossing_rejects_unaffordable_ferry_and_charges_return_toll():

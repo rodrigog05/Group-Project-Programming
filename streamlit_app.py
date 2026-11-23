@@ -159,22 +159,38 @@ def show_directions(label):
 
 def district_exchange():
     rows = exchange.portfolio_rows(town)
-    with st.container(border=True, width=760):
-        st.subheader("Trade shares")
-        investment, shares = st.columns((2, 1))
-        asset = investment.selectbox("Investment", exchange.ASSETS, format_func=lambda item: item.name)
-        quantity = shares.number_input("Shares", 1, asset.cap)
-        selected = next(row for row in rows if row["symbol"] == asset.symbol)
-        st.caption(f"Buy \\${selected['ask']:,} per share · Sell \\${selected['bid']:,} per share · "
-                   f"{selected['owned']} owned")
-        left, right = st.columns(2)
-        with left:
-            button("Buy shares", exchange.buy_shares, asset.symbol, quantity, width="stretch")
-        with right:
-            button("Sell shares", exchange.sell_shares, asset.symbol, quantity, width="stretch")
-        with st.expander("Share prices and holdings"):
-            st.dataframe([{key: row[key] for key in ("name", "ask", "bid", "owned", "cost_basis", "last_payout")}
-                          for row in rows], hide_index=True)
+    floor = b64encode((ROOT / "street" / "scenes" / "lisbon_exchange.webp").read_bytes()).decode("ascii")
+    st.html(f"""<style>
+        .st-key-exchange_floor {{
+            background-image: linear-gradient(180deg, #0a1623bf, transparent 38%, #0a162366),
+                              url("data:image/webp;base64,{floor}");
+        }}
+    </style>""")
+    with st.container(key="exchange_floor"):
+        with st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"):
+            st.title("Bolsa de Lisboa", anchor=False, width="content")
+            st.button("Leave exchange", key="exchange_leave", shortcut="Escape", on_click=leave_building)
+        with st.container(key="exchange_ticket"):
+            st.subheader("Trade shares", anchor=False)
+            asset = st.selectbox("Investment", exchange.ASSETS, format_func=lambda item: item.name)
+            quantity = st.number_input("Shares", 1, asset.cap)
+            selected = next(row for row in rows if row["symbol"] == asset.symbol)
+            st.markdown(f"Buy **\\${selected['ask']:,}** · Sell **\\${selected['bid']:,}** per share  \n"
+                        f"**{selected['owned']} owned** · Purchase total **\\${selected['ask'] * quantity:,}**")
+            with st.container(key="exchange_actions"):
+                buy, sell = st.columns(2)
+                buy.button("Buy shares", width="stretch", type="primary", on_click=inside,
+                           args=(exchange.buy_shares, asset.symbol, quantity))
+                sell.button("Sell shares", width="stretch", on_click=inside,
+                            args=(exchange.sell_shares, asset.symbol, quantity))
+            if reply := st.session_state.get("reply"):
+                st.info(reply.replace("$", "\\$"))
+            with st.expander("Share prices and holdings"):
+                st.dataframe(
+                    [{"Investment": row["name"], "Buy": row["ask"], "Sell": row["bid"],
+                      "Owned": row["owned"], "Cost basis": row["cost_basis"], "Last dividend": row["last_payout"]}
+                     for row in rows], hide_index=True,
+                )
 
 
 def production_batches(town):
@@ -285,6 +301,7 @@ def places():
     site_inside = PLACES.get(name, MONASTERY) if name else None
     if site_inside is not None and site_inside != MONASTERY and site_inside.role == "EXCHANGE":
         district_exchange()
+        return
     with st.container(key="foundry_route"):
         route_button, options, feedback = st.columns((2, 1, 4), vertical_alignment="center")
         with options.popover("Route options", width="stretch"):
@@ -798,6 +815,87 @@ st.html(f"""
   }}
   .st-key-foundry_play [data-testid="stAlertContainer"] {{
     padding-block: 0.25rem;
+  }}
+  .st-key-exchange_floor {{
+    min-height: calc(100dvh - 4.5rem);
+    padding: clamp(1rem, 3vw, 2.5rem);
+    border-radius: 0.875rem;
+    background-color: #132231;
+    background-position: 35% center;
+    background-size: cover;
+    color: #f5f8fc;
+  }}
+  .st-key-exchange_floor h1 {{
+    padding: 0;
+    color: #fff3d4;
+    font-size: clamp(1.3rem, 4vw, 2.5rem);
+    text-shadow: 0 2px 6px #09131d;
+  }}
+  .st-key-exchange_ticket {{
+    max-width: 26rem;
+    margin: clamp(1.75rem, 8dvh, 5rem) 0 0 auto;
+    padding: clamp(1rem, 2.5vw, 1.5rem);
+    border: 1px solid #587482;
+    border-radius: 0.875rem;
+    background: #102331f7;
+    box-shadow: 0 12px 35px #07111b73;
+  }}
+  .st-key-exchange_ticket h2 {{
+    padding: 0;
+    color: #ffd997;
+    font-size: 1.375rem;
+  }}
+  .st-key-exchange_ticket [data-testid="stWidgetLabel"] p,
+  .st-key-exchange_ticket summary,
+  .st-key-exchange_ticket .stMarkdown p {{ color: #e7eff5; }}
+  .st-key-exchange_ticket .stMarkdown strong {{ color: #ffd997; }}
+  .st-key-exchange_ticket details {{ border-color: #587482; }}
+  .st-key-exchange_floor button[data-testid="stBaseButton-secondary"] {{
+    border-color: #819eaf;
+    background: #244254;
+    color: #f5f8fc;
+  }}
+  .st-key-exchange_floor button[data-testid="stBaseButton-secondary"]:hover {{
+    background: #36576c;
+    color: #fff;
+  }}
+  .st-key-exchange_actions button[data-testid="stBaseButton-primary"] {{
+    border-color: #eac280;
+    background: #eac280;
+    color: #132231;
+  }}
+  .st-key-exchange_actions button[data-testid="stBaseButton-primary"]:hover {{
+    background: #ffda98;
+    color: #132231;
+  }}
+  .st-key-exchange_floor button[data-testid^="stBaseButton"]:focus-visible {{
+    outline: 2px solid #ffd997;
+    outline-offset: 3px;
+  }}
+  @media (max-width: 640px) {{
+    .st-key-exchange_floor {{
+      background-position: center, 30% center;
+      background-size: cover, auto calc(100% + 12rem);
+    }}
+    .st-key-exchange_ticket {{
+      max-width: none;
+      margin-top: clamp(4rem, 24vw, 8rem);
+    }}
+    .st-key-exchange_actions [data-testid="stHorizontalBlock"] {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.5rem;
+    }}
+    .st-key-exchange_actions [data-testid="stColumn"] {{ width: auto !important; min-width: 0; }}
+  }}
+  body:has(.st-key-exchange_floor) .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }}
+  body:has(.st-key-exchange_floor) .st-key-foundry_hud [data-testid="stColumn"]:is(:nth-child(1), :nth-child(3), :nth-child(4), :nth-child(5)) {{
+    display: none;
+  }}
+  body:has(.st-key-exchange_floor) .st-key-foundry_hud [data-testid="stColumn"]:is(:nth-child(2), :nth-child(6), :nth-child(7)) {{
+    grid-row: 1;
   }}
   .st-key-foundry_hud [data-testid="stProgress"] {{
     display: grid;
