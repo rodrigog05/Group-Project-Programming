@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 import math
 import random
 import time
+from time import time as wall_time
 
 from lisbon_scene import MAP_BOTTOM, WORLD_WIDTH, WORLD_BOTTOM, SCENERY_BLOCKS, RIVER_TOP, RIVER_BOTTOM, BRIDGE_TOLL, bridge_at, walkable_terrain, south
 from journal_recipes import RECIPE_BY_KEY, infer_discoveries, normalize_discoveries, recipe_key_for_site
@@ -195,6 +196,22 @@ COLLISION_BOUNDS = tuple(site.solid_bounds for site in SITES)+SCENERY_BLOCKS+LAN
 class Order:
     quantity: int
     ready_at: float
+    wall_ready_at: float | None = None
+
+    def __post_init__(self):
+        if self.wall_ready_at is not None and (
+                type(self.wall_ready_at) not in (int, float) or not 0 <= self.wall_ready_at < math.inf):
+            raise ValueError("Invalid production deadline")
+
+    def remaining(self, elapsed):
+        seconds = self.ready_at - elapsed
+        if self.wall_ready_at is not None:
+            seconds = min(seconds, self.wall_ready_at - wall_time())
+        return max(0.0, seconds)
+
+    def start_wall_clock(self, elapsed):
+        if self.wall_ready_at is None and self.ready_at > elapsed:
+            self.wall_ready_at = wall_time() + self.ready_at - elapsed
 
 class Town:
     def __init__(self):
@@ -883,10 +900,11 @@ class Town:
                             f"Bought {quantity} for ${cost}.")
         elif site.role == "FACTORY":
             order = self.orders[index]
+            remaining = order.remaining(self.elapsed) if order else 0
             automated = self.logistics["factories"].get(site.name, {})
             if automated.get("output", 0) and (
                     (order is None and not self.supplies[index])
-                    or (order is not None and self.elapsed < order.ready_at)):
+                    or remaining > 0):
                 self.collect_delivery_products(site.name)
                 return
             if order is None:
@@ -897,7 +915,7 @@ class Town:
                 self.supplies[index] = 0
                 self.orders[index] = Order(quantity, self.elapsed + trade.seconds)
                 self.message = f"Dropped off {quantity} × {trade.supply}. Ready in {trade.seconds}s."
-            elif self.elapsed < order.ready_at:
+            elif remaining > 0:
                 self.message = "Production is still running. Come back when the order is ready."
             elif not space:
                 self.message = "Free up space in your bag before collecting your order."
@@ -951,8 +969,9 @@ class Town:
         recipe = INDUSTRIES[role]
         order = self.industry_orders[role]
         if order is not None:
-            if self.elapsed < order.ready_at:
-                self.message = f"{recipe.product}: work in progress. Ready in {math.ceil(order.ready_at-self.elapsed)}s."
+            remaining = order.remaining(self.elapsed)
+            if remaining > 0:
+                self.message = f"{recipe.product}: work in progress. Ready in {math.ceil(remaining)}s."
                 return
             if recipe.service:
                 revenue = order.quantity*self.shipyard_quote
@@ -1081,9 +1100,10 @@ class Town:
             role, recipe = site.role, INDUSTRIES[site.role]
             order = self.industry_orders[role]
             if order is not None:
-                if self.elapsed >= order.ready_at:
+                remaining = order.remaining(self.elapsed)
+                if remaining == 0:
                     return f"E · Claim ${self.shipyard_quote}" if recipe.service else f"E · Collect {order.quantity} pastéis"
-                return f"{'Repairing boat' if recipe.service else 'Baking'} · {math.ceil(order.ready_at-self.elapsed)}s"
+                return f"{'Repairing boat' if recipe.service else 'Baking'} · {math.ceil(remaining)}s"
             if recipe.service:
                 return f"2 Wood + 2 Ore · ${self.industry_prices[role]} · {self.industry_demand[role]} jobs"
             return f"Pastéis ${self.industry_prices[role]} · {self.buyer_status(site)}"
@@ -1112,9 +1132,10 @@ class Town:
         order = self.orders[index]
         if order is None:
             return f"{trade.supply} → {trade.product}"
-        if order.ready_at <= self.elapsed:
+        remaining = order.remaining(self.elapsed)
+        if remaining == 0:
             return f"Ready for pickup  ·  {order.quantity}"
-        return f"In production  ·  {math.ceil(order.ready_at - self.elapsed)}s"
+        return f"In production  ·  {math.ceil(remaining)}s"
 
     def action_hint(self, site):
         if businesses.is_owned(self, site):

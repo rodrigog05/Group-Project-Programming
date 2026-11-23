@@ -74,6 +74,7 @@ function loadArt(version) {
 const held = new Map();
 const parentOrigin = document.referrer ? new URL(document.referrer).origin : location.origin;
 let state;
+let productionUpdatedAt = 0;
 let player;
 let pending = false;
 let queuedAction = null;
@@ -145,6 +146,7 @@ window.addEventListener("message", (event) => {
   player = { x: next.x, y: next.y };
   facing = next.facing;
   state = next;
+  productionUpdatedAt = performance.now();
   vehicleButton.hidden = !state.vehicle && !state.stowed_vehicle;
   const vehicleLabel = state.vehicle ? "Leave vehicle" : "Bring back vehicle";
   const labelText = vehicleButton.querySelector("span");
@@ -1041,13 +1043,16 @@ function card(x, y, width, height, border) {
   context.stroke();
 }
 
+function productionSecondsLeft(timer) {
+  return Math.max(0, timer.seconds - (performance.now() - productionUpdatedAt) / 1000);
+}
+
 function drawTimer() {
   const timers = state.production || [];
   if (!timers.length) return;
   const { width } = screenSpace();
   timers.forEach((timer, index) => {
-    // Use authoritative game time: production pauses when the map loses focus.
-    const left = Math.max(0, timer.seconds);
+    const left = productionSecondsLeft(timer);
     const ready = left <= 0;
     const text = timer.quantity + " " + timer.product + (ready ? " · Ready to collect" : " · " + Math.ceil(left) + "s left");
     context.font = "bold 17px system-ui, sans-serif";

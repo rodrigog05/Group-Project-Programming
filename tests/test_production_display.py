@@ -46,7 +46,10 @@ def test_browser_inventory_and_routes_hide_retired_content_from_older_saves():
     assert all(any(title in item for item in descriptions) for title in ("**Bread**", "**Boat repair**"))
     assert not any(name in item for item in descriptions
                    for name in ("Pastéis", "Eggs", "Alloy Components", "Oriente Tool Market", "Nations Market"))
-    assert pack_save(app.session_state.town, 0) == saved
+    restored_save = pack_save(app.session_state.town, 0)
+    assert restored_save["state"]["orders"][3]["wall_ready_at"] is not None
+    restored_save["state"]["orders"][3]["wall_ready_at"] = None
+    assert restored_save == saved
 
 
 @pytest.mark.parametrize("trade", range(len(TRADES)))
@@ -97,7 +100,8 @@ def test_production_timer_is_separate_from_seller_recipe_and_hint():
 
 
 @pytest.mark.parametrize("trade", range(len(TRADES)))
-def test_batch_quantity_countdown_and_carried_inventory(trade):
+def test_batch_quantity_countdown_and_carried_inventory(trade, monkeypatch):
+    monkeypatch.setattr("tycoon.wall_time", lambda: 1000)
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     town = app.session_state.town
     factory = next(site for site in OPEN_SITES if site.role == "FACTORY" and site.trade == trade)
@@ -133,3 +137,29 @@ def test_batch_quantity_countdown_and_carried_inventory(trade):
     assert scene_data(app)["production"] == []
     assert app.metric[1].value == "6 / 12"
     assert app.session_state.town.goods[trade] == 6
+
+
+def test_production_finishes_on_wall_time_without_advancing_the_market(monkeypatch):
+    now = 1000
+    monkeypatch.setattr("tycoon.wall_time", lambda: now)
+    app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
+    town = app.session_state.town
+    bakery = next(site for site in OPEN_SITES if site.name == "Sunrise Bakery")
+    town.x, town.y = entrance(bakery)
+    town.supplies[3] = 4
+    app.session_state.inside = bakery.name
+    app.run()
+    click_scene(app, "Produce or collect")
+    order = app.session_state.town.orders[3]
+    assert order.wall_ready_at == now + TRADES[3].seconds
+
+    saved = pack_save(app.session_state.town, 0)
+    now += TRADES[3].seconds
+    restored, _ = unpack_save(saved)
+    app.session_state.town = restored
+    app.run()
+    assert scene_data(app)["production"][0]["seconds"] == 0
+    assert (restored.elapsed, restored.market_elapsed, restored.goods[3]) == (0, 0, 0)
+    click_scene(app, "Produce or collect")
+    assert app.session_state.town.goods[3] == 4
+    assert app.session_state.town.market_elapsed == 0
