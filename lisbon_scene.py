@@ -52,6 +52,7 @@ SCENERY_PLOTS = (
     ((700, south(1180)), "flats"), ((940, south(1180)), "park"), ((1280, south(1180)), "flats"),
     ((1800, south(1180)), "fountain"),
     ((1280, south(1430)), "park"), ((1540, south(1430)), "flats"), ((1800, south(1430)), "park"),
+    ((268, 345), "flats"), ((1820, 345), "flats"),
 )
 FOUNTAIN_BASIN = (58, 26, 118, 74)  # Inside the 176 x 104 plot
 # Solid footprints: whole apartment blocks and fountain basins. Parks are walkable.

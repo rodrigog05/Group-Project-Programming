@@ -274,9 +274,8 @@ def test_closed_buildings_cannot_be_entered_and_are_not_destinations():
     assert not {"Oriente Tool Market", "Nations Market"} & set(options)
 
 
-def test_tools_route_uses_the_ferry_and_buys_makes_and_sells():
+def test_tools_route_buys_makes_and_sells_on_the_south_bank():
     from browser_game import OPEN_SITES, advance_clock
-    from ferry import FERRY_PIERS
     from lisbon_scene import RIVER_BOTTOM
     from navigation import directions
     from tycoon import TRADES
@@ -286,16 +285,13 @@ def test_tools_route_uses_the_ferry_and_buys_makes_and_sells():
     mine, works, market = (next(site for site in OPEN_SITES if site.name == name)
                            for name in ("Iron Hill Mine", "Ironworks", "Oriente Tool Market"))
     assert [site.name for site in OPEN_SITES if site.role == "SUPPLIER" and site.trade == 3] == ["Goldenfield Farm"]
-    assert entrance(mine)[1] > RIVER_BOTTOM
-    assert entrance(works)[1] < RIVER_BOTTOM and entrance(market)[1] < RIVER_BOTTOM
-    town.x, town.y = entrance(mine)
-    route = directions(town, entrance(works))
-    assert route["points"][-1] == FERRY_PIERS[1].position
-    assert "take the ferry" in route["instruction"]
-    town.x, town.y = entrance(works)
-    route = directions(town, entrance(market))
-    assert route["points"][-1] == entrance(market)
-    assert all(y < RIVER_BOTTOM for _, y in route["points"])
+    for start, end in ((mine, works), (works, market)):
+        town.x, town.y = entrance(start)
+        assert town.can_walk(*entrance(end))
+        assert not town.can_walk(*end.door)
+        route = directions(town, entrance(end))
+        assert route["points"][-1] == entrance(end)
+        assert all(y > RIVER_BOTTOM for _, y in route["points"])
 
     choose_place(app, mine.name)
     click_scene(app, "Buy up to 4 Iron ore")
