@@ -253,7 +253,7 @@ def test_closed_buildings_cannot_be_entered_and_are_not_destinations():
     from browser_game import CLOSED_SITES, OPEN_SITES, street_event
     assert CLOSED_SITES == {
         "Motorworks Garage", "Armazém do Seixal", "Pastéis de Belém", "Tool Market", "The Pottery Shop",
-        "Foundry Precision Works",
+        "Foundry Precision Works", "Quinta de Palmela",
     }
     assert [site.name for site in OPEN_SITES if site.role == "GARAGE"] == ["Cacilhas Dealership"]
     assert [site.name for site in OPEN_SITES if site.role == "WAREHOUSE"] == ["Foundry Warehouse"]
@@ -267,10 +267,44 @@ def test_closed_buildings_cannot_be_entered_and_are_not_destinations():
             assert (town.goods[0], town.goods[2]) == (1, 1)
     app = new_app()
     options = app.selectbox[0].options
-    assert not {"Motorworks Garage", "Seixal Warehouse", "Belem Pastry Shop", "Foundry Precision Works"} & set(options)
-    assert {"Cacilhas Dealership", "Foundry Warehouse", "Palmela Farm", "Tagus Shipyard"} <= set(options)
+    assert not {"Motorworks Garage", "Seixal Warehouse", "Belem Pastry Shop", "Foundry Precision Works",
+                "Palmela Farm"} & set(options)
+    assert {"Cacilhas Dealership", "Foundry Warehouse", "Tagus Shipyard"} <= set(options)
     assert options.count("Tool Market") == options.count("The Pottery Shop") == 1
     assert not {"Oriente Tool Market", "Nations Market"} & set(options)
+
+
+def test_tools_route_buys_makes_and_sells_on_the_south_bank():
+    from browser_game import OPEN_SITES, advance_clock
+    from lisbon_scene import RIVER_BOTTOM
+    from navigation import directions
+    from tycoon import TRADES
+
+    app = new_app()
+    town = app.session_state.town
+    mine, works, market = (next(site for site in OPEN_SITES if site.name == name)
+                           for name in ("Iron Hill Mine", "Ironworks", "Oriente Tool Market"))
+    assert [site.name for site in OPEN_SITES if site.role == "SUPPLIER" and site.trade == 3] == ["Goldenfield Farm"]
+    for start, end in ((mine, works), (works, market)):
+        town.x, town.y = entrance(start)
+        route = directions(town, entrance(end))
+        assert route["points"] and route["points"][-1] == entrance(end)
+        assert all(y > RIVER_BOTTOM for _, y in route["points"])
+
+    choose_place(app, mine.name)
+    click_scene(app, "Buy up to 4 Iron ore")
+    assert app.session_state.town.supplies[0] == 4
+    choose_place(app, works.name)
+    press(app, "e")
+    advance_clock(app.session_state.town, TRADES[0].seconds)
+    press(app, "e")
+    assert app.session_state.town.goods[0] == 4
+    choose_place(app, market.name)
+    press(app, "e")
+    town = app.session_state.town
+    assert (town.supplies[0], town.goods[0], town.total_sold[0]) == (0, 0, 4)
+    assert town.cash == 60 + 4 * (TRADES[0].price - TRADES[0].cost)
+    assert town.exchange["sales_today"]["BRIDGE25"] == 4
 
 
 def test_warehouse_has_a_scene_and_the_farm_sells_only_wheat():
