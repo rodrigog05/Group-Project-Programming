@@ -11,13 +11,12 @@ from streamlit.components.v1 import declare_component
 
 import businesses
 import exchange
-import innovation
 from place_names import localize_place_names, place_name
 from browser_game import (COLLISION_MAP, MONASTERY, OPEN_SITES, bag_full, next_move, STREET_LIFE, building_at, greeting, scene_for,
                           entrance, place_vehicle_on_road, art_version, player_colors, player_shapes, player_svg, street_event,
-                          street_input)
+                          settle_retired_machinery, street_input)
 from journal_market import market_snapshot
-from journal_recipes import RECIPE_BY_KEY
+from journal_recipes import RECIPE_BY_KEY, recipe_key_for_site
 from lisbon_landmarks import LANDMARKS
 from ferry import FERRY_PIERS, nearby_pier
 from lisbon_scene import RIVER_BOTTOM
@@ -31,6 +30,8 @@ from oriente_station import BOUNDS as ORIENTE_BOUNDS, station_svg
 
 
 PLACES = {site.name: site for site in OPEN_SITES}
+ACTIVE_RECIPES = {key for site in OPEN_SITES if (key := recipe_key_for_site(site))}
+ACTIVE_INDUSTRIES = {site.role: INDUSTRIES[site.role] for site in OPEN_SITES if site.role in INDUSTRIES}
 DEFAULT_DESTINATION = "No destination"
 ROOT = Path(__file__).resolve().parent
 street_map = declare_component("foundry_street", path=str(ROOT / "street"))
@@ -82,6 +83,8 @@ if "town" not in st.session_state:
     except SAVE_ERRORS:
         st.error("Could not open your save. Reload to try again.")
         st.stop()
+
+settle_retired_machinery(st.session_state.town)
 
 
 def act(operation, *args):
@@ -232,17 +235,10 @@ def district_exchange():
 def production_batches(town):
     """Uncollected batches, separate from the items already in the bag."""
     orders = [(trade.product, order) for trade, order in zip(TRADES, town.orders)]
-    orders.append(("Precision machinery", town.tier2_order))
-    orders.extend((INDUSTRIES[role].product, order) for role, order in town.industry_orders.items())
-    batches = [{"product": product, "quantity": order.quantity,
+    orders.extend((recipe.product, town.industry_orders[role]) for role, recipe in ACTIVE_INDUSTRIES.items())
+    return [{"product": product, "quantity": order.quantity,
              "seconds": max(0.0, order.ready_at - town.elapsed)}
             for product, order in orders if order is not None]
-    for recipe in innovation.TIER3_RECIPES:
-        order = town.innovation["orders"][recipe.key]
-        if order:
-            batches.append({"product": recipe.product, "quantity": order["quantity"],
-                            "seconds": max(0.0, order["remaining"])})
-    return batches
 
 
 def play_street(site_inside=None):
@@ -250,7 +246,7 @@ def play_street(site_inside=None):
     nearby = town.nearby()
     pier = nearby_pier(town.x, town.y)
     hint = "Follow the marked entrances to buy, make, and sell."
-    if nearby:
+    if nearby and nearby.name in PLACES:
         hint = f"{place_name(nearby.name)} · {site_status(nearby)}"
     if pier:
         hint = f"{pier.name} · Take the ferry for $2"
@@ -566,14 +562,14 @@ def market():
             st.markdown(f"**Profit \\${price - cost} per {trade.product.lower()}** · You carry "
                         f"{town.supplies[index]} {trade.supply.lower()} and {town.goods[index]} {trade.product.lower()}")
     with st.expander("Details: market table, today's results and recipes"):
-        snapshot = market_snapshot(town, TRADES, INDUSTRIES, OPEN_SITES)
+        snapshot = market_snapshot(town, TRADES, ACTIVE_INDUSTRIES, OPEN_SITES)
         if snapshot.event_title:
             st.info(f"{snapshot.event_title} · {snapshot.event_detail}")
         st.dataframe([{
             "Product": row.product, "Materials held": row.raw_stock, "Material cost": row.raw_cost,
             "Sale price": row.price, "Stock": row.stock_label, "In production": row.orders,
             "Buyers / jobs": row.remaining_buyers, "Sold today": row.sold_today,
-        } for row in snapshot.rows if not row.key.startswith("innovation:") and row.product != "Pastéis"], hide_index=True)
+        } for row in snapshot.rows if not row.key.startswith("innovation:") and row.key != "tier2"], hide_index=True)
         st.write(f"Revenue \\${town.daily_revenue:,} · Expenses \\${town.daily_expenses:,} · "
                  f"Net \\${town.daily_net_profit:,}")
         if town.last_day_summary:
@@ -581,12 +577,10 @@ def market():
             st.caption(f"Day {summary['day']} settled · Tax \\${summary['tax']:,} · "
                        f"Dividends \\${summary['dividends']:,}")
         st.markdown("**Discovered recipes**")
-        if not town.discovered_recipes:
+        recipes = [RECIPE_BY_KEY[key] for key in town.discovered_recipes if key in ACTIVE_RECIPES]
+        if not recipes:
             st.caption("Operate a production site to discover its recipe.")
-        for key in town.discovered_recipes:
-            recipe = RECIPE_BY_KEY[key]
-            if recipe.role == "RESEARCH":
-                continue
+        for recipe in recipes:
             ingredients = ", ".join(f"{quantity} × {name}" for name, quantity in recipe.ingredients)
             st.write(f"**{recipe.title}** · {ingredients} · {recipe.seconds}s")
 
@@ -1421,9 +1415,11 @@ with st.container(key="foundry_hud"):
         st.caption(f"{town.reserved} slots reserved for goods awaiting collection.")
         items = [(trade.supply, town.supplies[i]) for i, trade in enumerate(TRADES)]
         items += [(trade.product, town.goods[i]) for i, trade in enumerate(TRADES)]
-        items += [("Eggs", town.eggs), ("Precision machinery", town.tier2_goods)]
-        items += [(INDUSTRIES[role].product, quantity) for role, quantity in town.industry_goods.items()]
-        items += [(recipe.product, town.innovation["goods"][recipe.key]) for recipe in innovation.TIER3_RECIPES]
+        items.extend((recipe.product, town.industry_goods[role]) for role, recipe in ACTIVE_INDUSTRIES.items()
+                     if not recipe.service)
+        legacy_cargo = town.cargo - sum(quantity for _, quantity in items)
+        if legacy_cargo:
+            st.caption(f"Older save data occupies {legacy_cargo} bag slots.")
         for name, quantity in items:
             st.text(f"{name}: {quantity}")
     day.metric("Day", town.day)

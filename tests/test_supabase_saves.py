@@ -6,9 +6,10 @@ from urllib.error import HTTPError
 import pytest
 from streamlit.testing.v1 import AppTest
 
+import exchange
 from browser_game import advance_clock
 from supabase_saves import CloudSave, SaveConflict, SignupError, Supabase, SupabaseError
-from tycoon import Town
+from tycoon import Order, Town
 
 
 @pytest.fixture
@@ -122,6 +123,36 @@ def test_cloud_account_can_continue_after_reopening_and_other_player_starts_fres
     click(reopened, "New Game")
     assert reopened.metric[0].value == "$60"
     assert CloudSave(api, api.sign_in("player1@example.test", "test-password")).load()[0].cash == 96
+
+
+def test_cloud_save_settles_retired_machinery_once_and_keeps_stock_holdings(cloud):
+    api, _ = cloud
+    email = "player1@example.test"
+    store = CloudSave(api, api.sign_in(email, "test-password"))
+    old_save = Town()
+    assert exchange.buy_shares(old_save, "BELEM", 1)
+    old_save.tier2_goods = 1
+    old_save.tier2_order = Order(2, 20)
+    old_save.tier2_price = 70
+    expected_cash = old_save.cash + 210
+    assert store.save(old_save, 0) == 1
+
+    app = AppTest.from_file("../streamlit_app.py").run()
+    sign_in(app, email)
+    click(app, "Continue")
+    assert app.metric[0].value == f"${expected_cash:,}"
+    assert app.metric[1].value == "0 / 12"
+    click(app, "Reload cloud progress")
+    assert app.session_state.town.cash == expected_cash
+    click(app, "Save progress")
+
+    persisted, revision = store.load()
+    assert revision == 2
+    assert (persisted.cash, persisted.tier2_goods, persisted.tier2_order) == (expected_cash, 0, None)
+    assert persisted.exchange == old_save.exchange
+    reopened = AppTest.from_file("../streamlit_app.py").run()
+    sign_in(reopened, email)
+    assert reopened.session_state.town.cash == expected_cash
 
 
 def test_rejects_non_https_urls_and_secret_keys():

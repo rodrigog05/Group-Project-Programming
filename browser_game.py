@@ -480,6 +480,19 @@ def street_event(town, event):
 
 # ----- Art version: a fingerprint of the pictures, so browsers never show stale cached art -----
 
+def settle_retired_machinery(town):
+    """Credit a browser save for Precision Machinery it can no longer collect or sell."""
+    pending = town.tier2_order.quantity if town.tier2_order else 0
+    quantity = town.tier2_goods + pending
+    if not quantity:
+        return
+    credit = quantity * town.tier2_price
+    town.add_cash(credit, business=True)  # Update cash goals without recording the conversion as daily income.
+    town.tier2_goods = 0
+    town.tier2_order = None
+    town.message = f"Foundry Precision Works closed. You received ${credit:,} for {quantity} × Precision Machinery."
+
+
 def art_version(folder):
     """A short hash of every image in the street map's folder; it changes whenever any picture changes."""
     import hashlib
