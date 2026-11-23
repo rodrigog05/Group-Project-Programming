@@ -667,10 +667,21 @@ def start_menu_card():
     st.caption("Lisbon · Build your fortune along the Tagus")
     if notice := st.session_state.pop("sign_out_notice", ""):
         st.warning(notice)
+    if not save_path and not cloud_store and not st.session_state.get("playing_as_guest"):
+        cloud_account()
+        if st.button("Continue as guest", width="stretch"):
+            st.session_state.playing_as_guest = True
+            st.rerun()
+        return
+
     town = st.session_state.town
     can_continue = bool(st.session_state.revision or st.session_state.get("started"))
     st.caption(f"Continue with ${town.cash:,} in cash." if can_continue else "Start with $60 and a 12-slot bag.")
-    cloud_account()
+    if cloud_store:
+        cloud_account()
+    elif cloud and st.button("Sign in for cloud saves", width="stretch"):
+        st.session_state.playing_as_guest = False
+        st.rerun()
     new, resume = st.columns(2)
     if new.button("New Game", width="stretch", type="primary"):
         if can_continue:
@@ -720,55 +731,51 @@ def cloud_account():
             st.rerun()
         return
 
-    st.subheader("Save your progress online")
-    st.caption("Sign in or create an account to keep playing on another device.")
-    with st.expander("Sign in for cloud saves"):
-        st.write("Returning player? Sign in, then choose Continue to open your saved game. "
-                 "New player? Choose Create account. If you already started as a guest, "
-                 "an empty account will keep that progress.")
-        with st.form("cloud_account", clear_on_submit=True):
-            email = st.text_input("Email")
-            password = st.text_input("Password", type="password")
-            sign_in = st.form_submit_button("Sign in")
-            sign_up = st.form_submit_button("Create account")
-        if not (sign_in or sign_up):
-            return
-        if not email.strip() or not password:
-            st.error("Enter your email and password.")
-            return
-        if sign_up:
-            try:
-                session = cloud.sign_up(email.strip(), password)
-            except SignupError as error:
-                st.error(str(error))
-                return
-            except SAVE_ERRORS:
-                st.error("Could not reach the account service. Try again in a moment.")
-                return
-            if session is None:
-                st.success("Check your inbox or spam folder for the confirmation email, then sign in here.")
-                return
-        else:
-            try:
-                session = cloud.sign_in(email.strip(), password)
-            except SAVE_ERRORS:
-                st.error("Could not sign in. Check your details and confirm your email first.")
-                return
+    st.subheader("Sign in for cloud saves")
+    st.caption("Sign in to open your saved game on any device, or create an account to save your progress online.")
+    with st.form("cloud_account", clear_on_submit=True):
+        email = st.text_input("Email")
+        password = st.text_input("Password", type="password")
+        sign_in = st.form_submit_button("Sign in", type="primary")
+        sign_up = st.form_submit_button("Create account")
+    if not (sign_in or sign_up):
+        return
+    if not email.strip() or not password:
+        st.error("Enter your email and password.")
+        return
+    if sign_up:
         try:
-            remote = CloudSave(cloud, session)
-            town, revision = remote.load()
-            if not revision and st.session_state.get("started"):
-                town = st.session_state.town
-                revision = remote.save(town, 0)
-        except (SaveConflict, *SAVE_ERRORS):
-            st.error("Could not open your cloud save. Your guest game is still available.")
+            session = cloud.sign_up(email.strip(), password)
+        except SignupError as error:
+            st.error(str(error))
             return
-        st.session_state.clear()
-        st.session_state.update(
-            cloud_session=session, town=town, revision=revision, save_error="",
-            next_cloud_checkpoint=monotonic() + 15,
-        )
-        st.rerun()
+        except SAVE_ERRORS:
+            st.error("Could not reach the account service. Try again in a moment.")
+            return
+        if session is None:
+            st.success("Check your inbox or spam folder for the confirmation email, then sign in here.")
+            return
+    else:
+        try:
+            session = cloud.sign_in(email.strip(), password)
+        except SAVE_ERRORS:
+            st.error("Could not sign in. Check your details and confirm your email first.")
+            return
+    try:
+        remote = CloudSave(cloud, session)
+        town, revision = remote.load()
+        if not revision and st.session_state.get("started"):
+            town = st.session_state.town
+            revision = remote.save(town, 0)
+    except (SaveConflict, *SAVE_ERRORS):
+        st.error("Could not open your cloud save. Your guest game is still available.")
+        return
+    st.session_state.clear()
+    st.session_state.update(
+        cloud_session=session, town=town, revision=revision, save_error="",
+        next_cloud_checkpoint=monotonic() + 15,
+    )
+    st.rerun()
 
 
 def enter_game(*, new_game=False):
