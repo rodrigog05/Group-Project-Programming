@@ -172,11 +172,17 @@ def district_exchange():
             st.button("Leave exchange", key="exchange_leave", shortcut="Escape", on_click=leave_building)
         with st.container(key="exchange_ticket"):
             st.subheader("Trade shares", anchor=False)
-            asset = st.selectbox("Investment", exchange.ASSETS, format_func=lambda item: item.name)
+            asset = st.selectbox("Store", exchange.ASSETS, format_func=lambda item: item.name)
             quantity = st.number_input("Shares", 1, asset.cap)
             selected = next(row for row in rows if row["symbol"] == asset.symbol)
-            st.markdown(f"Buy **\\${selected['ask']:,}** · Sell **\\${selected['bid']:,}** per share  \n"
-                        f"**{selected['owned']} owned** · Purchase total **\\${selected['ask'] * quantity:,}**")
+            price = selected["price"]
+            st.markdown(f"**\\${price:,} per share** · **{selected['owned']} owned**  \n"
+                        f"Cost for {quantity} · **\\${price * quantity:,}**  \n"
+                        f"Dividend at close · **\\${selected['next_dividend']:,}**")
+            if selected["next_price"] > price:
+                st.markdown(f"Price at close · **\\${selected['next_price']:,}**")
+            st.markdown(f"**\\${exchange.DAILY_DIVIDEND} per share** each day you hold it at close. "
+                        f"One or more sales or paid jobs at a business add **\\${exchange.PRICE_INCREASE}** to its price at close.")
             with st.container(key="exchange_actions"):
                 buy, sell = st.columns(2)
                 buy.button("Buy shares", width="stretch", type="primary", on_click=inside,
@@ -187,8 +193,8 @@ def district_exchange():
                 st.info(reply.replace("$", "\\$"))
             with st.expander("Share prices and holdings"):
                 st.dataframe(
-                    [{"Investment": row["name"], "Buy": row["ask"], "Sell": row["bid"],
-                      "Owned": row["owned"], "Cost basis": row["cost_basis"], "Last dividend": row["last_payout"]}
+                    [{"Store": row["name"], "Price": row["price"], "Owned": row["owned"],
+                      "Next dividend": row["next_dividend"], "Last dividend": row["last_payout"]}
                      for row in rows], hide_index=True,
                 )
 
