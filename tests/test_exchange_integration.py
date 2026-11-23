@@ -26,17 +26,17 @@ class ExchangeIntegrationTest(unittest.TestCase):
         self.assertTrue(buy_shares(town, "BAIXA", 4))
         self.assertEqual((town.cash, town.daily_expenses), (160, 0))
         advance_clock(town, DAY_SECONDS)
-        self.assertEqual(town.last_day_summary["dividends"], 4)
-        self.assertEqual((town.last_day_summary["profit"], town.last_day_summary["tax"]), (4, 1))
-        self.assertEqual(town.cash, 163)
+        self.assertEqual(town.last_day_summary["dividends"], 12)
+        self.assertEqual((town.last_day_summary["profit"], town.last_day_summary["tax"]), (12, 2))
+        self.assertEqual(town.cash, 170)
         restored, _ = unpack_save(json.loads(json.dumps(pack_save(town, 1000))))
         restored.settle_day(1)
         restored.sync_market(DAY_SECONDS+1)
-        self.assertEqual((restored.cash, restored.taxes_paid_total), (163, 1))
-        self.assertEqual(restored.exchange["total_dividends"]["BAIXA"], 4)
+        self.assertEqual((restored.cash, restored.taxes_paid_total), (170, 2))
+        self.assertEqual(restored.exchange["total_dividends"]["BAIXA"], 12)
         advance_clock(restored, DAY_SECONDS)
-        self.assertEqual((restored.cash, restored.taxes_paid_total), (166, 2))
-        self.assertEqual(restored.exchange["total_dividends"]["BAIXA"], 8)
+        self.assertEqual((restored.cash, restored.taxes_paid_total), (180, 4))
+        self.assertEqual(restored.exchange["total_dividends"]["BAIXA"], 24)
 
     def test_skipped_wall_clock_days_do_not_create_offline_dividends(self):
         town = Town()
@@ -46,7 +46,8 @@ class ExchangeIntegrationTest(unittest.TestCase):
         self.assertEqual(sum(town.exchange["total_dividends"].values()), 0)
         self.assertEqual(town.exchange["quotes"]["TRAM"], 50)
         advance_clock(town, DAY_SECONDS)
-        self.assertEqual(town.cash, 11)
+        self.assertEqual(town.last_day_summary["dividends"], 3)
+        self.assertEqual(town.cash, 12)
 
     def test_real_sales_raise_the_named_store_price_at_close(self):
         town = Town()
@@ -64,9 +65,9 @@ class ExchangeIntegrationTest(unittest.TestCase):
         town.interact()
         self.assertEqual(town.exchange, previous)
         advance_clock(town, DAY_SECONDS)
-        self.assertEqual(town.exchange["quotes"]["BAIXA"], 61)
+        self.assertEqual(town.exchange["quotes"]["BAIXA"], 66)
         self.assertEqual(town.exchange["quotes"]["BELEM"], 45)
-        self.assertEqual(town.last_day_summary["dividends"], 1)
+        self.assertEqual(town.last_day_summary["dividends"], 3)
 
     def test_paid_bridge_tolls_are_independent_of_store_shares(self):
         town = Town()
@@ -87,7 +88,7 @@ class ExchangeIntegrationTest(unittest.TestCase):
         town.interact_industry("SHIPYARD")
         self.assertEqual(town.exchange["sales_today"]["ALMADA"], 1)
         advance_clock(town, DAY_SECONDS)
-        self.assertEqual((town.exchange["quotes"]["ALMADA"], town.exchange["quotes"]["BAIXA"]), (41, 60))
+        self.assertEqual((town.exchange["quotes"]["ALMADA"], town.exchange["quotes"]["BAIXA"]), (44, 60))
 
     def test_realized_share_profit_is_taxed_without_taxing_returned_principal(self):
         town = Town()
@@ -111,8 +112,8 @@ class ExchangeIntegrationTest(unittest.TestCase):
         restored, _ = unpack_save(json.loads(json.dumps(pack_save(town, 1000))))
         self.assertEqual(restored.exchange, before)
         advance_clock(restored, DAY_SECONDS - 63.5)
-        self.assertEqual(restored.exchange["quotes"]["ALFAMA"], 36)
-        self.assertEqual(restored.last_day_summary["dividends"], 1)
+        self.assertEqual(restored.exchange["quotes"]["ALFAMA"], 39)
+        self.assertEqual(restored.last_day_summary["dividends"], 2)
 
 
 if __name__ == "__main__":

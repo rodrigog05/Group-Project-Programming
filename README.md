@@ -47,7 +47,7 @@ In the illustrated building scenes from the desktop game, the vendor answers in 
 
 Press **E** at **Bolsa de Lisboa** to open the trading floor. Choose a **Store** and the number of **Shares**, review the price and total, then select **Buy shares** or **Sell shares**. Both use the same price. Open **Share prices and holdings** for the full portfolio. Select **Leave exchange** to return to the street.
 
-Each share pays **$1 at the end of every game day** you still own it. Selling goods at its store or collecting payment for a shipyard repair raises that business's share price by **$1 at close**, at most once that day. The higher price carries forward. The market clock runs while you play on the street.
+Shares you own at the end of each game day pay a **5% dividend** on their closing value. Selling goods at the store or collecting payment for a shipyard repair raises that business's share price **10% at close**, once per day. The new price carries forward. The game rounds the closing price and each store's total dividend to the nearest dollar, with 50¢ rounded up. The market clock runs while you play on the street.
 
 The market clock and production run while the map has focus. Click outside the map to pause street play. Each day has 60 seconds of daylight followed by 60 seconds of night. The market settles every 120 game seconds. Trade shortcuts appear only within reach of the right supplier, with enough cash and free cargo space. On foot, the ferry costs $2. With a vehicle, bridges charge a $3 toll toward Lisbon.
 

@@ -1,12 +1,12 @@
-"""Store shares with a fixed dividend and a daily price increase after a sale."""
+"""Store shares with percentage dividends and a daily price increase after a sale."""
 from copy import deepcopy
 from dataclasses import dataclass
 
 from place_names import place_name
 
 
-DAILY_DIVIDEND = 1
-PRICE_INCREASE = 1
+DAILY_DIVIDEND_PERCENT = 5
+PRICE_INCREASE_PERCENT = 10
 SCHEMA_VERSION = 2
 
 
@@ -194,6 +194,18 @@ def sell_shares(town, symbol, quantity):
     return True
 
 
+def _closing_price(state, symbol):
+    price = state["quotes"][symbol]
+    if state["sales_today"][symbol]:
+        return (price * (100 + PRICE_INCREASE_PERCENT) + 50) // 100
+    return price
+
+
+def _daily_dividend(price, owned):
+    """Round the dividend for the entire position to a whole game dollar."""
+    return (price * owned * DAILY_DIVIDEND_PERCENT + 50) // 100
+
+
 def settle_exchange(town, day, *, pay_daily_dividends=True):
     """Pay holders and apply sale-triggered price increases once per market close."""
     if not _quantity(day):
@@ -205,15 +217,15 @@ def settle_exchange(town, day, *, pay_daily_dividends=True):
     statement["day"] = day
     for asset in ASSETS:
         symbol = asset.symbol
+        closing_price = _closing_price(state, symbol)
         payout = state["legacy_dividends"][symbol]
         if pay_daily_dividends:
-            payout += state["holdings"][symbol] * DAILY_DIVIDEND
+            payout += _daily_dividend(closing_price, state["holdings"][symbol])
         statement["by_asset"][symbol] = payout
         state["legacy_dividends"][symbol] = 0
         state["total_dividends"][symbol] += payout
-        if state["sales_today"][symbol]:
-            state["quotes"][symbol] += PRICE_INCREASE
-            state["sales_today"][symbol] = 0
+        state["quotes"][symbol] = closing_price
+        state["sales_today"][symbol] = 0
     statement["paid"] = sum(statement["by_asset"].values())
     state["last_settlement"] = day
     state["last_statement"] = statement
@@ -231,12 +243,13 @@ def portfolio_rows(town):
     for asset in ASSETS:
         symbol = asset.symbol
         price = state["quotes"][symbol]
+        closing_price = _closing_price(state, symbol)
         owned = state["holdings"][symbol]
         rows.append({
             "symbol": symbol, "name": asset.name, "price": price, "owned": owned,
             "cost_basis": state["cost_basis"][symbol], "value": owned * price,
-            "next_dividend": owned * DAILY_DIVIDEND + state["legacy_dividends"][symbol],
-            "next_price": price + (PRICE_INCREASE if state["sales_today"][symbol] else 0),
+            "next_dividend": _daily_dividend(closing_price, owned) + state["legacy_dividends"][symbol],
+            "next_price": closing_price,
             "last_payout": state["last_statement"]["by_asset"][symbol],
             "total_dividends": state["total_dividends"][symbol],
         })

@@ -125,7 +125,7 @@ def test_exchange_opens_trading_screen_and_can_buy_sell_and_leave():
     click(app, "Buy shares")
     assert app.metric[0].value == "$15"
     assert any("1 owned" in quote.value for quote in app.markdown)
-    assert any("Dividend at close" in quote.value and "$1" in quote.value for quote in app.markdown)
+    assert any("Dividend at close" in quote.value and "$2" in quote.value for quote in app.markdown)
     click(app, "Buy shares")
     assert app.metric[0].value == "$15"
     assert "You need $45" in app.session_state.town.message

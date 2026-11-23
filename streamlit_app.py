@@ -181,8 +181,9 @@ def district_exchange():
                         f"Dividend at close · **\\${selected['next_dividend']:,}**")
             if selected["next_price"] > price:
                 st.markdown(f"Price at close · **\\${selected['next_price']:,}**")
-            st.markdown(f"**\\${exchange.DAILY_DIVIDEND} per share** each day you hold it at close. "
-                        f"One or more sales or paid jobs at a business add **\\${exchange.PRICE_INCREASE}** to its price at close.")
+            st.markdown(f"Hold shares at close to earn **{exchange.DAILY_DIVIDEND_PERCENT}%** of their closing value. "
+                        f"Selling goods or collecting repair payment at the business raises its price "
+                        f"**{exchange.PRICE_INCREASE_PERCENT}%** once at close.")
             with st.container(key="exchange_actions"):
                 buy, sell = st.columns(2)
                 buy.button("Buy shares", width="stretch", type="primary", on_click=inside,

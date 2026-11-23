@@ -102,12 +102,12 @@ class ExchangeTest(unittest.TestCase):
         self.assertEqual(settle_exchange(town, 1), 0)
         self.assertTrue(buy_shares(town, "BELEM", 2))
         self.assertTrue(buy_shares(town, "TRAM", 1))
-        self.assertEqual(settle_exchange(town, 2), 3)
-        self.assertEqual(settle_exchange(town, 3), 3)
+        self.assertEqual(settle_exchange(town, 2), 8)
+        self.assertEqual(settle_exchange(town, 3), 8)
         self.assertTrue(sell_shares(town, "BELEM", 1))
-        self.assertEqual(settle_exchange(town, 4), 2)
-        self.assertEqual(town.exchange["total_dividends"]["BELEM"], 5)
-        self.assertEqual(town.exchange["total_dividends"]["TRAM"], 3)
+        self.assertEqual(settle_exchange(town, 4), 5)
+        self.assertEqual(town.exchange["total_dividends"]["BELEM"], 12)
+        self.assertEqual(town.exchange["total_dividends"]["TRAM"], 9)
 
     def test_store_names_match_the_games_public_shops_and_shipyard(self):
         stores = {site.name for site in SITES if site.role in ("PUBLIC SHOP", "SHIPYARD")}
@@ -125,12 +125,12 @@ class ExchangeTest(unittest.TestCase):
         self.assertTrue(record_trade(town, other_store, 1))
         self.assertEqual((town.exchange["quotes"]["BELEM"], town.exchange["quotes"]["BAIXA"]), (45, 60))
         self.assertEqual(settle_exchange(town, 1), 0)
-        self.assertEqual((town.exchange["quotes"]["BELEM"], town.exchange["quotes"]["BAIXA"]), (46, 61))
+        self.assertEqual((town.exchange["quotes"]["BELEM"], town.exchange["quotes"]["BAIXA"]), (50, 66))
         settle_exchange(town, 2)
-        self.assertEqual((town.exchange["quotes"]["BELEM"], town.exchange["quotes"]["BAIXA"]), (46, 61))
+        self.assertEqual((town.exchange["quotes"]["BELEM"], town.exchange["quotes"]["BAIXA"]), (50, 66))
         self.assertTrue(record_trade(town, first_store, 1))
         settle_exchange(town, 3)
-        self.assertEqual((town.exchange["quotes"]["BELEM"], town.exchange["quotes"]["BAIXA"]), (47, 61))
+        self.assertEqual((town.exchange["quotes"]["BELEM"], town.exchange["quotes"]["BAIXA"]), (55, 66))
 
     def test_invalid_sales_are_ignored_without_mutation(self):
         town = FakeTown()
@@ -145,7 +145,7 @@ class ExchangeTest(unittest.TestCase):
         town = FakeTown()
         self.assertTrue(buy_shares(town, "TRAM", 1))
         self.assertTrue(record_trade(town, SimpleNamespace(name="Mercado das Nações"), 1))
-        self.assertEqual(settle_exchange(town, 1), 1)
+        self.assertEqual(settle_exchange(town, 1), 3)
         town.exchange = normalize_state(json.loads(json.dumps(town.exchange)))
         before = deepcopy(town.exchange)
         for day in (1, 0, True, -1, 1.0):
@@ -154,7 +154,7 @@ class ExchangeTest(unittest.TestCase):
         cash = town.cash
         self.assertEqual(settle_exchange(town, 20, pay_daily_dividends=False), 0)
         self.assertEqual(town.cash, cash)
-        self.assertEqual(town.exchange["quotes"]["TRAM"], 51)
+        self.assertEqual(town.exchange["quotes"]["TRAM"], 55)
 
     def test_legacy_positions_and_pending_dividends_are_carried_forward_once(self):
         old = {
@@ -174,11 +174,11 @@ class ExchangeTest(unittest.TestCase):
         self.assertEqual(town.exchange["last_statement"]["paid"], 2)
         self.assertEqual(town.exchange["sales_today"]["BELEM"], 0)
         bread_market = portfolio_rows(town)[0]
-        self.assertEqual((bread_market["name"], bread_market["next_dividend"]), ("Daily Bread Market", 4))
-        self.assertEqual(settle_exchange(town, 2), 5)
-        self.assertEqual(town.exchange["total_dividends"]["BELEM"], 7)
+        self.assertEqual((bread_market["name"], bread_market["next_dividend"]), ("Daily Bread Market", 6))
+        self.assertEqual(settle_exchange(town, 2), 7)
+        self.assertEqual(town.exchange["total_dividends"]["BELEM"], 9)
         self.assertEqual(town.exchange["total_dividends"]["TRAM"], 1)
-        self.assertEqual(settle_exchange(town, 3), 2)
+        self.assertEqual(settle_exchange(town, 3), 4)
         self.assertEqual(town.exchange["quotes"]["BELEM"], 38)
 
     def test_normalization_repairs_bad_positions_and_preserves_a_price_above_the_old_limit(self):
@@ -202,15 +202,15 @@ class ExchangeTest(unittest.TestCase):
     def test_portfolio_views_are_read_only_and_show_the_next_dividend_and_price(self):
         town = FakeTown()
         self.assertTrue(buy_shares(town, "TRAM", 2))
-        self.assertEqual(settle_exchange(town, 1), 2)
+        self.assertEqual(settle_exchange(town, 1), 5)
         self.assertTrue(record_trade(town, SimpleNamespace(name="Mercado das Nações"), 3))
         before = deepcopy(vars(town))
         rows, totals = portfolio_rows(town), summary(town)
         market = next(row for row in rows if row["symbol"] == "TRAM")
         self.assertEqual((market["name"], market["price"], market["owned"], market["value"]),
                          ("Nations Market", 50, 2, 100))
-        self.assertEqual((market["next_dividend"], market["next_price"], market["last_payout"]), (2, 51, 2))
-        self.assertEqual((totals["last_payout"], totals["total_dividends"], totals["owned"]), (2, 2, 2))
+        self.assertEqual((market["next_dividend"], market["next_price"], market["last_payout"]), (6, 55, 5))
+        self.assertEqual((totals["last_payout"], totals["total_dividends"], totals["owned"]), (5, 5, 2))
         totals["last_statement"]["by_asset"]["TRAM"] = 999
         market["owned"] = 99
         self.assertEqual(vars(town), before)
