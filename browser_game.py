@@ -140,7 +140,7 @@ BUILDING_HINTS = {
     "CASINO": "Pick a chip with ← →, then press 1 (red), 2 (black) or 3 (green 0) to spin the wheel.",
     "GARAGE": "Press 1–4 to buy a vehicle. Vehicles are faster and their trunk carries more.",
     "WAREHOUSE": "Press E to add 12 storage slots, so you can carry bigger batches.",
-    "EXCHANGE": "Buy and sell shares with the controls below the game view.",
+    "EXCHANGE": "Use the Trade shares panel to buy and sell shares.",
     "RESEARCH": "Our team is presenting Foundry Town to our professors at Nova SBE.",
     MONASTERY: "Each visit adds 5% casino luck (better odds on every bet), up to +20%.",
 }
