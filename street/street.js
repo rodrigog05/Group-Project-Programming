@@ -45,15 +45,19 @@ document.addEventListener("visibilitychange", () => {
     soundtrack.pause();
   }
 });
+// Images are cached by the browser. Bump ART_VERSION whenever a map, scene or vehicle image changes, so
+// players get the new art (street.js itself is always loaded fresh by index.html).
+const ART_VERSION = "2026-11-23";
+const asset = (path) => `${path}?v=${ART_VERSION}`;
 const day = new Image();
 const night = new Image();
-day.src = "world_100_day.webp";
+day.src = asset("world_100_day.webp");
 const stationArt = { day: new Image(), night: new Image() };
-stationArt.day.src = "oriente_day.svg";
+stationArt.day.src = asset("oriente_day.svg");
 const campusSigns = new Image();
-campusSigns.src = "nova_presentation_signs.svg";
+campusSigns.src = asset("nova_presentation_signs.svg");
 const cityArt = { day: new Image(), night: new Image() };
-cityArt.day.src = "city_day.svg";
+cityArt.day.src = asset("city_day.svg");
 
 const directions = {
   arrowleft: "left", a: "left", arrowright: "right", d: "right",
@@ -62,7 +66,7 @@ const directions = {
 const actions = { e: "interact", q: "bulk", v: "vehicle" };  // V parks the vehicle and brings it back
 const vehicleArt = Object.fromEntries(["motorcycle", "car", "van", "f1"].map(key => {
   const art = new Image();
-  art.src = `vehicles/${key}.svg`;
+  art.src = asset(`vehicles/${key}.svg`);
   return [key, art];
 }));
 const held = new Map();
@@ -129,9 +133,9 @@ window.addEventListener("message", (event) => {
   if (pending && next.ack !== eventId) return;
   // Python's reply to the map's own movement, as opposed to a page update such as Visit or Leave.
   const ownReply = pending && next.ack === eventId;
-  if (next.night && !night.getAttribute("src")) night.src = "world_100_night.webp";
-  if (next.night && !stationArt.night.getAttribute("src")) stationArt.night.src = "oriente_night.svg";
-  if (next.night && !cityArt.night.getAttribute("src")) cityArt.night.src = "city_night.svg";
+  if (next.night && !night.getAttribute("src")) night.src = asset("world_100_night.webp");
+  if (next.night && !stationArt.night.getAttribute("src")) stationArt.night.src = asset("oriente_night.svg");
+  if (next.night && !cityArt.night.getAttribute("src")) cityArt.night.src = asset("city_night.svg");
   // A new ferry id means Python just moved the player across the Tejo: play the crossing.
   // The first id this map sees is history (for example after leaving a building), so skip it.
   const ferryId = next.ferry ? next.ferry.id : 0;
@@ -891,7 +895,7 @@ function drawInterior() {
   if (room.scene) {
     if (!sceneArt[room.scene]) {
       sceneArt[room.scene] = new Image();
-      sceneArt[room.scene].src = `scenes/${room.scene}.webp`;
+      sceneArt[room.scene].src = asset(`scenes/${room.scene}.webp`);
     }
     const art = sceneArt[room.scene];
     if (art.complete && art.naturalWidth) context.drawImage(art, 0, 0, width, height);
@@ -1148,7 +1152,7 @@ function tint(color, night, lit = false) {
 function drawFerry() {
   const night = state.night;
   const art = night ? ferryArt.night : ferryArt.day;
-  if (!art.getAttribute("src")) art.src = night ? "scenes/ferry_night.webp" : "scenes/ferry_day.webp";
+  if (!art.getAttribute("src")) art.src = asset(night ? "scenes/ferry_night.webp" : "scenes/ferry_day.webp");
   const elapsed = (performance.now() - ferry.start) / 1000;
   if (elapsed > CROSSING_SECONDS + 0.6) {
     ferry = null;
