@@ -249,19 +249,23 @@ def test_basics_slide_assets_exist():
 
 def test_closed_buildings_cannot_be_entered_and_are_not_destinations():
     from browser_game import CLOSED_SITES, OPEN_SITES, street_event
-    assert CLOSED_SITES == {"Motorworks Garage", "Armazém do Seixal", "Pastéis de Belém"}
+    assert CLOSED_SITES == {"Motorworks Garage", "Armazém do Seixal", "Pastéis de Belém", "Tool Market", "The Pottery Shop"}
     assert [site.name for site in OPEN_SITES if site.role == "GARAGE"] == ["Cacilhas Dealership"]
     assert [site.name for site in OPEN_SITES if site.role == "WAREHOUSE"] == ["Foundry Warehouse"]
     town = Town()
-    garage = next(site for site in SITES if site.name == "Motorworks Garage")
-    town.x, town.y = entrance(garage)
-    assert street_event(town, {"dx": 0, "dy": 0, "seconds": 0, "action": "interact"}) is None
-    assert "apartments" in town.message and town.cash == 60
+    town.goods[0] = town.goods[2] = 1
+    for site in SITES:
+        if site.name in CLOSED_SITES:
+            town.x, town.y = entrance(site)
+            assert street_event(town, {"dx": 0, "dy": 0, "seconds": 0, "action": "interact"}) is None
+            assert "apartments" in town.message and town.cash == 60
+            assert (town.goods[0], town.goods[2]) == (1, 1)
     app = new_app()
-    options = set(app.selectbox[0].options)
-    from place_names import place_name
-    assert not {place_name(name) for name in CLOSED_SITES} & options
-    assert {"Cacilhas Dealership", "Foundry Warehouse", "Palmela Farm", "Tagus Shipyard", "Nations Market"} <= options
+    options = app.selectbox[0].options
+    assert not {"Motorworks Garage", "Seixal Warehouse", "Belem Pastry Shop"} & set(options)
+    assert {"Cacilhas Dealership", "Foundry Warehouse", "Palmela Farm", "Tagus Shipyard"} <= set(options)
+    assert options.count("Tool Market") == options.count("The Pottery Shop") == 1
+    assert not {"Oriente Tool Market", "Nations Market"} & set(options)
 
 
 def test_warehouse_has_a_scene_and_the_farm_sells_only_wheat():
@@ -361,13 +365,13 @@ def test_hints_can_be_hidden_and_show_route_sets_the_destination():
     def route_button(app):
         return next(button for button in app.button if button.label.startswith("Show route"))
     app = new_app()
-    app.selectbox[0].select("Tool Market").run()
+    app.selectbox[0].select("Oriente Tool Market").run()
     assert route_button(app).label == "Show route to Goldenfield Farm" and not route_button(app).disabled
     route_button(app).click().run()
     assert app.selectbox[0].value == "Goldenfield Farm"
     assert route_button(app).disabled  # Already the destination; the button stays, so nothing moves
     app.toggle[0].set_value(False).run()
-    app.selectbox[0].select("Tool Market").run()
+    app.selectbox[0].select("Oriente Tool Market").run()
     assert route_button(app).disabled
 
 

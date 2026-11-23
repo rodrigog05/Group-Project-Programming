@@ -7,7 +7,7 @@ from place_names import place_name
 
 DAILY_DIVIDEND_PERCENT = 5
 PRICE_INCREASE_PERCENT = 10
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -25,15 +25,14 @@ class Asset:
 
 ASSETS = (
     Asset("BELEM", "Daily Bread Market", 45),
-    Asset("BAIXA", "Tool Market", 60),
-    Asset("ALFAMA", "The Pottery Shop", 35),
-    Asset("ORIENTE", "Home Market", 55),
-    Asset("ALMADA", "Estaleiro do Tejo", 40),
     Asset("BRIDGE25", "Oriente Tool Market", 75),
+    Asset("ORIENTE", "Home Market", 55),
     Asset("TRAM", "Mercado das Nações", 50),
+    Asset("ALMADA", "Estaleiro do Tejo", 40),
 )
 ASSET_BY_SYMBOL = {asset.symbol: asset for asset in ASSETS}
 ASSET_BY_STORE = {asset.store: asset for asset in ASSETS}
+RETIRED_SHARES = {"BAIXA": ("BRIDGE25", 60), "ALFAMA": ("TRAM", 35)}
 
 
 def _zeros():
@@ -76,7 +75,7 @@ def normalize_state(value):
     if not isinstance(value, dict):
         return result
     version = value.get("version", 1)
-    if type(version) is not int or version not in (1, SCHEMA_VERSION):
+    if type(version) is not int or version not in (1, 2, SCHEMA_VERSION):
         return result
 
     def mapping(key):
@@ -87,9 +86,14 @@ def normalize_state(value):
     previous_quotes = mapping("previous_quotes")
     pending = mapping("pending_cents" if version == 1 else "legacy_dividends")
     dividends, sales = mapping("total_dividends"), mapping("sales_today")
+    payouts = mapping("last_statement").get("by_asset")
+    payouts = payouts if isinstance(payouts, dict) else {}
+    statement = result["last_statement"]
     for asset in ASSETS:
         symbol = asset.symbol
-        owned = min(asset.cap, _whole(holdings.get(symbol)))
+        # A player who owned both old listings may exceed the new purchase cap.
+        limit = asset.cap * 2 if version == SCHEMA_VERSION and symbol in ("BRIDGE25", "TRAM") else asset.cap
+        owned = min(limit, _whole(holdings.get(symbol)))
         result["holdings"][symbol] = owned
         result["cost_basis"][symbol] = _whole(basis.get(symbol), owned * asset.base_price) if owned else 0
         quote = _whole(quotes.get(symbol)) or asset.base_price
@@ -106,15 +110,23 @@ def normalize_state(value):
         # Round legacy fractional dividends up once so no earned credit is lost.
         result["legacy_dividends"][symbol] = (credit + 99) // 100 if version == 1 else credit
         result["total_dividends"][symbol] = _whole(dividends.get(symbol))
-        result["sales_today"][symbol] = _whole(sales.get(symbol)) if version == SCHEMA_VERSION else 0
+        result["sales_today"][symbol] = _whole(sales.get(symbol)) if version >= 2 else 0
+        statement["by_asset"][symbol] = _whole(payouts.get(symbol))
+
+    if version < SCHEMA_VERSION:
+        for retired, (replacement, base_price) in RETIRED_SHARES.items():
+            owned = min(ASSET_BY_SYMBOL[replacement].cap, _whole(holdings.get(retired)))
+            result["holdings"][replacement] += owned
+            if owned:
+                result["cost_basis"][replacement] += _whole(basis.get(retired), owned * base_price)
+            credit = _whole(pending.get(retired))
+            result["legacy_dividends"][replacement] += (credit + 99) // 100 if version == 1 else credit
+            result["total_dividends"][replacement] += _whole(dividends.get(retired))
+            statement["by_asset"][replacement] += _whole(payouts.get(retired))
 
     result["last_settlement"] = _whole(value.get("last_settlement"))
     saved_statement = mapping("last_statement")
-    statement = result["last_statement"]
     statement["day"] = min(result["last_settlement"], _whole(saved_statement.get("day")))
-    payouts = saved_statement.get("by_asset")
-    if isinstance(payouts, dict):
-        statement["by_asset"] = {asset.symbol: _whole(payouts.get(asset.symbol)) for asset in ASSETS}
     statement["paid"] = sum(statement["by_asset"].values())
     return result
 

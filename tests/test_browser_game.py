@@ -99,7 +99,7 @@ def test_pages_and_service_controls():
     for place in ("Nova SBE · Carcavelos", "Bolsa de Lisboa", "Foundry Warehouse", "Foundry Casino"):
         choose_place(app, place)
         if place == "Bolsa de Lisboa":
-            click(app, "Leave exchange")
+            click(app, "Leave")
     for page in ("Market & recipes", "Landmarks"):
         click(app, page)
         assert app.session_state.town_page == page
@@ -115,9 +115,9 @@ def test_exchange_opens_trading_screen_and_can_buy_sell_and_leave():
     click(app, "Skip")
     click(app, "Start playing")
     choose_place(app, "Bolsa de Lisboa")
-    assert any(heading.value == "Bolsa de Lisboa" for heading in app.title)
+    assert any(heading.value == "Lisbon Stock Exchange" for heading in app.title)
     assert any(heading.value == "Trade shares" for heading in app.subheader)
-    assert any(panel.label == "Share prices and holdings" for panel in app.expander)
+    assert any(heading.value == "All stocks" for heading in app.subheader)
     assert any(select.label == "Store" and select.options[0] == "Daily Bread Market" for select in app.selectbox)
     assert any("0 owned" in quote.value for quote in app.markdown)
     assert not app.get("component_instance")
@@ -125,7 +125,7 @@ def test_exchange_opens_trading_screen_and_can_buy_sell_and_leave():
     click(app, "Buy shares")
     assert app.metric[0].value == "$15"
     assert any("1 owned" in quote.value for quote in app.markdown)
-    assert any("Dividend at close" in quote.value and "$2" in quote.value for quote in app.markdown)
+    assert any("Next dividend" in quote.value and "$2" in quote.value for quote in app.markdown)
     click(app, "Buy shares")
     assert app.metric[0].value == "$15"
     assert "You need $45" in app.session_state.town.message
@@ -136,7 +136,7 @@ def test_exchange_opens_trading_screen_and_can_buy_sell_and_leave():
     click(app, "Sell shares")
     assert app.metric[0].value == "$60"
     assert "You only own 0 shares" in app.session_state.town.message
-    click(app, "Leave exchange")
+    click(app, "Leave")
     assert app.session_state.inside is None
     assert app.get("component_instance")
 

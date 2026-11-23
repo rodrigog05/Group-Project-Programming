@@ -6,7 +6,7 @@ import unittest
 from exchange import (ASSETS, buy_shares, initial_state, normalize_state, portfolio_rows,
                       record_trade, sell_shares, settle_exchange, summary)
 from place_names import place_name
-from tycoon import SITES
+from browser_game import OPEN_SITES
 
 
 class FakeTown:
@@ -31,7 +31,7 @@ class ExchangeTest(unittest.TestCase):
         first, second = initial_state(), initial_state()
         self.assertEqual(json.loads(json.dumps(first)), first)
         self.assertEqual(sum(first["holdings"].values()), 0)
-        self.assertEqual(len(first["quotes"]), 7)
+        self.assertEqual(len(first["quotes"]), 5)
         first["holdings"]["TRAM"] = 3
         first["sales_today"]["TRAM"] = 3
         self.assertEqual(second["holdings"]["TRAM"], 0)
@@ -110,7 +110,7 @@ class ExchangeTest(unittest.TestCase):
         self.assertEqual(town.exchange["total_dividends"]["TRAM"], 9)
 
     def test_store_names_match_the_games_public_shops_and_shipyard(self):
-        stores = {site.name for site in SITES if site.role in ("PUBLIC SHOP", "SHIPYARD")}
+        stores = {site.name for site in OPEN_SITES if site.role in ("PUBLIC SHOP", "SHIPYARD")}
         self.assertEqual({asset.store for asset in ASSETS}, stores)
         self.assertEqual(len({asset.name for asset in ASSETS}), len(ASSETS))
         for asset in ASSETS:
@@ -119,18 +119,18 @@ class ExchangeTest(unittest.TestCase):
     def test_price_rises_once_per_day_and_only_for_the_store_that_made_sales(self):
         town = FakeTown()
         first_store = SimpleNamespace(name="Daily Bread Market")
-        other_store = SimpleNamespace(name="Tool Market")
+        other_store = SimpleNamespace(name="Oriente Tool Market")
         self.assertTrue(record_trade(town, first_store, 2))
         self.assertTrue(record_trade(town, first_store, 12))
         self.assertTrue(record_trade(town, other_store, 1))
-        self.assertEqual((town.exchange["quotes"]["BELEM"], town.exchange["quotes"]["BAIXA"]), (45, 60))
+        self.assertEqual((town.exchange["quotes"]["BELEM"], town.exchange["quotes"]["BRIDGE25"]), (45, 75))
         self.assertEqual(settle_exchange(town, 1), 0)
-        self.assertEqual((town.exchange["quotes"]["BELEM"], town.exchange["quotes"]["BAIXA"]), (50, 66))
+        self.assertEqual((town.exchange["quotes"]["BELEM"], town.exchange["quotes"]["BRIDGE25"]), (50, 83))
         settle_exchange(town, 2)
-        self.assertEqual((town.exchange["quotes"]["BELEM"], town.exchange["quotes"]["BAIXA"]), (50, 66))
+        self.assertEqual((town.exchange["quotes"]["BELEM"], town.exchange["quotes"]["BRIDGE25"]), (50, 83))
         self.assertTrue(record_trade(town, first_store, 1))
         settle_exchange(town, 3)
-        self.assertEqual((town.exchange["quotes"]["BELEM"], town.exchange["quotes"]["BAIXA"]), (55, 66))
+        self.assertEqual((town.exchange["quotes"]["BELEM"], town.exchange["quotes"]["BRIDGE25"]), (55, 83))
 
     def test_invalid_sales_are_ignored_without_mutation(self):
         town = FakeTown()
@@ -138,7 +138,7 @@ class ExchangeTest(unittest.TestCase):
         for site in (object(), SimpleNamespace(name=[]), SimpleNamespace(name="Goldenfield Farm")):
             self.assertFalse(record_trade(town, site, 1))
         for quantity in (True, 0, -1, 1.0, "2", None):
-            self.assertFalse(record_trade(town, SimpleNamespace(name="Tool Market"), quantity))
+            self.assertFalse(record_trade(town, SimpleNamespace(name="Oriente Tool Market"), quantity))
         self.assertEqual(town.exchange, before)
 
     def test_settlement_is_idempotent_after_reload_and_skips_offline_dividends(self):
@@ -187,17 +187,39 @@ class ExchangeTest(unittest.TestCase):
         saved = initial_state()
         saved["holdings"].update(BELEM=999, TRAM=True, UNKNOWN=50)
         saved["cost_basis"] = {"BELEM": -1}
-        saved["quotes"].update(BELEM=75, BAIXA=-8, TRAM=0)
+        saved["quotes"].update(BELEM=75, BRIDGE25=-8, TRAM=0)
         saved["legacy_dividends"]["BELEM"] = True
         saved["sales_today"]["BELEM"] = -3
         restored = normalize_state(saved)
         self.assertEqual((restored["holdings"]["BELEM"], restored["holdings"]["TRAM"]), (100, 0))
         self.assertEqual(restored["cost_basis"]["BELEM"], 4500)
         self.assertNotIn("UNKNOWN", restored["holdings"])
-        self.assertEqual((restored["quotes"]["BELEM"], restored["quotes"]["BAIXA"], restored["quotes"]["TRAM"]),
-                         (75, 60, 50))
+        self.assertEqual((restored["quotes"]["BELEM"], restored["quotes"]["BRIDGE25"], restored["quotes"]["TRAM"]),
+                         (75, 75, 50))
         self.assertEqual(sum(restored["legacy_dividends"].values()), 0)
         self.assertEqual(restored["sales_today"]["BELEM"], 0)
+
+    def test_removed_listings_roll_into_their_surviving_stores_once(self):
+        old = {
+            "version": 2, "holdings": {"BAIXA": 100, "BRIDGE25": 45, "ALFAMA": 2, "TRAM": 1},
+            "cost_basis": {"BAIXA": 6000, "BRIDGE25": 3375, "ALFAMA": 70, "TRAM": 50},
+            "quotes": {"BRIDGE25": 83, "TRAM": 55},
+            "legacy_dividends": {"BAIXA": 2, "BRIDGE25": 1},
+            "total_dividends": {"ALFAMA": 3, "TRAM": 4},
+            "sales_today": {"ALFAMA": 1, "TRAM": 2},
+        }
+        town = FakeTown()
+        town.exchange = normalize_state(old)
+        state = town.exchange
+        self.assertEqual((state["holdings"]["BRIDGE25"], state["holdings"]["TRAM"]), (145, 3))
+        self.assertEqual((state["cost_basis"]["BRIDGE25"], state["cost_basis"]["TRAM"]), (9375, 120))
+        self.assertEqual((state["quotes"]["BRIDGE25"], state["quotes"]["TRAM"]), (83, 55))
+        self.assertEqual(state["legacy_dividends"]["BRIDGE25"], 3)
+        self.assertEqual(state["total_dividends"]["TRAM"], 7)
+        self.assertEqual(state["sales_today"]["TRAM"], 2)
+        self.assertEqual(normalize_state(json.loads(json.dumps(state))), state)
+        self.assertFalse(buy_shares(town, "BRIDGE25", 1))
+        self.assertTrue(sell_shares(town, "BRIDGE25", 145))
 
     def test_portfolio_views_are_read_only_and_show_the_next_dividend_and_price(self):
         town = FakeTown()
@@ -208,7 +230,7 @@ class ExchangeTest(unittest.TestCase):
         rows, totals = portfolio_rows(town), summary(town)
         market = next(row for row in rows if row["symbol"] == "TRAM")
         self.assertEqual((market["name"], market["price"], market["owned"], market["value"]),
-                         ("Nations Market", 50, 2, 100))
+                         ("The Pottery Shop", 50, 2, 100))
         self.assertEqual((market["next_dividend"], market["next_price"], market["last_payout"]), (6, 55, 5))
         self.assertEqual((totals["last_payout"], totals["total_dividends"], totals["owned"]), (5, 5, 2))
         totals["last_statement"]["by_asset"]["TRAM"] = 999

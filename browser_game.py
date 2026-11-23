@@ -4,6 +4,7 @@ import random
 
 from ferry import FERRY_FARE, FERRY_PIERS, nearby_pier, ride_ferry
 import businesses
+from city_layout import CLOSED as CLOSED_SITES
 import lisbon_scene as scene
 from lisbon_landmarks import LANDMARKS
 from vehicles import (
@@ -100,10 +101,7 @@ STREET_LIFE = street_life()
 
 MONASTERY = "Mosteiro dos Jerónimos"
 DRIVE_IN = 110  # How far below its door a driver can still enter the dealership (forecourt + road lane)
-# Closed to keep the game simple: the only car dealership is in Cacilhas (so the first vehicle needs a ferry
-# ride), one warehouse is enough, and the eggs / pastéis side chain is gone. The engine keeps them for
-# old saves; on the map their plots show apartment blocks.
-CLOSED_SITES = frozenset({"Motorworks Garage", "Armazém do Seixal", "Pastéis de Belém"})
+# Closed plots share the apartment layout and collision rules from city_layout.
 OPEN_SITES = tuple(site for site in SITES if site.name not in CLOSED_SITES)
 INTERIOR_ROLES = ("SUPPLIER", "FACTORY", "PUBLIC SHOP", "PASTELARIA", "SHIPYARD", "TIER2")
 # Scenes from the desktop game, as drawn in street/scenes. Boxes are in each scene's own pixels.

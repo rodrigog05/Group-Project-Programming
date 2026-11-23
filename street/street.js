@@ -47,7 +47,7 @@ document.addEventListener("visibilitychange", () => {
 });
 // Images are cached by the browser. Bump ART_VERSION whenever a map, scene or vehicle image changes, so
 // players get the new art (street.js itself is always loaded fresh by index.html).
-const ART_VERSION = "2026-11-23";
+const ART_VERSION = "2026-11-23.2";
 const asset = (path) => `${path}?v=${ART_VERSION}`;
 const day = new Image();
 const night = new Image();

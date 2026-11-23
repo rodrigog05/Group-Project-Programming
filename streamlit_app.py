@@ -168,39 +168,35 @@ def exchange_quotes(rows):
         style = "gain" if change > 0 else "loss" if change < 0 else "flat"
         cells.append(
             f'<tr><th scope="row">{escape(row["name"])}</th><td>${row["price"]:,}</td>'
-            f'<td class="{style}">{movement}</td></tr>'
+            f'<td>{row["owned"]:,}</td><td class="{style}">{movement}</td></tr>'
         )
     st.html('<table class="exchange-board"><thead><tr><th scope="col">Store</th>'
-            '<th scope="col">Price</th><th scope="col">Last change</th></tr></thead><tbody>'
+            '<th scope="col">Price</th><th scope="col">Owned</th><th scope="col">Change</th></tr></thead><tbody>'
             + "".join(cells) + "</tbody></table>")
-    st.caption("Last change is measured from the previous close.")
+
+
+def trade_exchange(operation, *args):
+    if act(operation, *args):
+        st.toast(st.session_state.town.message.replace("$", "\\$"))
 
 
 def exchange_ticket(rows):
     st.subheader("Trade shares", anchor=False)
-    asset = st.selectbox("Store", exchange.ASSETS, format_func=lambda item: item.name)
-    quantity = st.number_input("Shares", 1, asset.cap)
-    selected = next(row for row in rows if row["symbol"] == asset.symbol)
+    with st.container(key="exchange_order"):
+        store, shares = st.columns((2, 1))
+        asset = store.selectbox("Store", exchange.ASSETS, format_func=lambda item: item.name)
+        selected = next(row for row in rows if row["symbol"] == asset.symbol)
+        quantity = shares.number_input("Shares", 1, max(asset.cap, selected["owned"]))
     price = selected["price"]
     st.markdown(f"**\\${price:,} per share** · **{selected['owned']} owned**  \n"
-                f"Cost for {quantity} · **\\${price * quantity:,}**  \n"
-                f"Dividend at close · **\\${selected['next_dividend']:,}**")
-    if selected["next_price"] > price:
-        st.markdown(f"Price at close · **\\${selected['next_price']:,}**")
+                f"Trade total **\\${price * quantity:,}** · Closing price **\\${selected['next_price']:,}**  \n"
+                f"Next dividend **\\${selected['next_dividend']:,}** · Last dividend **\\${selected['last_payout']:,}**")
     with st.container(key="exchange_actions"):
         buy, sell = st.columns(2)
-        buy.button("Buy shares", width="stretch", type="primary", on_click=inside,
+        buy.button("Buy shares", width="stretch", type="primary", on_click=trade_exchange,
                    args=(exchange.buy_shares, asset.symbol, quantity))
-        sell.button("Sell shares", width="stretch", on_click=inside,
+        sell.button("Sell shares", width="stretch", on_click=trade_exchange,
                     args=(exchange.sell_shares, asset.symbol, quantity))
-    if reply := st.session_state.get("reply"):
-        st.info(reply.replace("$", "\\$"))
-    with st.expander("Share prices and holdings"):
-        st.dataframe(
-            [{"Store": row["name"], "Price": row["price"], "Owned": row["owned"],
-              "Next dividend": row["next_dividend"], "Last dividend": row["last_payout"]}
-             for row in rows], hide_index=True,
-        )
 
 
 def district_exchange():
@@ -213,8 +209,8 @@ def district_exchange():
     </style>""")
     with st.container(key="exchange_floor"):
         with st.container(horizontal=True, horizontal_alignment="distribute", vertical_alignment="center"):
-            st.title("Bolsa de Lisboa", anchor=False, width="content")
-            st.button("Leave exchange", key="exchange_leave", shortcut="Escape", on_click=leave_building)
+            st.title(place_name("Bolsa de Lisboa"), anchor=False, width="content")
+            st.button("Leave", key="exchange_leave", shortcut="Escape", on_click=leave_building)
         with st.container(key="exchange_panels"):
             ticket, quotes = st.columns((1, 1.07))
             with ticket.container(key="exchange_ticket"):
@@ -222,9 +218,9 @@ def district_exchange():
             with quotes.container(key="exchange_quotes"):
                 exchange_quotes(rows)
             with st.container(key="exchange_rules"):
-                st.markdown(f"Hold shares at close to earn **{exchange.DAILY_DIVIDEND_PERCENT}%** of their closing value. "
-                            f"Sell goods or collect repair payment at that business to raise its price "
-                            f"**{exchange.PRICE_INCREASE_PERCENT}%** at close, once per day.")
+                st.markdown(f"**Dividend:** {exchange.DAILY_DIVIDEND_PERCENT}% of the closing value of shares you hold.  \n"
+                            f"**Share price:** +{exchange.PRICE_INCREASE_PERCENT}% at close after a sale or paid "
+                            "repair at that business, once per day.")
 
 
 def production_batches(town):
@@ -318,7 +314,8 @@ def destination_point(name):
     if name == MONASTERY:
         left, _, right, bottom = LANDMARKS[0].bounds
         return (left+right)/2, bottom+16
-    return entrance(PLACES[name])
+    site = PLACES.get(name)
+    return entrance(site) if site else None
 
 
 def places():
@@ -330,7 +327,7 @@ def places():
     arrived = point is not None and (
         building_at(town) == destination or (town.x-point[0])**2 + (town.y-point[1])**2 <= 28**2
     )
-    if st.session_state.pop("reset_destination", False) or arrived:
+    if st.session_state.pop("reset_destination", False) or arrived or (point is None and destination != DEFAULT_DESTINATION):
         st.session_state.destination = DEFAULT_DESTINATION
     site_inside = PLACES.get(name, MONASTERY) if name else None
     if site_inside is not None and site_inside != MONASTERY and site_inside.role == "EXCHANGE":
@@ -535,7 +532,7 @@ def market():
             st.markdown(f"**Profit \\${price - cost} per {trade.product.lower()}** · You carry "
                         f"{town.supplies[index]} {trade.supply.lower()} and {town.goods[index]} {trade.product.lower()}")
     with st.expander("Details: market table, today's results and recipes"):
-        snapshot = market_snapshot(town, TRADES, INDUSTRIES, SITES)
+        snapshot = market_snapshot(town, TRADES, INDUSTRIES, OPEN_SITES)
         if snapshot.event_title:
             st.info(f"{snapshot.event_title} · {snapshot.event_detail}")
         st.dataframe([{
@@ -847,8 +844,8 @@ st.html(f"""
     padding-block: 0.25rem;
   }}
   .st-key-exchange_floor {{
-    min-height: calc(100dvh - 4.5rem);
-    padding: clamp(1rem, 3vw, 2.5rem);
+    min-height: calc(100dvh - 5rem);
+    padding: clamp(0.55rem, 2dvh, 1.25rem) clamp(1rem, 3vw, 2.5rem);
     border-radius: 0.875rem;
     background-color: #132231;
     background-image: linear-gradient(180deg, #10223165, transparent 26%), var(--exchange-art);
@@ -865,28 +862,25 @@ st.html(f"""
   }}
   .st-key-exchange_panels {{
     max-width: min(57rem, 63%);
-    margin: clamp(4rem, 12dvh, 7rem) 0 0 auto;
+    margin: clamp(1rem, 6dvh, 4rem) 0 0 auto;
+    gap: 0.6rem;
   }}
   .st-key-exchange_quotes, .st-key-exchange_ticket {{
-    padding: clamp(0.9rem, 1.6vw, 1.35rem);
+    gap: 0.65rem;
+    padding: clamp(0.75rem, 1.4vw, 1.15rem);
     border: 1px solid #587482;
     border-radius: 0.875rem;
     background: #102331ed;
     box-shadow: 0 12px 35px #07111b66;
   }}
-  .st-key-exchange_quotes h2, .st-key-exchange_quotes [data-testid="stCaptionContainer"] p {{
-    color: #e7eff5;
-  }}
-  .st-key-exchange_ticket h2, .st-key-exchange_quotes h2 {{
+  .st-key-exchange_ticket h3, .st-key-exchange_quotes h3 {{
     padding: 0;
     color: #ffd997;
     font-size: 1.375rem;
   }}
   .st-key-exchange_ticket [data-testid="stWidgetLabel"] p,
-  .st-key-exchange_ticket summary,
   .st-key-exchange_ticket .stMarkdown p {{ color: #e7eff5; }}
   .st-key-exchange_ticket .stMarkdown strong {{ color: #ffd997; }}
-  .st-key-exchange_ticket details {{ border-color: #587482; }}
   .exchange-board {{
     width: 100%;
     border-collapse: collapse;
@@ -894,7 +888,7 @@ st.html(f"""
     font-size: 0.86rem;
   }}
   .exchange-board th, .exchange-board td {{
-    padding: 0.5rem 0.3rem;
+    padding: 0.38rem 0.28rem;
     border-bottom: 1px solid #6f899654;
     text-align: left;
   }}
@@ -905,11 +899,11 @@ st.html(f"""
   .exchange-board .loss {{ color: #ffb1ab; }}
   .exchange-board .flat {{ color: #b6c8d3; }}
   .st-key-exchange_rules {{
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 0.75rem;
     border-radius: 0.65rem;
     background: #102331ed;
   }}
-  .st-key-exchange_rules .stMarkdown p {{ color: #e7eff5; }}
+  .st-key-exchange_rules .stMarkdown p {{ color: #e7eff5; font-size: 0.85rem; }}
   .st-key-exchange_rules .stMarkdown strong {{ color: #ffd997; }}
   .st-key-exchange_floor button[data-testid="stBaseButton-secondary"] {{
     border-color: #819eaf;
@@ -944,16 +938,51 @@ st.html(f"""
     }}
     .st-key-exchange_panels {{
       max-width: none;
-      margin-top: clamp(9rem, 25vw, 17rem);
     }}
   }}
   @media (max-width: 640px) {{
-    .st-key-exchange_actions [data-testid="stHorizontalBlock"] {{
+    .st-key-exchange_floor {{ padding: 0.6rem; gap: 0.35rem; }}
+    .st-key-exchange_floor h1 {{ font-size: clamp(1rem, 3.8vw, 1.4rem); }}
+    .st-key-exchange_panels {{
+      margin-top: clamp(0.25rem, 100dvh - 36rem, 4.5rem);
+      gap: 0.4rem;
+    }}
+    .st-key-exchange_panels > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
+      gap: 0.4rem;
+    }}
+    .st-key-exchange_quotes, .st-key-exchange_ticket {{ padding: 0.55rem 0.65rem; gap: 0.4rem; }}
+    .st-key-exchange_quotes h3, .st-key-exchange_ticket h3 {{
+      padding-bottom: 0.25rem;
+      font-size: 1.1rem;
+    }}
+    .st-key-exchange_ticket .stMarkdown p, .st-key-exchange_rules .stMarkdown p {{
+      font-size: 0.77rem;
+      line-height: 1.35;
+    }}
+    .st-key-exchange_rules {{ padding: 0.4rem 0.65rem; }}
+    .exchange-board {{ font-size: 0.77rem; }}
+    .exchange-board th, .exchange-board td {{ padding: 0.17rem 0.22rem; }}
+    .exchange-board thead th {{ font-size: 0.72rem; }}
+    :is(.st-key-exchange_order, .st-key-exchange_actions) [data-testid="stHorizontalBlock"] {{
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 0.5rem;
     }}
-    .st-key-exchange_actions [data-testid="stColumn"] {{ width: auto !important; min-width: 0; }}
+    .st-key-exchange_order [data-testid="stHorizontalBlock"] {{
+      grid-template-columns: minmax(0, 1fr) minmax(5.5rem, 0.6fr);
+    }}
+    :is(.st-key-exchange_order, .st-key-exchange_actions) [data-testid="stColumn"] {{
+      width: auto !important;
+      min-width: 0;
+    }}
+  }}
+  @media (max-width: 640px) and (max-height: 640px) {{
+    .st-key-exchange_floor {{ padding: 0.25rem; }}
+    .st-key-exchange_panels {{ margin-top: 0; gap: 0.25rem; }}
+    .st-key-exchange_quotes, .st-key-exchange_ticket {{ padding: 0.32rem 0.55rem; gap: 0.25rem; }}
+    .st-key-exchange_rules {{ padding: 0.35rem 0.55rem; }}
+    .exchange-board {{ font-size: 0.74rem; line-height: 1.15; }}
+    .exchange-board th, .exchange-board td {{ padding: 0.07rem 0.2rem; }}
   }}
   body:has(.st-key-exchange_floor) .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
     grid-template-columns: minmax(0, 1fr) auto auto;
