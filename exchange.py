@@ -279,14 +279,14 @@ def sell_shares(town, symbol, quantity):
     return True
 
 
-def settle_exchange(town, day):
+def settle_exchange(town, day, *, day_seconds):
     """Pay accumulated whole-dollar dividends once for a closing day.
 
     A skipped day settles only credits already recorded; it does not invent
     transactions for intervening days. Fractional cents remain eligible even
     after a sale. Call this before computing the normal daily profit and tax.
     """
-    if not _quantity(day):
+    if not _quantity(day) or not _quantity(day_seconds):
         return 0
     state = _state(town)
     if day <= state["last_settlement"]:
@@ -304,10 +304,10 @@ def settle_exchange(town, day):
         statement["activity"][symbol] = activity
         statement["city_activity"][symbol] = counts["city"]
         statement["player_activity"][symbol] = counts["player"]
-        # Thirty city ticks make one five-minute day. Normal traffic leaves the
-        # quote at its base; quiet/busy days move it within a 25% band.
-        expected = 30 * asset.city_units
-        next_quote = (asset.base_price * (3 * expected + min(activity, 2 * expected))
+        # Scale the quantities equally to keep partial ticks and rounding in integer arithmetic.
+        expected = day_seconds * asset.city_units
+        recorded = min(activity * CITY_TICK_SECONDS, 2 * expected)
+        next_quote = (asset.base_price * (3 * expected + recorded)
                       + 2 * expected) // (4 * expected)
         low, high = _quote_bounds(asset)
         state["quotes"][symbol] = min(high, max(low, next_quote))

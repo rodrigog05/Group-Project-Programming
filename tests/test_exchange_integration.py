@@ -2,12 +2,49 @@ from copy import deepcopy
 import json
 import unittest
 
-from exchange import advance_city, buy_shares, initial_state, sell_shares
+from browser_game import advance_clock
+from exchange import advance_city, buy_shares, initial_state, portfolio_rows, sell_shares
 from lisbon_scene import bridge_center
 from tycoon import DAY_SECONDS, SITES, Town, pack_save, unpack_save
 
 
 class ExchangeIntegrationTest(unittest.TestCase):
+    def test_normal_belem_quotes_and_dividends_across_two_market_days(self):
+        town = Town()
+        self.assertTrue(buy_shares(town, "BELEM", 1))
+        for day, dividend, pending in ((1, 0, 72), (2, 1, 44)):
+            for _ in range(DAY_SECONDS * 4):
+                advance_clock(town, .25)
+            belem = next(row for row in portfolio_rows(town) if row["symbol"] == "BELEM")
+            self.assertEqual(town.last_day_summary["day"], day)
+            self.assertEqual((belem["ask"], belem["bid"], belem["last_payout"], belem["pending_cents"]),
+                             (45, 40, dividend, pending))
+        self.assertEqual(town.cash, 16)
+
+    def test_busy_day_raises_only_its_district_quote_and_the_next_normal_day_resets_it(self):
+        town = Town()
+        self.assertTrue(buy_shares(town, "BAIXA", 1))
+        market = next(site for site in SITES if site.name == "Tool Market")
+        town.x, town.y = market.door[0], market.door[1] + 18
+        town.goods[0] = 12
+        town.interact()
+        self.assertEqual(town.exchange["activity_today"]["BAIXA"]["player"], 12)
+        advance_clock(town, DAY_SECONDS)
+        quotes = town.exchange["quotes"]
+        self.assertEqual((quotes["BAIXA"], quotes["BELEM"]), (62, 45))
+        self.assertEqual(town.last_day_summary["dividends"], 1)
+        self.assertEqual(town.exchange["pending_cents"]["BAIXA"], 8)
+        advance_clock(town, DAY_SECONDS)
+        self.assertEqual(quotes["BAIXA"], 60)
+
+    def test_existing_belem_quote_is_recalculated_at_the_next_market_close(self):
+        town = Town()
+        town.exchange["quotes"]["BELEM"] = 38
+        restored, _ = unpack_save(pack_save(town, 0))
+        self.assertEqual(restored.exchange["quotes"]["BELEM"], 38)
+        advance_clock(restored, DAY_SECONDS)
+        self.assertEqual(restored.exchange["quotes"]["BELEM"], 45)
+
     def test_legacy_progress_gets_an_empty_portfolio_without_losing_items_or_recipes(self):
         town = Town()
         town.cash, town.vehicle, town.supplies[0] = 234, "van", 11

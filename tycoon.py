@@ -462,7 +462,7 @@ class Town:
     def settle_day(self, day):
         if day <= self.last_tax_day:
             return
-        dividends = settle_exchange(self, day)
+        dividends = settle_exchange(self, day, day_seconds=DAY_SECONDS)
         profit = self.daily_net_profit
         rate = innovation.tax_rate(self, DAILY_TAX_PERCENT)
         tax = (max(0, profit)*rate+50)//100

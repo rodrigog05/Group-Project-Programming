@@ -47,6 +47,8 @@ In the illustrated building scenes from the desktop game, the vendor answers in 
 
 Press **E** at **Bolsa de Lisboa** to open the trading floor. Choose an **Investment** and the number of **Shares**, review the quote and total, then select **Buy shares** or **Sell shares**. Open **Share prices and holdings** for the full portfolio. Select **Leave exchange** to return to the street.
 
+Share prices update at each two-minute market close. A normal amount of activity puts a share at its base price. Quieter days bring the price down, and busier days raise it. For each share you hold, a qualifying transaction earns one cent in dividends. At market close, each investment pays out whole dollars and carries any leftover cents forward. Keep playing outside the exchange to advance the market clock.
+
 The market clock and production run while the map has focus. Click outside the map to pause street play. Each day has 60 seconds of daylight followed by 60 seconds of night. The market settles every 120 game seconds. Trade shortcuts appear only within reach of the right supplier, with enough cash and free cargo space. On foot, the ferry costs $2. With a vehicle, bridges charge a $3 toll toward Lisbon.
 
 Destination starts at **No destination**, with no route drawn. Choose a building to show directions, or choose **No destination** to cancel them. Reaching the selected building resets the selector and clears the line. Ferry stops keep your final destination selected. Starting a new game clears any previous destination.

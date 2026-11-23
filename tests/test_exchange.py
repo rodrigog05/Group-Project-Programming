@@ -7,6 +7,7 @@ from exchange import (ASSETS, ASSET_BY_SYMBOL, advance_city, buy_shares,
                       district_symbol, initial_state, normalize_state,
                       portfolio_rows, record_bridge, record_trade, record_tram,
                       sell_shares, settle_exchange, summary)
+from tycoon import DAY_SECONDS
 
 
 class FakeTown:
@@ -104,19 +105,21 @@ class ExchangeTest(unittest.TestCase):
         buy_shares(town, "BELEM", 1)
         advance_city(town, 10)
         self.assertEqual(town.exchange["pending_cents"]["BELEM"], 6)
-        self.assertEqual(settle_exchange(town, 1), 0)
+        self.assertEqual(settle_exchange(town, 1, day_seconds=DAY_SECONDS), 0)
 
     def test_active_city_gives_balanced_per_share_daily_dividends(self):
         town = FakeTown(10000)
         for asset in ASSETS:
             buy_shares(town, asset.symbol, 1)
-        advance_city(town, 300)
+        advance_city(town, DAY_SECONDS)
         for asset in ASSETS:
-            self.assertGreaterEqual(town.exchange["pending_cents"][asset.symbol], 100)
-            self.assertLessEqual(town.exchange["pending_cents"][asset.symbol], 300)
+            self.assertGreaterEqual(town.exchange["pending_cents"][asset.symbol], 48)
+            self.assertLessEqual(town.exchange["pending_cents"][asset.symbol], 96)
         previous_cash = town.cash
-        self.assertEqual(settle_exchange(town, 1), 10)
-        self.assertEqual((town.cash - previous_cash, town.other_income_today), (10, 10))
+        self.assertEqual(settle_exchange(town, 1, day_seconds=DAY_SECONDS), 0)
+        advance_city(town, DAY_SECONDS)
+        self.assertEqual(settle_exchange(town, 2, day_seconds=DAY_SECONDS), 6)
+        self.assertEqual((town.cash - previous_cash, town.other_income_today), (6, 6))
 
     def test_recorded_activity_uses_shares_held_at_each_event(self):
         town = FakeTown()
@@ -176,37 +179,37 @@ class ExchangeTest(unittest.TestCase):
         advance_city(town, 300)
         saved = json.loads(json.dumps(town.exchange))
         town.exchange = normalize_state(saved)
-        self.assertEqual(settle_exchange(town, 9), 1)
+        self.assertEqual(settle_exchange(town, 9, day_seconds=DAY_SECONDS), 1)
         self.assertEqual(town.exchange["pending_cents"]["TRAM"], 80)
         cash = town.cash
         state = deepcopy(town.exchange)
         for day in (9, 8, 0, True, -1, 1.0):
-            self.assertEqual(settle_exchange(town, day), 0)
+            self.assertEqual(settle_exchange(town, day, day_seconds=DAY_SECONDS), 0)
         town.exchange = normalize_state(json.loads(json.dumps(town.exchange)))
-        self.assertEqual(settle_exchange(town, 9), 0)
+        self.assertEqual(settle_exchange(town, 9, day_seconds=DAY_SECONDS), 0)
         self.assertEqual((town.cash, town.exchange), (cash, state))
-        self.assertEqual(settle_exchange(town, 20), 0)
+        self.assertEqual(settle_exchange(town, 20, day_seconds=DAY_SECONDS), 0)
         self.assertEqual(town.cash, cash)
 
     def test_fractional_dividends_carry_across_days_and_sales(self):
         town = FakeTown()
         buy_shares(town, "TRAM", 1)
         advance_city(town, 300)
-        self.assertEqual(settle_exchange(town, 1), 1)
+        self.assertEqual(settle_exchange(town, 1, day_seconds=DAY_SECONDS), 1)
         advance_city(town, 40)
         sell_shares(town, "TRAM", 1)
         self.assertEqual(town.exchange["pending_cents"]["TRAM"], 104)
-        self.assertEqual(settle_exchange(town, 2), 1)
+        self.assertEqual(settle_exchange(town, 2, day_seconds=DAY_SECONDS), 1)
         self.assertEqual(town.exchange["pending_cents"]["TRAM"], 4)
         advance_city(town, 300)
-        self.assertEqual(settle_exchange(town, 3), 0)
+        self.assertEqual(settle_exchange(town, 3, day_seconds=DAY_SECONDS), 0)
 
     def test_city_and_player_units_are_both_in_daily_statement(self):
         town = FakeTown()
         buy_shares(town, "TRAM", 1)
         advance_city(town, 100)
         record_tram(town, 40)
-        self.assertEqual(settle_exchange(town, 1), 1)
+        self.assertEqual(settle_exchange(town, 1, day_seconds=DAY_SECONDS), 1)
         statement = town.exchange["last_statement"]
         self.assertEqual((statement["city_activity"]["TRAM"], statement["player_activity"]["TRAM"],
                           statement["activity"]["TRAM"], statement["by_asset"]["TRAM"]), (60, 40, 100, 1))
@@ -214,14 +217,14 @@ class ExchangeTest(unittest.TestCase):
 
     def test_daily_quotes_follow_activity_and_stay_in_bounds(self):
         town = FakeTown()
-        advance_city(town, 300)
-        settle_exchange(town, 1)
+        advance_city(town, DAY_SECONDS)
+        settle_exchange(town, 1, day_seconds=DAY_SECONDS)
         self.assertEqual(town.exchange["quotes"], {asset.symbol: asset.base_price for asset in ASSETS})
-        settle_exchange(town, 2)
+        settle_exchange(town, 2, day_seconds=DAY_SECONDS)
         for asset in ASSETS:
-            self.assertLess(town.exchange["quotes"][asset.symbol], asset.base_price)
+            self.assertEqual(town.exchange["quotes"][asset.symbol], (asset.base_price * 75 + 50) // 100)
         advance_city(town, 100000)
-        settle_exchange(town, 3)
+        settle_exchange(town, 3, day_seconds=DAY_SECONDS)
         for asset in ASSETS:
             self.assertEqual(town.exchange["quotes"][asset.symbol], (asset.base_price * 125 + 50) // 100)
 
@@ -248,16 +251,16 @@ class ExchangeTest(unittest.TestCase):
     def test_views_are_read_only_and_report_bid_value_and_source_ledgers(self):
         town = FakeTown()
         buy_shares(town, "TRAM", 2)
-        advance_city(town, 300)
-        settle_exchange(town, 1)
+        advance_city(town, DAY_SECONDS)
+        settle_exchange(town, 1, day_seconds=DAY_SECONDS)
         record_tram(town, 3)
         before = deepcopy(vars(town))
         rows, totals = portfolio_rows(town), summary(town)
         tram = next(row for row in rows if row["symbol"] == "TRAM")
         self.assertEqual((tram["ask"], tram["bid"], tram["owned"], tram["cost_basis"], tram["value"]),
                          (50, 45, 2, 100, 90))
-        self.assertEqual((tram["pending_cents"], tram["player_activity"], tram["last_payout"]), (66, 3, 3))
-        self.assertEqual((totals["last_payout"], totals["total_dividends"], totals["owned"]), (3, 3, 2))
+        self.assertEqual((tram["pending_cents"], tram["player_activity"], tram["last_payout"]), (50, 3, 1))
+        self.assertEqual((totals["last_payout"], totals["total_dividends"], totals["owned"]), (1, 1, 2))
         totals["last_statement"]["by_asset"]["TRAM"] = 999
         tram["owned"] = 99
         self.assertEqual(vars(town), before)
