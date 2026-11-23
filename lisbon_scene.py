@@ -121,6 +121,11 @@ def walkable_terrain(x, y, radius=10, on_foot=False):
 
 
 # These trees are rendered into the static day/night maps, outside doorways.
+NORTH_CURB_TREES = ((224,171),(462,168),(704,164),(944,167),(1180,164),
+                    (218,366),(461,365),(702,367),(939,365),
+                    (221,553),(460,553),(702,552),(941,552))
+SOUTH_BANK_TREES = ((120,1250),(250,1400),(470,1290),(90,1510),(1470,1420),
+                    (1940,1550),(2280,1300),(2300,1230),(1220,1510),(570,1450))
 STREET_TREES = (
     tuple((x, 697, 12) for x in range(60, WORLD_WIDTH-40, 80)
           if all(abs(x-bridge_center(697, eastern)) > 85 for eastern in (False, True)) and abs(x-660) > 140)
@@ -231,9 +236,7 @@ class LisbonScene:
         for site in self.sites:
             if site.y < RIVER_TOP:
                 self.building(site)
-        for x, y in ((224, 171), (462, 168), (704, 164), (944, 167), (1180, 164),
-                     (218, 366), (461, 365), (702, 367), (939, 365),
-                     (221, 553), (460, 553), (702, 552), (941, 552)):
+        for x, y in NORTH_CURB_TREES:
             self.tree(x, y, 11)
         self.river()
         with self.shifted(SOUTH_SHIFT):
@@ -403,8 +406,7 @@ class LisbonScene:
         self.text(2090, 1335, "SOUTH BANK FARMS", 12, "#708461", True)
         for x in range(700, 1100, 35):
             self.line((x, 1430, x+12, 1520), "#aaab71", 7)
-        for x, y in ((120, 1250), (250, 1400), (470, 1290), (90, 1510), (1470, 1420),
-                     (1940, 1550), (2280, 1300), (2300, 1230), (1220, 1510), (570, 1450)):
+        for x, y in SOUTH_BANK_TREES:
             self.tree(x, y, 26)
 
     def night_lighting(self):

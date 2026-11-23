@@ -440,7 +440,7 @@ def legacy_building(d,site,night):
     """Place retained game artwork inside its street-bounded plot, not across curbs."""
     from base64 import b64encode
     from io import BytesIO
-    from PIL import Image
+    from PIL import Image, ImageDraw
     sidewalk(d,site.x,site.y,night,east=site.x>=1200,south=site.y>1080)
     begin_plot(d,site.x,site.y)
     px,py,scale=legacy_transform(site.x,site.y,site.role)
@@ -448,6 +448,13 @@ def legacy_building(d,site,night):
     mode="night" if night else "day"
     with Image.open(Path(__file__).resolve().parent / "street" / f"world_100_{mode}.webp") as source:
         tile=source.crop((site.x-12,site.y-24,site.x+196,site.y+172))
+        # Retained building crops can contain slices of the same roadside trees.
+        # Remove those too, rather than reintroducing fragments over the clean plot.
+        brush=ImageDraw.Draw(tile)
+        for (left,top,right,bottom),_,_ in covered_street_trees():
+            if left < site.x+196 and right > site.x-12 and top < site.y+172 and bottom > site.y-24:
+                brush.rectangle((left-site.x+12,top-site.y+24,right-site.x+12,bottom-site.y+24),
+                                fill=plot_ground(site.x,site.y,night))
         data=BytesIO()
         tile.save(data,format="PNG")
         encoded=b64encode(data.getvalue()).decode("ascii")
@@ -521,11 +528,49 @@ def continuous_roads(d,night):
                 d.ellipse(bridge_center(y,True)+side*26,y,1.4,1.4,"#fff1b0")
 
 
+def covered_street_trees():
+    """Find original canopies touched by repainted plots, including their shadows."""
+    from lisbon_scene import (STREET_TREES, NORTH_CURB_TREES, SOUTH_BANK_TREES,
+                              SOUTH_SHIFT, ORIENTE_PARK_BOUNDS)
+    from public_spaces import LAKE_PLOT
+
+    plots = [(plot_bounds(site.x,site.y),site.x,site.y) for site in SITES]
+    plots += [(plot_bounds(x,y),x,y) for (x,y),kind in SCENERY_PLOTS]
+    plots += [(ORIENTE_PARK_BOUNDS,1810,520),(LAKE_PLOT,640,1572)]
+    trees = STREET_TREES + tuple((x,y,11) for x,y in NORTH_CURB_TREES)
+    trees += tuple((x,y+SOUTH_SHIFT,26) for x,y in SOUTH_BANK_TREES)
+    for x,y,size in trees:
+        # The original tree has three offset canopy circles and a ground shadow.
+        bounds=(x-size-2,min(y-9-size,y-14-size*.8,y-17-size*.65)-2,
+                x+size+9,y+12)
+        left,top,right,bottom=bounds
+        for (pl,pt,pr,pb),px,py in plots:
+            if left < pr and right > pl and top < pb and bottom > pt:
+                yield bounds,px,py
+                break
+        else:
+            # Fixed landmarks are baked into the base map rather than SITES;
+            # their old curb trees also overhang the repainted road surface.
+            if (x,y) in NORTH_CURB_TREES:
+                yield bounds,x,y
+
+
+def clear_covered_street_trees(d,night):
+    # Erase the entire old canopy before painting plots. Clearing only the plot
+    # interior leaves crescents of the baked-in trees beyond its edge. Roads are
+    # painted last, restoring any curb under a tree's former overhang.
+    d.add('<g data-kind="old-tree-cleanup">')
+    for (left,top,right,bottom),x,y in covered_street_trees():
+        d.rect(left,top,right-left,bottom-top,plot_ground(x,y,night))
+    d.add('</g>')
+
+
 def city_svg(night=False):
     d = Drawing(2400, 1780)
     map_wayfinding(d, night)
     translated_map_signs(d, night)
     bridge_connections(d, night)
+    clear_covered_street_trees(d,night)
     # Clear the complete former footprints before placing any centered models.
     # Roads are painted last, so no restoration patch can cover the asphalt.
     for site in SITES:
