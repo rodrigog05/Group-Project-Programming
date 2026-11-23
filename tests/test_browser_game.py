@@ -1,7 +1,7 @@
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from browser_game import LocalSave, SaveConflict, advance_clock, entrance, street_input, visit
+from browser_game import entrance, street_input, visit
 from tycoon import SITES, Town
 from scene_buttons import click_scene, press
 
@@ -24,28 +24,28 @@ def choose_place(app, name):
 
 
 
-def test_start_menu_can_resume_and_requires_confirmation_to_replace_save(tmp_path, monkeypatch):
-    path = tmp_path / "game.sqlite3"
-    monkeypatch.setenv("FOUNDRY_LOCAL_DB", str(path))
-    store = LocalSave(path)
-    town, revision = store.load()
-    town.cash = 95
-    store.save(town, revision)
+def test_guest_can_resume_and_requires_confirmation_to_replace_progress():
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
+    assert next(button for button in app.button if button.label == "Continue").disabled
+    click(app, "New Game")
+    click(app, "Skip")
+    click(app, "Start playing")
+    app.session_state.town.cash = 95
+    click(app, "Start menu")
     click(app, "Continue")
     assert app.metric[0].value == "$95"
     click(app, "Start menu")
     click(app, "New Game")
     click(app, "Keep my progress")
-    assert store.load()[0].cash == 95
+    assert app.session_state.town.cash == 95
     click(app, "New Game")
     click(app, "Replace progress")
     assert app.metric[0].value == "$60"
-    assert store.load()[0].cash == 60
+    assert app.session_state.town.cash == 60
+    assert app.session_state.revision == 0
 
 
-def test_waterfront_video_is_muted_and_only_in_the_start_menu(monkeypatch):
-    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
+def test_waterfront_video_is_muted_and_only_in_the_start_menu():
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     video = app.get("video")[0].proto
     assert video.autoplay and video.loop and video.muted
@@ -53,8 +53,7 @@ def test_waterfront_video_is_muted_and_only_in_the_start_menu(monkeypatch):
     assert not app.get("video")
 
 
-def test_browser_trade_loop_rejection_restart_and_session_isolation(tmp_path, monkeypatch):
-    monkeypatch.setenv("FOUNDRY_LOCAL_DB", str(tmp_path / "game.sqlite3"))
+def test_browser_trade_loop_rejection_and_guest_session_isolation():
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     assert not app.exception
     click(app, "New Game")
@@ -84,17 +83,18 @@ def test_browser_trade_loop_rejection_restart_and_session_isolation(tmp_path, mo
     assert app.metric[0].value == "$100"
     assert app.metric[1].value == "0 / 12"
     assert "$120" in app.info[0].value
-    reloaded = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
-    assert reloaded.metric[0].value == "$100"
-    assert reloaded.session_state.town.elapsed == pytest.approx(15)
-    assert reloaded.session_state.town.nearby().name == "Cacilhas Dealership"
-    monkeypatch.delenv("FOUNDRY_LOCAL_DB")
+    click(app, "Start menu")
+    click(app, "Continue")
+    assert app.metric[0].value == "$100"
+    assert app.session_state.town.elapsed == pytest.approx(15)
+    assert app.session_state.town.nearby().name == "Cacilhas Dealership"
     separate = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     assert separate.metric[0].value == "$60"
+    assert next(button for button in separate.button if button.label == "Continue").disabled
+    assert app.session_state.town.cash == 100
 
 
-def test_pages_and_service_controls(monkeypatch):
-    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
+def test_pages_and_service_controls():
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     for place in ("Nova SBE · Carcavelos", "Bolsa de Lisboa", "Foundry Warehouse", "Foundry Casino"):
         choose_place(app, place)
@@ -124,22 +124,6 @@ def test_crossing_rejects_unaffordable_ferry_and_charges_return_toll():
     assert (town.cash, town.tolls_today) == (55, 3)
 
 
-def test_local_save_rejects_stale_write_and_restores_market_clock(tmp_path):
-    store = LocalSave(tmp_path / "nested" / "game.sqlite3")
-    first, revision = store.load()
-    stale, stale_revision = store.load()
-    for _ in range(121):
-        advance_clock(first, 1)
-    assert first.day == 2
-    assert store.save(first, revision) == 1
-    with pytest.raises(SaveConflict):
-        store.save(stale, stale_revision)
-    reloaded, revision = store.load()
-    assert revision == 1
-    assert reloaded.elapsed == reloaded.market_elapsed == 121
-    assert reloaded.day == 2
-
-
 def test_visit_by_vehicle_rejects_unaffordable_toll():
     town = Town()
     mine = next(site for site in SITES if site.name == "Iron Hill Mine")
@@ -151,8 +135,7 @@ def test_visit_by_vehicle_rejects_unaffordable_toll():
     assert "portagem" in town.message.lower()
 
 
-def test_a_removed_page_falls_back_to_the_game(monkeypatch):
-    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
+def test_a_removed_page_falls_back_to_the_game():
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     app.session_state.town_page = "Contracts"
     app.run()

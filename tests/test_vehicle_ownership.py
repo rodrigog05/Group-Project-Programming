@@ -1,6 +1,6 @@
 import pytest
 
-from browser_game import LocalSave, entrance, street_input
+from browser_game import entrance, street_input
 from tycoon import Order, SITES, Town, pack_save, unpack_save
 from vehicles import VEHICLES, WALK_SPEED
 from scene_buttons import press, scene, scene_labels
@@ -16,7 +16,7 @@ def driver(key="car"):
 
 
 @pytest.mark.parametrize("key", VEHICLES)
-def test_dismount_then_collect_owned_vehicle_without_cash(key, tmp_path):
+def test_dismount_then_collect_owned_vehicle_without_cash(key):
     town = driver(key)
     cost = town.other_expenses_today
     town.cash = 0
@@ -24,10 +24,7 @@ def test_dismount_then_collect_owned_vehicle_without_cash(key, tmp_path):
     assert town.vehicle is None
     assert town.owned_vehicles == [key]
     assert town.movement_speed == WALK_SPEED
-    store = LocalSave(tmp_path / "owned.sqlite3")
-    _, revision = store.load()
-    store.save(town, revision)
-    restored, _ = store.load()
+    restored, _ = unpack_save(pack_save(town, 0))
     assert restored.vehicle is None
     assert restored.purchase_vehicle(key)
     assert restored.vehicle == key
@@ -135,9 +132,8 @@ def test_every_drive_speed_is_reduced_by_thirty_percent(key, offroad, road):
     assert VEHICLES[key].road_speed == pytest.approx(road * .7)
 
 
-def test_garage_free_collection_and_green_bet_controls(monkeypatch):
+def test_garage_free_collection_and_green_bet_controls():
     from streamlit.testing.v1 import AppTest
-    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     town = app.session_state.town
     town.cash = 1000

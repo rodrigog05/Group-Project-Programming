@@ -12,8 +12,7 @@ def map_route(app):
     return json.loads(app.get("component_instance")[0].proto.json_args)["route"]
 
 
-def test_destination_starts_empty_and_can_cancel_route_without_changing_game(monkeypatch):
-    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
+def test_destination_starts_empty_and_can_cancel_route_without_changing_game():
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     assert not app.exception
     assert app.selectbox[0].options[0] == "No destination"
@@ -28,9 +27,8 @@ def test_destination_starts_empty_and_can_cancel_route_without_changing_game(mon
     assert pack_save(app.session_state.town, 0) == before
 
 
-def test_destination_resets_only_at_selected_destination(monkeypatch):
+def test_destination_resets_only_at_selected_destination():
     from ferry import FERRY_PIERS
-    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     app.selectbox[0].select("Iron Hill Mine").run()
     app.session_state.town.x, app.session_state.town.y = FERRY_PIERS[0].position
@@ -46,8 +44,7 @@ def test_destination_resets_only_at_selected_destination(monkeypatch):
     assert app.selectbox[0].value == "No destination"
 
 
-def test_new_game_clears_previous_destination(monkeypatch):
-    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
+def test_new_game_clears_previous_destination():
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     app.session_state.started = True
     app.session_state.show_menu = False
@@ -104,8 +101,7 @@ def test_routes_to_every_business_avoid_obstacles_and_do_not_change_state(drivin
     assert pack_save(town, 0) == before
 
 
-def test_direction_selection_never_moves_or_opens_building(monkeypatch):
-    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
+def test_direction_selection_never_moves_or_opens_building():
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     before = pack_save(app.session_state.town, 0)
     for destination in ("Goldenfield Farm", "Iron Hill Mine", MONASTERY):
@@ -116,8 +112,7 @@ def test_direction_selection_never_moves_or_opens_building(monkeypatch):
         assert not any(button.label.startswith(("Visit ", "Enter ")) for button in app.button)
 
 
-def test_monastery_scene_rerender_does_not_award_extra_luck(monkeypatch):
-    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
+def test_monastery_scene_rerender_does_not_award_extra_luck():
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     town = app.session_state.town
     left, _, right, bottom = LANDMARKS[0].bounds

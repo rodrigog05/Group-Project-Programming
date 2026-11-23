@@ -1,9 +1,9 @@
 import pytest
 
-from browser_game import COLLISION_MAP, LocalSave, entrance, place_vehicle_on_road, street_input
+from browser_game import COLLISION_MAP, entrance, place_vehicle_on_road, street_input
 from ferry import FERRY_PIERS
 from lisbon_scene import SOUTH_PARK_TUNNEL
-from tycoon import COLLISION_BOUNDS, SITES, Town
+from tycoon import COLLISION_BOUNDS, SITES, Town, pack_save, unpack_save
 from vehicles import on_road
 
 
@@ -39,7 +39,7 @@ def test_driving_from_garage_starts_on_the_street():
     assert abs(town.x - garage.door[0]) < 40 and abs(town.y - garage.door[1]) < 40
 
 
-def test_drive_through_tunnel_and_put_away_vehicle_without_losing_it(tmp_path):
+def test_drive_through_tunnel_and_put_away_vehicle_without_losing_it():
     town = Town()
     town.vehicle = "car"
     left, right, center, _ = SOUTH_PARK_TUNNEL
@@ -59,17 +59,13 @@ def test_drive_through_tunnel_and_put_away_vehicle_without_losing_it(tmp_path):
     town.supplies[0] = 0
     assert street_input(town, input_event(action="vehicle"))
     assert (town.vehicle, town.stowed_vehicle, town.carry_capacity) == (None, "car", town.bag_size)
-    store = LocalSave(tmp_path / "vehicle.sqlite3")
-    store.load()
-    store.save(town, 0)
-    restored, _ = store.load()
+    restored, _ = unpack_save(pack_save(town, 0))
     assert street_input(restored, input_event(action="vehicle"))
     assert (restored.vehicle, restored.stowed_vehicle, restored.cash) == ("car", None, town.cash)
 
 
-def test_street_movement_collision_and_reload(tmp_path):
-    store = LocalSave(tmp_path / "street.sqlite3")
-    town, revision = store.load()
+def test_street_movement_collision_and_snapshot_restore():
+    town = Town()
     oak = next(site for site in SITES if site.name == "Oak Workshop")
     town.x, town.y = entrance(oak)
     assert street_input(town, input_event(dy=-1, seconds=0.25))
@@ -77,8 +73,7 @@ def test_street_movement_collision_and_reload(tmp_path):
     assert town.nearby() == oak
     assert town.can_walk(town.x, town.y)
     assert town.elapsed == pytest.approx(0.25)
-    store.save(town, revision)
-    loaded, _ = store.load()
+    loaded, _ = unpack_save(pack_save(town, 0))
     assert (loaded.x, loaded.y, loaded.elapsed) == (town.x, town.y, town.elapsed)
 
 
@@ -107,7 +102,7 @@ def test_street_ferry_and_invalid_input():
     assert (town.x, town.y, town.cash) == (*destination.position, 58)
 
 
-def test_batched_turns_match_sequential_validation_and_save(tmp_path):
+def test_batched_turns_match_sequential_validation_and_snapshot_restore():
     batch, sequential = Town(), Town()
     segments = [input_event(dx=1, seconds=.2), input_event(dy=1, seconds=.15),
                 input_event(dx=-1, seconds=.1)]
@@ -115,10 +110,7 @@ def test_batched_turns_match_sequential_validation_and_save(tmp_path):
         assert street_input(sequential, segment)
     assert street_input(batch, {"segments": segments, "action": None})
     assert (batch.x, batch.y, batch.elapsed) == (sequential.x, sequential.y, sequential.elapsed)
-    store = LocalSave(tmp_path / "batch.sqlite3")
-    store.load()
-    store.save(batch, 0)
-    restored, _ = store.load()
+    restored, _ = unpack_save(pack_save(batch, 0))
     assert (restored.x, restored.y) == (batch.x, batch.y)
 
 

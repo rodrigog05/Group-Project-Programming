@@ -6,14 +6,13 @@ from urllib.error import HTTPError
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from browser_game import SaveConflict
-from supabase_saves import CloudSave, SignupError, Supabase, SupabaseError
+from browser_game import advance_clock
+from supabase_saves import CloudSave, SaveConflict, SignupError, Supabase, SupabaseError
 from tycoon import Town
 
 
 @pytest.fixture
 def cloud(monkeypatch):
-    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
     monkeypatch.setenv("SUPABASE_URL", "https://example.supabase.co")
     monkeypatch.setenv("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_test")
     accounts = {
@@ -62,6 +61,9 @@ def test_cloud_save_restore_conflicts_and_token_refresh(cloud):
     second = CloudSave(api, api.sign_in("player2@example.test", "test-password"))
     town, rev = first.load()
     town.cash = 87
+    for _ in range(121):
+        advance_clock(town, 1)
+    assert town.day == 2
     assert first.save(town, rev) == 1
     with pytest.raises(SaveConflict):
         first.save(Town(), rev)
@@ -73,6 +75,8 @@ def test_cloud_save_restore_conflicts_and_token_refresh(cloud):
     session.expires_at = time() - 1
     restored, rev = first.load()
     assert (restored.cash, rev) == (87, 2)
+    assert restored.elapsed == restored.market_elapsed == 121
+    assert restored.day == 2
     assert counts["POST", "/auth/v1/token"] == 3
     assert second.load()[0].cash == 60
 
@@ -102,17 +106,22 @@ def test_cloud_account_can_continue_after_reopening_and_other_player_starts_fres
     assert app.session_state.revision == 1
     click(app, "Continue")
     assert app.metric[0].value == "$92"
+    app.session_state.town.cash = 96
+    click(app, "Save progress")
+    app.session_state.town.cash = 99
+    click(app, "Reload cloud progress")
+    assert app.metric[0].value == "$96"
     reopened = AppTest.from_file("../streamlit_app.py").run()
     sign_in(reopened, "player1@example.test")
     click(reopened, "Continue")
-    assert reopened.metric[0].value == "$92"
+    assert reopened.metric[0].value == "$96"
     click(reopened, "Start menu")
     click(reopened, "Sign out")
     sign_in(reopened, "player2@example.test")
     assert reopened.session_state.revision == 0
     click(reopened, "New Game")
     assert reopened.metric[0].value == "$60"
-    assert CloudSave(api, api.sign_in("player1@example.test", "test-password")).load()[0].cash == 92
+    assert CloudSave(api, api.sign_in("player1@example.test", "test-password")).load()[0].cash == 96
 
 
 def test_rejects_non_https_urls_and_secret_keys():
