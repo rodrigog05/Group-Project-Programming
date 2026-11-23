@@ -1330,9 +1330,29 @@ function handleHudShortcut(event) {
   return false;
 }
 
-for (const page of pageDocuments()) {
-  page.addEventListener("keydown", handleHudShortcut, true);
+function handleInteriorEscape(event) {
+  if (event.key !== "Escape" || event.defaultPrevented || event.repeat ||
+      event.ctrlKey || event.metaKey || event.altKey || event.shiftKey ||
+      ferry || !state?.interior?.accepts.includes("escape") || dialogOpen()) return;
+  if (pageDocuments().some(page => page.querySelector('[role="combobox"][aria-expanded="true"]'))) return;
+  event.preventDefault();
+  queuedAction = "leave";
+  queuedKey = "escape";
 }
+
+const shortcutPages = pageDocuments();
+for (const page of shortcutPages) {
+  page.addEventListener("keydown", handleHudShortcut, true);
+  page.addEventListener("keydown", handleInteriorEscape, true);
+}
+document.addEventListener("keydown", handleInteriorEscape);
+window.addEventListener("pagehide", (event) => {
+  if (event.persisted) return;
+  for (const page of shortcutPages) {
+    page.removeEventListener("keydown", handleHudShortcut, true);
+    page.removeEventListener("keydown", handleInteriorEscape, true);
+  }
+});
 
 canvas.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
@@ -1344,10 +1364,10 @@ canvas.addEventListener("keydown", (event) => {
   }
   if (state && state.interior) {
     const name = event.shiftKey && key === "f" ? "shift+f" : key;
-    if (!state.interior.accepts.includes(name)) return;
+    if (name === "escape" || !state.interior.accepts.includes(name)) return;
     event.preventDefault();
     if (event.repeat) return;
-    queuedAction = name === "escape" ? "leave" : "building";
+    queuedAction = "building";
     queuedKey = name;
     return;
   }

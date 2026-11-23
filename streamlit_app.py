@@ -935,9 +935,10 @@ st.html(f"""
     text-shadow: 0 2px 6px #09131d;
   }}
   .st-key-exchange_panels {{
-    max-width: min(57rem, 63%);
-    margin: clamp(1rem, 6dvh, 4rem) 0 0 auto;
-    gap: 0.6rem;
+    width: 100%;
+    max-width: 70rem;
+    margin: clamp(0.35rem, 2dvh, 1.5rem) 0 0 auto;
+    gap: 0.75rem;
   }}
   .st-key-exchange_quotes, .st-key-exchange_ticket {{
     gap: 0.65rem;
@@ -950,23 +951,27 @@ st.html(f"""
   .st-key-exchange_ticket h3, .st-key-exchange_quotes h3 {{
     padding: 0;
     color: #ffd997;
-    font-size: 1.375rem;
+    font-size: 1.5rem;
   }}
   .st-key-exchange_ticket [data-testid="stWidgetLabel"] p,
-  .st-key-exchange_ticket .stMarkdown p {{ color: #e7eff5; }}
+  .st-key-exchange_ticket .stMarkdown p {{ color: #e7eff5; font-size: 1.0625rem; }}
+  .st-key-exchange_order :is([role="combobox"], input),
+  .st-key-exchange_floor button[data-testid^="stBaseButton"] p {{ font-size: 1.0625rem; }}
+  .st-key-exchange_actions button {{ min-height: 2.75rem; }}
   .st-key-exchange_ticket .stMarkdown strong {{ color: #ffd997; }}
   .exchange-board {{
     width: 100%;
     border-collapse: collapse;
     color: #f0f5f9;
-    font-size: 0.86rem;
+    font-size: 1.0625rem;
+    line-height: 1.35;
   }}
   .exchange-board th, .exchange-board td {{
-    padding: 0.38rem 0.28rem;
+    padding: 0.4rem 0.35rem;
     border-bottom: 1px solid #6f899654;
     text-align: left;
   }}
-  .exchange-board thead th {{ color: #d3e2ea; font-size: 0.75rem; }}
+  .exchange-board thead th {{ color: #d3e2ea; font-size: 0.9375rem; }}
   .exchange-board tbody th {{ font-weight: 500; }}
   .exchange-board td {{ white-space: nowrap; font-variant-numeric: tabular-nums; }}
   .exchange-board .gain {{ color: #90e7b5; }}
@@ -977,7 +982,7 @@ st.html(f"""
     border-radius: 0.65rem;
     background: #102331ed;
   }}
-  .st-key-exchange_rules .stMarkdown p {{ color: #e7eff5; font-size: 0.85rem; }}
+  .st-key-exchange_rules .stMarkdown p {{ color: #e7eff5; font-size: 1rem; }}
   .st-key-exchange_rules .stMarkdown strong {{ color: #ffd997; }}
   .st-key-exchange_floor button[data-testid="stBaseButton-secondary"] {{
     border-color: #819eaf;
@@ -1010,33 +1015,27 @@ st.html(f"""
       background-position: center top, 34% -5rem;
       background-size: cover, auto var(--exchange-image-height);
     }}
-    .st-key-exchange_panels {{
-      max-width: none;
+  }}
+  @media (max-width: 720px) {{
+    .st-key-exchange_panels > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
+      flex-direction: column;
+      gap: 0.6rem;
+    }}
+    .st-key-exchange_panels > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
+      width: 100% !important;
     }}
   }}
   @media (max-width: 640px) {{
     .st-key-exchange_floor {{ padding: 0.6rem; gap: 0.35rem; }}
-    .st-key-exchange_floor h1 {{ font-size: clamp(1rem, 3.8vw, 1.4rem); }}
-    .st-key-exchange_panels {{
-      margin-top: clamp(0.25rem, 100dvh - 36rem, 4.5rem);
-      gap: 0.4rem;
-    }}
-    .st-key-exchange_panels > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
-      gap: 0.4rem;
-    }}
+    .st-key-exchange_floor h1 {{ font-size: clamp(1.25rem, 4vw, 1.6rem); }}
+    .st-key-exchange_panels {{ margin-top: 0.25rem; gap: 0.6rem; }}
     .st-key-exchange_quotes, .st-key-exchange_ticket {{ padding: 0.55rem 0.65rem; gap: 0.4rem; }}
     .st-key-exchange_quotes h3, .st-key-exchange_ticket h3 {{
-      padding-bottom: 0.25rem;
-      font-size: 1.1rem;
+      font-size: 1.25rem;
     }}
-    .st-key-exchange_ticket .stMarkdown p, .st-key-exchange_rules .stMarkdown p {{
-      font-size: 0.77rem;
-      line-height: 1.35;
-    }}
-    .st-key-exchange_rules {{ padding: 0.4rem 0.65rem; }}
-    .exchange-board {{ font-size: 0.77rem; }}
-    .exchange-board th, .exchange-board td {{ padding: 0.17rem 0.22rem; }}
-    .exchange-board thead th {{ font-size: 0.72rem; }}
+    .exchange-board {{ font-size: 1rem; }}
+    .exchange-board th, .exchange-board td {{ padding: 0.25rem 0.2rem; }}
+    .exchange-board td {{ white-space: normal; }}
     :is(.st-key-exchange_order, .st-key-exchange_actions) [data-testid="stHorizontalBlock"] {{
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1049,14 +1048,6 @@ st.html(f"""
       width: auto !important;
       min-width: 0;
     }}
-  }}
-  @media (max-width: 640px) and (max-height: 640px) {{
-    .st-key-exchange_floor {{ padding: 0.25rem; }}
-    .st-key-exchange_panels {{ margin-top: 0; gap: 0.25rem; }}
-    .st-key-exchange_quotes, .st-key-exchange_ticket {{ padding: 0.32rem 0.55rem; gap: 0.25rem; }}
-    .st-key-exchange_rules {{ padding: 0.35rem 0.55rem; }}
-    .exchange-board {{ font-size: 0.74rem; line-height: 1.15; }}
-    .exchange-board th, .exchange-board td {{ padding: 0.07rem 0.2rem; }}
   }}
   body:has(.st-key-exchange_floor) .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
     grid-template-columns: minmax(0, 1fr) auto auto;

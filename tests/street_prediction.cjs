@@ -156,6 +156,33 @@ test("G and I can close their own control after it takes keyboard focus", () => 
   assert.equal(b.run("inventory.closed"), true);
 });
 
+test("Escape queues a building exit from the game page unless an overlay is open", () => {
+  const b = browser();
+  b.receive({ interior: { accepts: ["1", "escape"] } });
+  b.run(`
+    const page = window.parent.document;
+    let openOverlay = null;
+    page.querySelector = selector => selector === openOverlay ? {} : null;
+    const pressEscape = (options = {}) => {
+      const event = {
+        key: "Escape",
+        preventDefault() { this.defaultPrevented = true; },
+        ...options,
+      };
+      handleInteriorEscape(event);
+      return event.defaultPrevented === true;
+    };
+  `);
+  assert.equal(b.run('openOverlay = \'[role="dialog"]\'; pressEscape()'), false);
+  assert.equal(b.run('openOverlay = \'[role="combobox"][aria-expanded="true"]\'; pressEscape()'), false);
+  assert.equal(b.run("openOverlay = null; pressEscape({ repeat: true })"), false);
+  assert.equal(b.run("queuedAction"), null);
+  assert.equal(b.run("pressEscape()"), true);
+  b.run("update(100)");
+  assert.equal(b.sent.at(-1).value.action, "leave");
+  assert.equal(b.sent.at(-1).value.key, "escape");
+});
+
 test("bulk buy is available only within reach with cash and cargo room", () => {
   const b = browser();
   const supplier = { x: 480, y: 321, trade: 3, cost: 4 };
