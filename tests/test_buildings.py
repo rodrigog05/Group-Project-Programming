@@ -375,6 +375,28 @@ def test_hints_can_be_hidden_and_show_route_sets_the_destination():
     assert route_button(app).disabled
 
 
+def test_route_shortcut_restores_previous_destination_and_respects_manual_selection():
+    app = new_app()
+    destination = "Oriente Tool Market"
+    assert app.selectbox[0].value == "No destination"
+    press(app, "f", action="toggle_suggested_route")
+    assert app.selectbox[0].value == "Goldenfield Farm"
+    press(app, "f", action="toggle_suggested_route")
+    assert app.selectbox[0].value == "No destination"
+
+    app.selectbox[0].select(destination).run()
+    press(app, "f", action="toggle_suggested_route")
+    assert app.selectbox[0].value == "Goldenfield Farm"
+    press(app, "f", action="toggle_suggested_route")
+    assert app.selectbox[0].value == destination
+
+    press(app, "f", action="toggle_suggested_route")
+    app.selectbox[0].select("Daily Bread Market").run()
+    press(app, "f", action="toggle_suggested_route")
+    press(app, "f", action="toggle_suggested_route")
+    assert app.selectbox[0].value == "Daily Bread Market"
+
+
 def test_bakery_shows_a_countdown_while_bread_is_made():
     app = new_app()
     choose_place(app, "Goldenfield Farm")

@@ -218,9 +218,9 @@ function typingOnPage() {
   });
 }
 
-function dialogOpen() {
+function dialogOpen(selector = '[role="dialog"]') {
   // The start menu and Basics are dialogs; their buttons keep the keyboard.
-  return pageDocuments().some((page) => page.querySelector('[role="dialog"]'));
+  return pageDocuments().some((page) => page.querySelector(selector));
 }
 
 function claimKeyboard() {
@@ -1275,20 +1275,31 @@ function handleHudShortcut(event) {
   const selector = HUD_SHORTCUTS[key];
   if (!selector || event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return false;
   if (event.shiftKey && key !== "i") return false;
-  if (ferry || typingOnPage() || dialogOpen()) return false;
+  if (ferry) return false;
   for (const page of pageDocuments()) {
     const button = page.querySelector(selector);
-    if (button && !button.disabled) {
+    if (!button || button.disabled) continue;
+    const expanded = button.getAttribute?.("aria-expanded") === "true";
+    const closingDestination = key === "g" && expanded &&
+      page.activeElement === page.querySelector(".st-key-destination [role=combobox]");
+    const dialogs = key === "i" && expanded
+      ? '[role="dialog"]:not([data-testid="stPopoverBody"][aria-label="Inventory"])' : undefined;
+    if ((!closingDestination && typingOnPage()) || dialogOpen(dialogs)) return false;
+    if (key === "f") {
+      if (queuedAction) return false;
+      queuedAction = "toggle_suggested_route";
+    } else {
       button.click();
-      event.preventDefault();
-      return true;
+      if (expanded) canvas.focus({ preventScroll: true });
     }
+    event.preventDefault();
+    return true;
   }
   return false;
 }
 
 for (const page of pageDocuments()) {
-  page.addEventListener("keydown", handleHudShortcut);
+  page.addEventListener("keydown", handleHudShortcut, true);
 }
 
 canvas.addEventListener("keydown", (event) => {
