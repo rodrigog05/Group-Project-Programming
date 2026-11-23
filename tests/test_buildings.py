@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
@@ -222,6 +223,7 @@ def test_e_at_a_door_opens_the_building_without_trading():
 def test_new_game_opens_the_basics_and_the_slides_page_through():
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     click(app, "New Game")
+    click(app, "Continue to Basics")  # The character editor comes first
     assert app.session_state.show_tutorial and app.session_state.tutorial_step == 0
     assert "Back" in labels(app) and "Next" in labels(app)
     for step in range(1, 5):
@@ -493,3 +495,60 @@ def test_drivers_enter_the_dealership_from_the_road_in_front():
     walker = Town()
     walker.x, walker.y = door_x, 1550  # On foot, use the door itself
     assert building_at(walker) is None
+
+
+# ----- Character editor -----
+
+def test_new_game_opens_the_character_editor_and_saves_the_look():
+    from browser_game import player_shapes
+    app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
+    click(app, "New Game")
+    assert app.session_state.show_character and not app.session_state.get("show_tutorial")
+    assert "Continue to Basics" in labels(app)
+    app.text_input(key="character_name").input("  Tomás  ").run()
+    app.button_group(key="character_body").set_value("Brown").run()
+    app.button_group(key="character_hair").set_value("Pink").run()
+    app.button_group(key="character_costume").set_value("Wizard").run()
+    assert town_profile(app) == {"name": "Player", "body": "Peach", "hair": "Chestnut", "costume": "Builder"}
+    click(app, "Continue to Basics")
+    assert town_profile(app) == {"name": "Tomás", "body": "Brown", "hair": "Pink", "costume": "Wizard"}
+    assert app.session_state.show_tutorial and not app.session_state.show_character
+    street = json.loads(next(iter(app.get("component_instance"))).proto.json_args)
+    assert street["player"] == player_shapes(town_profile(app)) and street["player_name"] == "Tomás"
+
+
+def test_menu_character_changes_the_look_of_a_saved_game_and_keeps_progress():
+    app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
+    app.session_state.show_menu = False
+    app.session_state.town.cash = 750
+    app.run()
+    click(app, "Character")
+    assert app.session_state.show_character and "Save character" in labels(app)
+    app.button_group(key="character_costume").set_value("Astronaut").run()
+    click(app, "Save character")
+    assert town_profile(app)["costume"] == "Astronaut" and app.session_state.town.cash == 750
+    assert not app.session_state.show_character and not app.session_state.get("show_tutorial")
+
+
+def test_saved_profiles_keep_only_known_choices():
+    from tycoon import pack_save, unpack_save
+    saved = pack_save(Town(), 0)
+    saved["state"]["profile"] = {"name": " " * 3, "body": "Green", "hair": "Black", "costume": 7, "extra": "x"}
+    town, _ = unpack_save(saved)
+    assert town.profile == {"name": "Player", "body": "Peach", "hair": "Black", "costume": "Builder"}
+
+
+def test_every_outfit_draws_a_figure_and_a_preview():
+    from browser_game import player_shapes, player_svg
+    from tycoon import BODY_COLORS, COSTUMES, HAIR_COLORS
+    for costume in COSTUMES:
+        profile = {"body": "Mint", "hair": "Silver", "costume": costume}
+        shapes = player_shapes(profile)
+        assert ["rect", -5, -27, 11, 9, BODY_COLORS["Mint"]] in shapes  # The face uses the skin colour
+        assert any(shape[-1] == HAIR_COLORS["Silver"] for shape in shapes)
+        assert any(shape[-1] == COSTUMES[costume][0] for shape in shapes)
+        assert player_svg(profile).startswith("<svg") and BODY_COLORS["Mint"] in player_svg(profile)
+
+
+def town_profile(app):
+    return dict(app.session_state.town.profile)

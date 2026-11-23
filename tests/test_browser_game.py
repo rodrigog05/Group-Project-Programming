@@ -28,6 +28,7 @@ def test_guest_can_resume_and_requires_confirmation_to_replace_progress():
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     assert next(button for button in app.button if button.label == "Continue").disabled
     click(app, "New Game")
+    click(app, "Continue to Basics")  # The character editor comes first
     click(app, "Skip")
     click(app, "Start playing")
     app.session_state.town.cash = 95
@@ -57,6 +58,7 @@ def test_browser_trade_loop_rejection_and_guest_session_isolation():
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     assert not app.exception
     click(app, "New Game")
+    click(app, "Continue to Basics")  # The character editor comes first
     click(app, "Skip")
     click(app, "Start playing")
     choose_place(app, "Goldenfield Farm")
@@ -112,6 +114,7 @@ def test_pages_and_service_controls():
 def test_exchange_opens_trading_screen_and_can_buy_sell_and_leave():
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     click(app, "New Game")
+    click(app, "Continue to Basics")  # The character editor comes first
     click(app, "Skip")
     click(app, "Start playing")
     choose_place(app, "Bolsa de Lisboa")
