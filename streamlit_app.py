@@ -303,11 +303,11 @@ def places():
         district_exchange()
         return
     with st.container(key="foundry_route"):
-        route_button, options, feedback = st.columns((2, 1, 4), vertical_alignment="center")
-        with options.popover("Route options", width="stretch"):
-            destination = st.selectbox("Destination", [DEFAULT_DESTINATION, *PLACES, MONASTERY],
-                                       format_func=place_name, key="destination")
-            st.toggle("💡 Show hints", value=True, key="show_hints")
+        # One row: the latest message, then Destination, Show route and the hints switch.
+        feedback, choose, route_button, hints = st.columns((4, 2, 2, 1), vertical_alignment="center")
+        destination = choose.selectbox("Destination", [DEFAULT_DESTINATION, *PLACES, MONASTERY],
+                                       format_func=place_name, key="destination", label_visibility="collapsed")
+        hints.toggle("💡 Show hints", value=True, key="show_hints")
         hint = next_move(town, name)
         target = hint and hint["target"]
         route_button.button(f"Show route to {place_name(target)}" if target else "Show route", width="stretch",
@@ -715,7 +715,7 @@ def start_menu_rules():
         "**Trade route** · Buy materials at a yellow store, make products at a blue store, sell them at a green "
         "market. Example: wheat at Goldenfield Farm → bread at Sunrise Bakery → Daily Bread Market.\n\n"
         "**Getting around** · The ferry crosses the Tagus for $2 on foot; with a vehicle the bridges charge "
-        "$3 toward Lisbon. Choose **Route options → Destination** to see the route.".replace("$", "\\$"))
+        "$3 toward Lisbon. Choose a **Destination** next to the message above the map to see the route.".replace("$", "\\$"))
 
 
 def cloud_account():
@@ -1127,7 +1127,10 @@ st.html(f"""
     grid-template-columns: repeat(4, auto) minmax(8rem, 1fr) auto auto;
   }}
   .st-key-foundry_route > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
-    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(10rem, 15rem) auto auto;
+  }}
+  .st-key-foundry_route [data-testid="stAlert"] > div {{  /* A slim message, as tall as the controls beside it */
+    padding-block: 0.4rem;
   }}
   :is(.st-key-foundry_hud, .st-key-foundry_route) [data-testid="stColumn"] {{
     width: auto !important;
@@ -1162,7 +1165,11 @@ st.html(f"""
     .st-key-foundry_route > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
       grid-template-columns: minmax(0, 1fr) auto;
     }}
-    .st-key-foundry_route [data-testid="stColumn"]:nth-child(3) {{ grid-column: 1 / -1; }}
+    /* Phones: the message, then Destination with the hints switch, then Show route */
+    .st-key-foundry_route [data-testid="stColumn"]:nth-child(1) {{ grid-column: 1 / -1; }}
+    .st-key-foundry_route [data-testid="stColumn"]:nth-child(2) {{ grid-row: 2; grid-column: 1; }}
+    .st-key-foundry_route [data-testid="stColumn"]:nth-child(4) {{ grid-row: 2; grid-column: 2; }}
+    .st-key-foundry_route [data-testid="stColumn"]:nth-child(3) {{ grid-row: 3; grid-column: 1 / -1; }}
   }}
   body:has(.st-key-foundry_start) #foundry-fullscreen-game {{ display: none; }}
 </style>
