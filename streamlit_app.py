@@ -14,7 +14,7 @@ import exchange
 import innovation
 from place_names import localize_place_names, place_name
 from browser_game import (COLLISION_MAP, MONASTERY, OPEN_SITES, bag_full, next_move, STREET_LIFE, building_at, greeting, scene_for,
-                          entrance, place_vehicle_on_road, street_event, street_input)
+                          entrance, place_vehicle_on_road, player_shapes, player_svg, street_event, street_input)
 from journal_market import market_snapshot
 from journal_recipes import RECIPE_BY_KEY
 from lisbon_landmarks import LANDMARKS
@@ -22,7 +22,8 @@ from ferry import FERRY_PIERS, nearby_pier
 from lisbon_scene import RIVER_BOTTOM
 from tourism import monument_description
 from supabase_saves import CloudSave, SaveConflict, SignupError, Supabase
-from tycoon import DAY_SECONDS, DAYLIGHT_SECONDS, EGG_COST, INDUSTRIES, SITES, TRADES, ROULETTE_POCKETS, Town, roulette_color
+from tycoon import (BODY_COLORS, COSTUMES, DAY_SECONDS, DAYLIGHT_SECONDS, EGG_COST, HAIR_COLORS, INDUSTRIES, SITES, TRADES,
+                    ROULETTE_POCKETS, Town, roulette_color)
 from vehicles import VEHICLES
 from navigation import directions
 from oriente_station import BOUNDS as ORIENTE_BOUNDS, station_svg
@@ -276,7 +277,8 @@ def play_street(site_inside=None):
     street_map(
         key="street_map", on_change=play, x=town.x, y=town.y, ack=ack,
         night=town.market_elapsed % DAY_SECONDS >= DAYLIGHT_SECONDS, facing=town.facing,
-        vehicle=town.vehicle, stowed_vehicle=town.stowed_vehicle, hint=hint,
+        vehicle=town.vehicle, stowed_vehicle=town.stowed_vehicle, player=player_shapes(town.profile),
+        player_name="" if town.profile["name"] == "Player" else town.profile["name"], hint=hint,
         speed=town.movement_speed, collision=COLLISION_MAP, life=STREET_LIFE,
         cash=town.cash, on_bridge=town.bridge_journey is not None, ferry=st.session_state.get("ferry"),
         station_bounds=ORIENTE_BOUNDS,
@@ -698,6 +700,47 @@ def close_tutorial():
     st.session_state.tutorial_step = 0
 
 
+CHARACTER_CHOICES = (("body", "Skin", BODY_COLORS), ("hair", "Hair", HAIR_COLORS), ("costume", "Outfit", COSTUMES))
+
+
+def open_character(*, new_game=False):
+    """Open the character editor with the player's current look selected."""
+    profile = st.session_state.town.profile
+    st.session_state.character_name = "" if profile["name"] == "Player" else profile["name"]
+    for key, _, _ in CHARACTER_CHOICES:
+        st.session_state[f"character_{key}"] = profile[key]
+    st.session_state.character_new_game = new_game
+    st.session_state.show_character = True
+
+
+def close_character():
+    """Close the editor; a new game then shows Basics."""
+    st.session_state.show_character = False
+    if st.session_state.pop("character_new_game", False):
+        st.session_state.show_tutorial = True
+        st.session_state.tutorial_step = 0
+
+
+@st.dialog("Your character", width="large", on_dismiss=close_character)
+def character_editor():
+    profile = st.session_state.town.profile
+    look = {key: st.session_state.get(f"character_{key}") or profile[key] for key, _, _ in CHARACTER_CHOICES}
+    preview, choices = st.columns((1, 3), vertical_alignment="center")
+    with choices:
+        st.text_input("Name", key="character_name", max_chars=24, placeholder="Player")
+        for key, label, options in CHARACTER_CHOICES:
+            st.pills(label, list(options), key=f"character_{key}")
+    with preview, st.container(key="character_preview"):  # Drawn from the same shapes as the street player
+        st.image(player_svg(look), width="stretch")
+    new_game = st.session_state.get("character_new_game", False)
+    if st.button("Continue to Basics" if new_game else "Save character", type="primary", width="stretch"):
+        if act(Town.set_profile, {"name": st.session_state.character_name, **look}):
+            close_character()
+            # A button inside a dialog only reruns the dialog; rerun the whole page so it closes.
+            st.rerun()
+        st.error(st.session_state.save_error)
+
+
 @st.dialog("Foundry Town · Lisbon", width="large", dismissible=False)
 def start_menu():
     with st.container(key="foundry_waterfront"):
@@ -837,8 +880,9 @@ def enter_game(*, new_game=False):
     if new_game:
         st.session_state.reset_destination = True
         st.session_state.town_page = "Game"
-        st.session_state.show_tutorial = True
+        st.session_state.show_tutorial = False
         st.session_state.tutorial_step = 0
+        open_character(new_game=True)
     st.session_state.started = True
     st.session_state.show_menu = False
     st.session_state.confirm_restart = False
@@ -1024,6 +1068,7 @@ st.html(f"""
   .st-key-foundry_hud [data-testid="stProgress"] > div {{
     padding-bottom: 0;
   }}
+  .st-key-character_preview {{ background: #d8cfb8; border-radius: 12px; padding: 0.75rem; }}
   /* Centre the level-complete box on screen. (Moving the box itself pushed its top out of view.) */
   [data-testid="stDialog"]:has(.st-key-level_complete) {{
     align-items: center;
@@ -1354,6 +1399,7 @@ with st.container(key="foundry_hud"):
         for label in PAGES:
             st.button(label, type="primary" if page == label else "secondary", width="stretch",
                       on_click=st.session_state.update, kwargs={"town_page": label})
+        st.button("Character", width="stretch", on_click=open_character)
         st.button("Start menu", width="stretch",
                   on_click=st.session_state.update, kwargs={"show_menu": True})
         if cloud_store:
@@ -1406,6 +1452,8 @@ else:
 
 if st.session_state.get("show_menu", True):
     start_menu()
+elif st.session_state.get("show_character"):
+    character_editor()
 elif st.session_state.get("show_tutorial"):
     tutorial()
 

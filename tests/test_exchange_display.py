@@ -71,7 +71,7 @@ def test_exchange_shows_every_stock_and_holding_on_the_board():
     from streamlit.testing.v1 import AppTest
     from test_browser_game import click, choose_place
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
-    for label in ("New Game", "Skip", "Start playing"):
+    for label in ("New Game", "Continue to Basics", "Skip", "Start playing"):
         click(app, label)
     choose_place(app, "Bolsa de Lisboa")
 

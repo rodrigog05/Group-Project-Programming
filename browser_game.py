@@ -11,7 +11,8 @@ from vehicles import (
     VEHICLES, CAR_SPEED_RANGE, ROAD_EXCLUSIONS, ROAD_SEGMENTS, in_tunnel, on_road,
     road_projection, tunnel_covers_y,
 )
-from tycoon import BRIDGE_TOLL, COLLISION_BOUNDS, MAP_TOP, PLAYER_RADIUS, RIVER_BOTTOM, SITES, TRADES
+from tycoon import (BODY_COLORS, BRIDGE_TOLL, COLLISION_BOUNDS, COSTUMES, HAIR_COLORS, MAP_TOP, PLAYER_RADIUS,
+                    RIVER_BOTTOM, SITES, TRADES)
 
 # The browser predicts movement with the same walls as Town.can_walk. Python still checks every step.
 COLLISION_MAP = {
@@ -478,3 +479,58 @@ def street_event(town, event):
         event = {"segments": [{"dx": 0, "dy": 0, "seconds": 0}], "action": "interact"}
     street_input(town, event)
     return None
+
+
+# ----- The player's look (skin, hair and outfit from the desktop game's character editor) -----
+
+LEGS = "#192c39"
+
+
+def player_shapes(profile):
+    """The street player as simple shapes, feet at (0, 0), facing right.
+
+    The game view (street.js) and the character editor's preview both draw this same list, so they always match.
+    Each shape is ["rect", x, y, width, height, colour], ["poly", [[x, y], ...], colour] or
+    ["ring", x, y, width, height, colour] (an outlined, see-through rounded box, used for a helmet visor).
+    """
+    skin = BODY_COLORS.get(profile.get("body"), BODY_COLORS["Peach"])
+    hair = HAIR_COLORS.get(profile.get("hair"), HAIR_COLORS["Chestnut"])
+    costume = profile.get("costume") if profile.get("costume") in COSTUMES else "Builder"
+    outfit, accent = COSTUMES[costume]
+    shapes = [
+        ["rect", -6, -8, 5, 9, LEGS], ["rect", 2, -8, 5, 9, LEGS],
+        ["rect", -8, -19, 16, 12, outfit],
+        ["rect", -8, -11, 16, 2, accent],  # Belt
+        ["rect", -5, -27, 11, 9, skin],
+        ["rect", -7, -30, 13, 5, hair], ["rect", -7, -27, 3, 4, hair],  # Hair, at the back of the head
+        ["rect", 3, -24, 2, 2, "#2b2f36"],  # Eye
+    ]
+    hats = {
+        "Builder": [["rect", -8, -33, 16, 4, accent], ["rect", -9, -30, 19, 2, accent]],
+        "Chef": [["rect", -5, -40, 11, 9, "#ffffff"], ["rect", -6, -32, 13, 3, "#f1f1ea"]],
+        "Explorer": [["rect", -5, -35, 11, 5, accent], ["rect", -10, -31, 21, 2, accent]],
+        "Racer": [["rect", -7, -32, 14, 6, accent], ["rect", -7, -30, 14, 2, outfit], ["rect", 5, -28, 4, 2, accent]],
+        "Astronaut": [["ring", -8, -33, 17, 16, accent]],
+        "Wizard": [["poly", [[-9, -29], [1, -45], [10, -29]], accent], ["rect", -9, -30, 19, 2, outfit]],
+    }
+    return shapes + hats[costume]
+
+
+def player_svg(profile, size=160):
+    """The player figure as an SVG picture, for the character editor's preview."""
+    parts = []
+    for shape in player_shapes(profile):
+        kind = shape[0]
+        if kind == "rect":
+            _, x, y, w, h, colour = shape
+            parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{colour}"/>')
+        elif kind == "poly":
+            points = " ".join(f"{x},{y}" for x, y in shape[1])
+            parts.append(f'<polygon points="{points}" fill="{shape[2]}"/>')
+        else:
+            _, x, y, w, h, colour = shape
+            parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="5" fill="{colour}" fill-opacity="0.25" '
+                         f'stroke="{colour}" stroke-width="1.5"/>')
+    shadow = '<ellipse cx="0" cy="2" rx="14" ry="5" fill="#1b2927" fill-opacity="0.35"/>'
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="-22 -48 44 56" width="{size}" height="{size * 56 // 44}" '
+            f'shape-rendering="crispEdges">{shadow}{"".join(parts)}</svg>')
