@@ -1245,6 +1245,10 @@ def unpack_save(data):
         if state[name].keys() != INDUSTRIES.keys():
             raise ValueError("Invalid local industry data in save")
     state["industry_orders"] = {role: Order(**order) if order is not None else None for role, order in state["industry_orders"].items()}
+    # Keep only a valid name and known skin, hair and outfit; anything else falls back to the defaults.
+    profile = state.get("profile")
+    town.set_profile(profile if isinstance(profile, dict) else {})
+    state["profile"] = dict(town.profile)
     vars(town).update(state)
     if not town.can_walk(town.x, town.y):
         town.x, town.y = 480.0, 321.0

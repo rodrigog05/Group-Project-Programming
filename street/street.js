@@ -471,6 +471,15 @@ function draw() {
     drawWalker();
   }
   context.restore();
+  if (!state.vehicle && state.player_name) {  // The player's name above their head, as in the desktop game
+    context.font = "bold 9px system-ui, sans-serif";
+    context.textAlign = "center";
+    context.lineWidth = 3;
+    context.strokeStyle = "#1b2927cc";
+    context.strokeText(state.player_name, player.x, player.y - 50);
+    context.fillStyle = "#fff8ea";
+    context.fillText(state.player_name, player.x, player.y - 50);
+  }
   drawTimer();
   drawHint("street");
   drawAlert();
@@ -636,17 +645,40 @@ function drawStreetLife(t, left, top, width, height) {
   }
 }
 
+// The player's look comes from Python (browser_game.player_shapes), which also draws the character editor's
+// preview from the same list. This is the original figure, used until the first update arrives.
+const DEFAULT_PLAYER = [
+  ["rect", -6, -8, 5, 9, "#192c39"], ["rect", 2, -8, 5, 9, "#192c39"], ["rect", -8, -19, 16, 12, "#397fa0"],
+  ["rect", -5, -27, 11, 9, "#eeb181"], ["rect", -7, -30, 13, 5, "#ffd072"], ["rect", 4, -27, 6, 3, "#ffd072"],
+];
+
 function drawWalker() {
-  context.fillStyle = "#192c39";
-  context.fillRect(-6, -8, 5, 9);
-  context.fillRect(2, -8, 5, 9);
-  context.fillStyle = "#397fa0";
-  context.fillRect(-8, -19, 16, 12);
-  context.fillStyle = "#eeb181";
-  context.fillRect(-5, -27, 11, 9);
-  context.fillStyle = "#ffd072";
-  context.fillRect(-7, -30, 13, 5);
-  context.fillRect(4, -27, 6, 3);
+  const shapes = (state && state.player) || DEFAULT_PLAYER;
+  for (const shape of shapes) {
+    const [kind] = shape;
+    if (kind === "rect") {
+      const [, x, y, w, h, colour] = shape;
+      context.fillStyle = colour;
+      context.fillRect(x, y, w, h);
+    } else if (kind === "poly") {
+      context.fillStyle = shape[2];
+      context.beginPath();
+      shape[1].forEach(([x, y], index) => (index ? context.lineTo(x, y) : context.moveTo(x, y)));
+      context.closePath();
+      context.fill();
+    } else if (kind === "ring") {  // A see-through helmet visor
+      const [, x, y, w, h, colour] = shape;
+      context.beginPath();
+      context.roundRect(x, y, w, h, 5);
+      context.globalAlpha = 0.25;
+      context.fillStyle = colour;
+      context.fill();
+      context.globalAlpha = 1;
+      context.strokeStyle = colour;
+      context.lineWidth = 1.5;
+      context.stroke();
+    }
+  }
 }
 
 // ----- Inside a building: the desktop game's scene, the vendor's words and the keys -----
