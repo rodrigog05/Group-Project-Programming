@@ -360,6 +360,14 @@ function update(now) {
   queuedKey = null;
 }
 
+function roundedRect(x, y, width, height, radius) {
+  if (typeof context.roundRect === "function") {
+    context.roundRect(x, y, width, height, radius);
+  } else {
+    context.rect(x, y, width, height);
+  }
+}
+
 function draw() {
   if (state && ferry) {
     drawFerry();
@@ -475,7 +483,7 @@ function drawTram(t, left, top, width, height) {
   context.strokeStyle = "#a47931";
   context.lineWidth = 1;
   context.beginPath();
-  context.roundRect(x - 34, 655, 68, 41, 7);
+  roundedRect(x - 34, 655, 68, 41, 7);
   context.fill();
   context.stroke();
   context.fillStyle = "#f7e8c3";
@@ -575,7 +583,7 @@ function drawStreetLife(t, left, top, width, height) {
     context.strokeStyle = "#435c5c";
     context.lineWidth = 1;
     context.beginPath();
-    context.roundRect(-15, -8, 30, 16, 5);
+    roundedRect(-15, -8, 30, 16, 5);
     context.fill();
     context.stroke();
     context.fillStyle = state.night ? "#f2d69a" : "#aac5c8";
@@ -660,13 +668,13 @@ function drawShowroom(showroom) {
     context.strokeStyle = border;
     context.lineWidth = ride.status === "buy" ? 1.5 : 2.5;
     context.beginPath();
-    context.roundRect(left, top, 148, 41, 7);
+    roundedRect(left, top, 148, 41, 7);
     context.fill();
     context.stroke();
     // Key to press, then the name.
     context.fillStyle = "#fff3dc";
     context.beginPath();
-    context.roundRect(left + 6, top + 5, 15, 15, 3);
+    roundedRect(left + 6, top + 5, 15, 15, 3);
     context.fill();
     context.fillStyle = "#1f2a30";
     context.font = "bold 10px system-ui, sans-serif";
@@ -689,7 +697,7 @@ function drawShowroom(showroom) {
       const badgeWidth = context.measureText(badge).width + 14;
       context.fillStyle = border;
       context.beginPath();
-      context.roundRect(x - badgeWidth / 2, top - 7, badgeWidth, 13, 6);
+      roundedRect(x - badgeWidth / 2, top - 7, badgeWidth, 13, 6);
       context.fill();
       context.fillStyle = "#16303a";
       context.textAlign = "center";
@@ -757,11 +765,11 @@ function keycap(name, x, y, unit) {
   const height = 13 * unit;
   context.fillStyle = "#a9a49a";  // The key's lower edge
   context.beginPath();
-  context.roundRect(x, y - height / 2 + 1.5 * unit, width, height, 3 * unit);
+  roundedRect(x, y - height / 2 + 1.5 * unit, width, height, 3 * unit);
   context.fill();
   context.fillStyle = "#f4f1ea";
   context.beginPath();
-  context.roundRect(x, y - height / 2, width, height - 1 * unit, 3 * unit);
+  roundedRect(x, y - height / 2, width, height - 1 * unit, 3 * unit);
   context.fill();
   context.fillStyle = "#2b2f36";
   context.textAlign = "center";
@@ -777,7 +785,7 @@ function drawButton({ key, label, keyName = KEY_NAMES[key] || key.toUpperCase(),
   context.strokeStyle = hovered ? "#ffffff" : look.border;
   context.lineWidth = (hovered ? 1.6 : 1) * unit;
   context.beginPath();
-  context.roundRect(left, top, width, height, 6 * unit);
+  roundedRect(left, top, width, height, 6 * unit);
   context.fill();
   context.stroke();
   context.textBaseline = "middle";
@@ -939,7 +947,7 @@ function drawAlert() {
   context.strokeStyle = "#ffb4ab";
   context.lineWidth = 2;
   context.beginPath();
-  context.roundRect(x, 14, boxWidth, 40, 10);
+  roundedRect(x, 14, boxWidth, 40, 10);
   context.fill();
   context.stroke();
   context.fillStyle = "#ffffff";
@@ -961,7 +969,7 @@ function card(x, y, width, height, border) {
   context.strokeStyle = border;
   context.lineWidth = 2;
   context.beginPath();
-  context.roundRect(x, y, width, height, 10);
+  roundedRect(x, y, width, height, 10);
   context.fill();
   context.stroke();
 }
