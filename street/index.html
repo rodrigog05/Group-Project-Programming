@@ -66,6 +66,13 @@
     </div>
     <audio id="soundtrack" src="saudade_do_tejo.wav" preload="none" loop></audio>
   </div>
-  <script src="street.js"></script>
+  <script>
+    // Streamlit Cloud serves street.js as cacheable with no expiry, so browsers kept running old copies of the
+    // game after an update. This page is never cached, so asking for street.js with a fresh query always
+    // loads the current version.
+    const game = document.createElement("script");
+    game.src = "street.js?v=" + Date.now();
+    document.body.append(game);
+  </script>
 </body>
 </html>
