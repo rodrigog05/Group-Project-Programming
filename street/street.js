@@ -1263,12 +1263,18 @@ function frame(now) {
 }
 
 canvas.addEventListener("pointerdown", () => { ferry = null; });
-// I opens the Inventory popover above the map, from the map or anywhere on the page.
-function openInventory() {
+// These buttons live outside the map iframe, but their shortcuts work in both places.
+function handleHudShortcut(event) {
+  const key = event.key.toLowerCase();
+  const selector = key === "i" ? ".st-key-inventory button" :
+    key === "f" && !event.shiftKey ? ".st-key-show_suggested_route button" : null;
+  if (!selector || event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return false;
+  if (ferry || typingOnPage() || dialogOpen()) return false;
   for (const page of pageDocuments()) {
-    const button = page.querySelector(".st-key-inventory button");
-    if (button) {
+    const button = page.querySelector(selector);
+    if (button && !button.disabled) {
       button.click();
+      event.preventDefault();
       return true;
     }
   }
@@ -1276,19 +1282,12 @@ function openInventory() {
 }
 
 for (const page of pageDocuments()) {
-  page.addEventListener("keydown", (event) => {
-    if (event.key.toLowerCase() !== "i" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
-    if (typingOnPage() || dialogOpen()) return;
-    if (openInventory()) event.preventDefault();
-  });
+  page.addEventListener("keydown", handleHudShortcut);
 }
 
 canvas.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
-  if (key === "i" && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey && !ferry) {
-    if (openInventory()) event.preventDefault();
-    return;
-  }
+  if (handleHudShortcut(event)) return;
   if (ferry) {
     if (key === "escape") ferry = null;
     event.preventDefault();
