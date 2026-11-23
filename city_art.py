@@ -8,7 +8,7 @@ from html import escape
 from pathlib import Path
 
 from ferry import FERRY_FARE, FERRY_PIERS
-from lisbon_scene import CAPARICA_ART, CAPARICA_DAY, RIVER_BOTTOM, BRIDGE_TOLL, NORTH_AVENUE_Y, NORTH_JUNCTIONS, NORTH_QUARTERS, SCENERY_PLOTS, north_avenue_outline
+from lisbon_scene import BRIDGE_TOLL, NORTH_AVENUE_Y, NORTH_JUNCTIONS, NORTH_QUARTERS, SCENERY_PLOTS, north_avenue_outline
 from tycoon import SITES
 from place_names import localize_place_names
 
@@ -327,17 +327,6 @@ def translated_map_signs(d, night):
         d.rect(x-width/2, y-7, width, 15, "#294547", 3)
         d.text(x, y+3, label, size, ink)
 
-    beach = dict(sand="#807b6b", wet="#696f68", foam="#9daead", dune="#706c59",
-                 towel="#49616e", canopy="#845548", stripe="#b1a286") if night else CAPARICA_DAY
-    for material, coords in CAPARICA_ART:
-        points = zip(coords[::2], coords[1::2])
-        d.path("M" + "L".join(f"{x} {RIVER_BOTTOM+y}" for x, y in points) + "Z", fill=beach[material])
-    # Reuse the painted portal at the new western edge of the garden.
-    with Image.open(Path(__file__).resolve().parent / "street" / f"world_100_{time}.webp") as im:
-        patch(im.crop((48, 1522, 73, 1579)), 126, 1522)
-    beach_ink = "#f2e3bc" if night else "#645c43"
-    d.text(52, 1178, "COSTA DA", 10, beach_ink)
-    d.text(52, 1192, "CAPARICA", 13, beach_ink)
     d.text(144, 1210, "ALMADA", 26, "#354d50" if night else "#65795e", anchor="start")
     sign(2150, 1515, 146, "SOUTH BANK FARMS", 12)
     sign(410, 729, 126, f"↑ LISBON · TOLL ${BRIDGE_TOLL}")
