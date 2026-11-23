@@ -42,12 +42,6 @@ save_path = os.environ.get("FOUNDRY_LOCAL_DB")
 def cloud_client():
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_PUBLISHABLE_KEY")
-    if not (url and key):
-        try:
-            url = url or st.secrets.get("SUPABASE_URL")
-            key = key or st.secrets.get("SUPABASE_PUBLISHABLE_KEY")
-        except FileNotFoundError:
-            pass
     if not url and not key:
         return None
     if not url or not key:
@@ -667,21 +661,9 @@ def start_menu_card():
     st.caption("Lisbon · Build your fortune along the Tagus")
     if notice := st.session_state.pop("sign_out_notice", ""):
         st.warning(notice)
-    if not save_path and not cloud_store and not st.session_state.get("playing_as_guest"):
-        cloud_account()
-        if st.button("Continue as guest", width="stretch"):
-            st.session_state.playing_as_guest = True
-            st.rerun()
-        return
-
     town = st.session_state.town
     can_continue = bool(st.session_state.revision or st.session_state.get("started"))
     st.caption(f"Continue with ${town.cash:,} in cash." if can_continue else "Start with $60 and a 12-slot bag.")
-    if cloud_store:
-        cloud_account()
-    elif cloud and st.button("Sign in for cloud saves", width="stretch"):
-        st.session_state.playing_as_guest = False
-        st.rerun()
     new, resume = st.columns(2)
     if new.button("New Game", width="stretch", type="primary"):
         if can_continue:
@@ -715,12 +697,11 @@ def start_menu_card():
             "market. Example: wheat at Goldenfield Farm → bread at Sunrise Bakery → Daily Bread Market.\n\n"
             "**Getting around** · The ferry crosses the Tagus for $2 on foot; with a vehicle the bridges charge "
             "$3 toward Lisbon. Choose **Route options → Destination** to see the route.".replace("$", "\\$"))
+    if cloud:
+        cloud_account()
 
 
 def cloud_account():
-    if not cloud:
-        st.caption("Cloud sign-in is unavailable on this server. You can still play as a guest.")
-        return
     if cloud_store:
         st.caption("Cloud saves are active.")
         if st.button("Sign out"):
@@ -731,51 +712,51 @@ def cloud_account():
             st.rerun()
         return
 
-    st.subheader("Sign in for cloud saves")
-    st.caption("Sign in to open your saved game on any device, or create an account to save your progress online.")
-    with st.form("cloud_account", clear_on_submit=True):
-        email = st.text_input("Email")
-        password = st.text_input("Password", type="password")
-        sign_in = st.form_submit_button("Sign in", type="primary")
-        sign_up = st.form_submit_button("Create account")
-    if not (sign_in or sign_up):
-        return
-    if not email.strip() or not password:
-        st.error("Enter your email and password.")
-        return
-    if sign_up:
+    with st.expander("Sign in for cloud saves"):
+        st.caption("Signing in opens your cloud save. A new account can save your current guest game.")
+        with st.form("cloud_account", clear_on_submit=True):
+            email = st.text_input("Email")
+            password = st.text_input("Password", type="password")
+            sign_in = st.form_submit_button("Sign in")
+            sign_up = st.form_submit_button("Create account")
+        if not (sign_in or sign_up):
+            return
+        if not email.strip() or not password:
+            st.error("Enter your email and password.")
+            return
+        if sign_up:
+            try:
+                session = cloud.sign_up(email.strip(), password)
+            except SignupError as error:
+                st.error(str(error))
+                return
+            except SAVE_ERRORS:
+                st.error("Could not reach the account service. Try again in a moment.")
+                return
+            if session is None:
+                st.success("Check your inbox or spam folder for the confirmation email, then sign in here.")
+                return
+        else:
+            try:
+                session = cloud.sign_in(email.strip(), password)
+            except SAVE_ERRORS:
+                st.error("Could not sign in. Check your details and confirm your email first.")
+                return
         try:
-            session = cloud.sign_up(email.strip(), password)
-        except SignupError as error:
-            st.error(str(error))
+            remote = CloudSave(cloud, session)
+            town, revision = remote.load()
+            if not revision and st.session_state.get("started"):
+                town = st.session_state.town
+                revision = remote.save(town, 0)
+        except (SaveConflict, *SAVE_ERRORS):
+            st.error("Could not open your cloud save. Your guest game is still available.")
             return
-        except SAVE_ERRORS:
-            st.error("Could not reach the account service. Try again in a moment.")
-            return
-        if session is None:
-            st.success("Check your inbox or spam folder for the confirmation email, then sign in here.")
-            return
-    else:
-        try:
-            session = cloud.sign_in(email.strip(), password)
-        except SAVE_ERRORS:
-            st.error("Could not sign in. Check your details and confirm your email first.")
-            return
-    try:
-        remote = CloudSave(cloud, session)
-        town, revision = remote.load()
-        if not revision and st.session_state.get("started"):
-            town = st.session_state.town
-            revision = remote.save(town, 0)
-    except (SaveConflict, *SAVE_ERRORS):
-        st.error("Could not open your cloud save. Your guest game is still available.")
-        return
-    st.session_state.clear()
-    st.session_state.update(
-        cloud_session=session, town=town, revision=revision, save_error="",
-        next_cloud_checkpoint=monotonic() + 15,
-    )
-    st.rerun()
+        st.session_state.clear()
+        st.session_state.update(
+            cloud_session=session, town=town, revision=revision, save_error="",
+            next_cloud_checkpoint=monotonic() + 15,
+        )
+        st.rerun()
 
 
 def enter_game(*, new_game=False):
@@ -870,7 +851,7 @@ st.html(f"""
     position: relative;
     z-index: 1;
     width: min(100%, 38rem);
-    margin: clamp(1.5rem, 100dvh - 34rem, 26rem) auto 1.5rem;
+    margin: clamp(2rem, 50dvh - 6rem, 26rem) auto 2rem;
     max-height: calc(100dvh - 3rem);
     overflow-y: auto;
     transition: margin-top 0.2s;
@@ -882,35 +863,7 @@ st.html(f"""
     color-scheme: dark;
   }}
   .st-key-foundry_start:has(details[open]) {{ margin-top: 1.5rem; }}
-  .st-key-foundry_start details,
-  .st-key-foundry_start [data-testid="stExpanderDetails"],
-  .st-key-foundry_start [data-testid="stForm"] {{
-    background: #16303a;
-    color: #fff7e6;
-  }}
-  .st-key-foundry_start details > summary,
-  .st-key-foundry_start details[open] > summary {{
-    background: #294650;
-    color: #fff7e6;
-  }}
-  .st-key-foundry_start details > summary:is(:hover, :focus-visible) {{
-    background: #355863;
-    color: #fff7e6;
-  }}
-  .st-key-foundry_start details > summary:focus-visible {{
-    outline: 2px solid #ffc66c;
-    outline-offset: -2px;
-  }}
-  .st-key-foundry_start details p {{ color: inherit; line-height: 1.5; }}
-  .st-key-foundry_start h3,
-  .st-key-foundry_start [data-testid="stWidgetLabel"] {{ color: #fff7e6; }}
-  .st-key-foundry_start [data-baseweb="input"],
-  .st-key-foundry_start [data-baseweb="base-input"],
-  .st-key-foundry_start input,
-  .st-key-foundry_start [data-baseweb="input"] button {{
-    background: #10252d;
-    color: #fff7e6;
-  }}
+  .st-key-foundry_start details p {{ color: #fff7e6; line-height: 1.5; }}
   .st-key-foundry_start details strong {{ color: #ffc66c; }}
   .st-key-foundry_start h1 {{ color: #ffc66c; }}
   .st-key-foundry_start [data-testid="stCaptionContainer"] p {{ color: #a9e2ce; }}
