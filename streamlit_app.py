@@ -664,21 +664,6 @@ def start_menu_card():
     town = st.session_state.town
     can_continue = bool(st.session_state.revision or st.session_state.get("started"))
     st.caption(f"Continue with ${town.cash:,} in cash." if can_continue else "Start with $60 and a 12-slot bag.")
-    if cloud:
-        cloud_account()
-    if st.button("Basics · how to play in 5 slides", width="stretch"):
-        open_tutorial()
-        st.rerun()
-    with st.expander("Rules & How to Play"):
-        st.markdown(
-            "**Goal** · Start with $60 and grow to $500, then keep growing through trading, vehicles and "
-            "business ownership.\n\n"
-            "**Controls** · Move with **WASD** or the **arrow keys**. Press **E** at a door to go inside and **Esc** "
-            "to leave. Inside: **E** buys, makes or sells, **Q** buys up to four.\n\n"
-            "**Trade route** · Buy materials at a yellow store, make products at a blue store, sell them at a green "
-            "market. Example: wheat at Goldenfield Farm → bread at Sunrise Bakery → Daily Bread Market.\n\n"
-            "**Getting around** · The ferry crosses the Tagus for $2 on foot; with a vehicle the bridges charge "
-            "$3 toward Lisbon. Choose **Route options → Destination** to see the route.".replace("$", "\\$"))
     new, resume = st.columns(2)
     if new.button("New Game", width="stretch", type="primary"):
         if can_continue:
@@ -699,6 +684,21 @@ def start_menu_card():
         if cancel.button("Keep my progress"):
             st.session_state.confirm_restart = False
             st.rerun()
+    if st.button("Basics · how to play in 5 slides", width="stretch"):
+        open_tutorial()
+        st.rerun()
+    with st.expander("Rules & How to Play"):
+        st.markdown(
+            "**Goal** · Start with $60 and grow to $500, then keep growing through trading, vehicles and "
+            "business ownership.\n\n"
+            "**Controls** · Move with **WASD** or the **arrow keys**. Press **E** at a door to go inside and **Esc** "
+            "to leave. Inside: **E** buys, makes or sells, **Q** buys up to four.\n\n"
+            "**Trade route** · Buy materials at a yellow store, make products at a blue store, sell them at a green "
+            "market. Example: wheat at Goldenfield Farm → bread at Sunrise Bakery → Daily Bread Market.\n\n"
+            "**Getting around** · The ferry crosses the Tagus for $2 on foot; with a vehicle the bridges charge "
+            "$3 toward Lisbon. Choose **Route options → Destination** to see the route.".replace("$", "\\$"))
+    if cloud:
+        cloud_account()
 
 
 def cloud_account():
@@ -712,53 +712,51 @@ def cloud_account():
             st.rerun()
         return
 
-    st.subheader("Sign up or sign in for cloud saves")
-    st.caption("Signing in opens your cloud save. A new account can save your current guest game.")
-    with st.form("cloud_account", clear_on_submit=True):
-        email_col, password_col = st.columns(2)
-        email = email_col.text_input("Email")
-        password = password_col.text_input("Password", type="password")
-        with st.container(horizontal=True):
+    with st.expander("Sign in for cloud saves"):
+        st.caption("Signing in opens your cloud save. A new account can save your current guest game.")
+        with st.form("cloud_account", clear_on_submit=True):
+            email = st.text_input("Email")
+            password = st.text_input("Password", type="password")
             sign_in = st.form_submit_button("Sign in")
             sign_up = st.form_submit_button("Create account")
-    if not (sign_in or sign_up):
-        return
-    if not email.strip() or not password:
-        st.error("Enter your email and password.")
-        return
-    if sign_up:
+        if not (sign_in or sign_up):
+            return
+        if not email.strip() or not password:
+            st.error("Enter your email and password.")
+            return
+        if sign_up:
+            try:
+                session = cloud.sign_up(email.strip(), password)
+            except SignupError as error:
+                st.error(str(error))
+                return
+            except SAVE_ERRORS:
+                st.error("Could not reach the account service. Try again in a moment.")
+                return
+            if session is None:
+                st.success("Check your inbox or spam folder for the confirmation email, then sign in here.")
+                return
+        else:
+            try:
+                session = cloud.sign_in(email.strip(), password)
+            except SAVE_ERRORS:
+                st.error("Could not sign in. Check your details and confirm your email first.")
+                return
         try:
-            session = cloud.sign_up(email.strip(), password)
-        except SignupError as error:
-            st.error(str(error))
+            remote = CloudSave(cloud, session)
+            town, revision = remote.load()
+            if not revision and st.session_state.get("started"):
+                town = st.session_state.town
+                revision = remote.save(town, 0)
+        except (SaveConflict, *SAVE_ERRORS):
+            st.error("Could not open your cloud save. Your guest game is still available.")
             return
-        except SAVE_ERRORS:
-            st.error("Could not reach the account service. Try again in a moment.")
-            return
-        if session is None:
-            st.success("Check your inbox or spam folder for the confirmation email, then sign in here.")
-            return
-    else:
-        try:
-            session = cloud.sign_in(email.strip(), password)
-        except SAVE_ERRORS:
-            st.error("Could not sign in. Check your details and confirm your email first.")
-            return
-    try:
-        remote = CloudSave(cloud, session)
-        town, revision = remote.load()
-        if not revision and st.session_state.get("started"):
-            town = st.session_state.town
-            revision = remote.save(town, 0)
-    except (SaveConflict, *SAVE_ERRORS):
-        st.error("Could not open your cloud save. Your guest game is still available.")
-        return
-    st.session_state.clear()
-    st.session_state.update(
-        cloud_session=session, town=town, revision=revision, save_error="",
-        next_cloud_checkpoint=monotonic() + 15,
-    )
-    st.rerun()
+        st.session_state.clear()
+        st.session_state.update(
+            cloud_session=session, town=town, revision=revision, save_error="",
+            next_cloud_checkpoint=monotonic() + 15,
+        )
+        st.rerun()
 
 
 def enter_game(*, new_game=False):
@@ -850,38 +848,21 @@ st.html(f"""
     .st-key-foundry_waterfront {{ display: none; }}
   }}
   .st-key-foundry_start {{
-    position: fixed;
-    inset: 2.75rem 0 0.5rem;
+    position: relative;
     z-index: 1;
-    box-sizing: border-box;
-    width: min(calc(100% - 1rem), 42rem);
-    height: fit-content;
-    max-height: calc(100dvh - 3.25rem);
-    margin: auto;
+    width: min(100%, 38rem);
+    margin: clamp(2rem, 50dvh - 6rem, 26rem) auto 2rem;
+    max-height: calc(100dvh - 3rem);
     overflow-y: auto;
-    padding: clamp(0.65rem, 2vw, 1.25rem);
+    transition: margin-top 0.2s;
+    padding: clamp(1rem, 3vw, 2rem);
     border: 2px solid #ffc66c;
     border-radius: 12px;
     background: #16303a;
     color: #fff7e6;
     color-scheme: dark;
   }}
-  .st-key-foundry_start,
-  .st-key-foundry_start [data-testid="stVerticalBlock"] {{ gap: 0.35rem; }}
-  .st-key-foundry_start :is(h1, h3) {{ margin: 0; padding-block: 0.1rem; }}
-  .st-key-foundry_start h1 {{ font-size: clamp(1.65rem, 4vw, 2.35rem); }}
-  .st-key-foundry_start h3 {{ font-size: 1.125rem; }}
-  .st-key-foundry_start [data-testid="stForm"] {{ padding: 0.5rem; }}
-  @media (max-width: 640px) {{
-    .st-key-foundry_start [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]) {{
-      flex-wrap: nowrap;
-      gap: 0.5rem;
-    }}
-    .st-key-foundry_start [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
-      flex: 1 1 0;
-      min-width: 0;
-    }}
-  }}
+  .st-key-foundry_start:has(details[open]) {{ margin-top: 1.5rem; }}
   .st-key-foundry_start details p {{ color: #fff7e6; line-height: 1.5; }}
   .st-key-foundry_start details strong {{ color: #ffc66c; }}
   .st-key-foundry_start h1 {{ color: #ffc66c; }}
