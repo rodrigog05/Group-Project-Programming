@@ -67,7 +67,7 @@ def test_displayed_quotes_are_the_actual_transaction_prices_and_read_only():
     assert town.exchange["previous_quotes"] == history
 
 
-def test_exchange_shows_every_stock_without_opening_the_portfolio_expander():
+def test_exchange_shows_every_stock_and_holding_on_the_board():
     from streamlit.testing.v1 import AppTest
     from test_browser_game import click, choose_place
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
@@ -78,20 +78,21 @@ def test_exchange_shows_every_stock_without_opening_the_portfolio_expander():
     def board():
         markup = next(element.proto.body for element in app.get("html") if 'class="exchange-board"' in element.proto.body)
         rows = ET.fromstring(markup).findall("./tbody/tr")
-        return {row[0].text: (row[1].text, row[2].text) for row in rows}
+        return {row[0].text: (row[1].text, row[2].text, row[3].text) for row in rows}
 
     assert "All stocks" in {heading.value for heading in app.subheader}
     assert set(board()) == {asset.name for asset in ASSETS}
-    assert all(change == "—" for _, change in board().values())
+    assert all(owned == "0" and change == "—" for _, owned, change in board().values())
     town = app.session_state.town
+    assert buy_shares(town, "BELEM", 1)
     store = next(site for site in OPEN_SITES if site.name == "Daily Bread Market")
     assert record_trade(town, store, 1)
     settle_exchange(town, 1)
     app.run()
     assert not app.exception
-    assert board()["Daily Bread Market"] == ("$50", "+$5 (+11.1%)")
-    assert board()["Tool Market"] == ("$60", "—")
-    click(app, "Leave exchange")
+    assert board()["Daily Bread Market"] == ("$50", "1", "+$5 (+11.1%)")
+    assert board()["Tool Market"] == ("$60", "0", "—")
+    click(app, "Leave")
     assert app.session_state.inside is None
 
 
