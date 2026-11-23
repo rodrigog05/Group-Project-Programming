@@ -54,8 +54,6 @@ const night = new Image();
 day.src = asset("world_100_day.webp");
 const stationArt = { day: new Image(), night: new Image() };
 stationArt.day.src = asset("oriente_day.svg");
-const campusSigns = new Image();
-campusSigns.src = asset("nova_presentation_signs.svg");
 const cityArt = { day: new Image(), night: new Image() };
 cityArt.day.src = asset("city_day.svg");
 
@@ -397,10 +395,9 @@ function draw() {
   context.setTransform(ratio * scale, 0, 0, ratio * scale, -left * ratio * scale, -top * ratio * scale);
   context.drawImage(state.night && night.naturalWidth ? night : day, 0, 0);
   const city = state.night && night.naturalWidth ? cityArt.night : cityArt.day;
-  if (city.complete && city.naturalWidth) context.drawImage(city, 0, 0);
   const station = state.night && night.naturalWidth ? stationArt.night : stationArt.day;
   if (station.complete && station.naturalWidth && state.station_bounds) context.drawImage(station, ...state.station_bounds);
-  if (campusSigns.complete && campusSigns.naturalWidth) context.drawImage(campusSigns, 27, 508, 178, 110);
+  if (city.complete && city.naturalWidth) context.drawImage(city, 0, 0);
 
   if (state.route?.points?.length > 1) {
     context.save();
