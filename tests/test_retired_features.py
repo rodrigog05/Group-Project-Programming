@@ -2,7 +2,7 @@
 import pytest
 
 from browser_game import OPEN_SITES, entrance
-from tycoon import Town, TRADES
+from tycoon import SITES, Town, TRADES
 
 
 @pytest.mark.parametrize("trade",range(len(TRADES)))
@@ -37,7 +37,7 @@ def test_buy_and_sell_keep_other_notices_and_collection_still_congratulates(trad
 def test_machinery_sale_keeps_the_collection_notice():
     town=Town()
     town.goods[0]=town.goods[1]=1
-    workshop=next(s for s in OPEN_SITES if s.role=="TIER2")
+    workshop=next(s for s in SITES if s.role=="TIER2")  # Retired: closed on the map, kept in the engine
     town.x,town.y=entrance(workshop)
     town.interact()
     town.advance(12)
