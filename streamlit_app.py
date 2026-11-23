@@ -715,10 +715,12 @@ def cloud_account():
     st.subheader("Sign up or sign in for cloud saves")
     st.caption("Signing in opens your cloud save. A new account can save your current guest game.")
     with st.form("cloud_account", clear_on_submit=True):
-        email = st.text_input("Email")
-        password = st.text_input("Password", type="password")
-        sign_in = st.form_submit_button("Sign in")
-        sign_up = st.form_submit_button("Create account")
+        email_col, password_col = st.columns(2)
+        email = email_col.text_input("Email")
+        password = password_col.text_input("Password", type="password")
+        with st.container(horizontal=True):
+            sign_in = st.form_submit_button("Sign in")
+            sign_up = st.form_submit_button("Create account")
     if not (sign_in or sign_up):
         return
     if not email.strip() or not password:
@@ -848,21 +850,38 @@ st.html(f"""
     .st-key-foundry_waterfront {{ display: none; }}
   }}
   .st-key-foundry_start {{
-    position: relative;
+    position: fixed;
+    inset: 2.75rem 0 0.5rem;
     z-index: 1;
-    width: min(100%, 38rem);
-    margin: clamp(2rem, 50dvh - 6rem, 26rem) auto 2rem;
-    max-height: calc(100dvh - 3rem);
+    box-sizing: border-box;
+    width: min(calc(100% - 1rem), 42rem);
+    height: fit-content;
+    max-height: calc(100dvh - 3.25rem);
+    margin: auto;
     overflow-y: auto;
-    transition: margin-top 0.2s;
-    padding: clamp(1rem, 3vw, 2rem);
+    padding: clamp(0.65rem, 2vw, 1.25rem);
     border: 2px solid #ffc66c;
     border-radius: 12px;
     background: #16303a;
     color: #fff7e6;
     color-scheme: dark;
   }}
-  .st-key-foundry_start:has(details[open]) {{ margin-top: 1.5rem; }}
+  .st-key-foundry_start,
+  .st-key-foundry_start [data-testid="stVerticalBlock"] {{ gap: 0.35rem; }}
+  .st-key-foundry_start :is(h1, h3) {{ margin: 0; padding-block: 0.1rem; }}
+  .st-key-foundry_start h1 {{ font-size: clamp(1.65rem, 4vw, 2.35rem); }}
+  .st-key-foundry_start h3 {{ font-size: 1.125rem; }}
+  .st-key-foundry_start [data-testid="stForm"] {{ padding: 0.5rem; }}
+  @media (max-width: 640px) {{
+    .st-key-foundry_start [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]) {{
+      flex-wrap: nowrap;
+      gap: 0.5rem;
+    }}
+    .st-key-foundry_start [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
+      flex: 1 1 0;
+      min-width: 0;
+    }}
+  }}
   .st-key-foundry_start details p {{ color: #fff7e6; line-height: 1.5; }}
   .st-key-foundry_start details strong {{ color: #ffc66c; }}
   .st-key-foundry_start h1 {{ color: #ffc66c; }}
