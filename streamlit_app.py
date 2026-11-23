@@ -647,26 +647,28 @@ def start_menu():
     </script>""", unsafe_allow_javascript=True)
     with st.container(key="foundry_start"):
         fullscreen_control("menu")
-        start_menu_card()
+        st.title("Foundry Town")
+        st.caption("Build your fortune in Lisbon")
+        play, rules = st.tabs(["Play", "Rules & How to Play"])
+        with play:
+            start_menu_card()
+        with rules:
+            start_menu_rules()
 
 
 def start_menu_card():
-    st.title("Foundry Town")
-    st.caption("Lisbon · Build your fortune along the Tagus")
     if notice := st.session_state.pop("sign_out_notice", ""):
         st.warning(notice)
     town = st.session_state.town
     can_continue = bool(st.session_state.revision or st.session_state.get("started"))
-    st.caption(f"Continue with ${town.cash:,} in cash." if can_continue else "Start with $60 and a 12-slot bag.")
-    new, resume = st.columns(2)
-    if new.button("New Game", width="stretch", type="primary"):
+    if st.button("New Game", key="foundry_new_game", width="stretch", type="primary"):
         if can_continue:
             st.session_state.confirm_restart = True
         elif not cloud_store or save_town(Town()):
             enter_game(new_game=True)
         else:
             st.error(st.session_state.save_error)
-    if resume.button("Continue", width="stretch", disabled=not can_continue):
+    if st.button("Continue", key="foundry_continue", width="stretch", disabled=not can_continue):
         enter_game()
     if st.session_state.get("confirm_restart"):
         st.warning("Start over and replace your current progress?")
@@ -678,18 +680,22 @@ def start_menu_card():
         if cancel.button("Keep my progress"):
             st.session_state.confirm_restart = False
             st.rerun()
-    with st.expander("Rules & How to Play"):
-        st.markdown(
-            "**Goal** · Start with $60 and grow to $500, then keep growing through trading, vehicles and "
-            "business ownership.\n\n"
-            "**Controls** · Move with **WASD** or the **arrow keys**. Press **E** at a door to go inside and **Esc** "
-            "to leave. Inside: **E** buys, makes or sells, **Q** buys up to four.\n\n"
-            "**Trade route** · Buy materials at a yellow store, make products at a blue store, sell them at a green "
-            "market. Example: wheat at Goldenfield Farm → bread at Sunrise Bakery → Daily Bread Market.\n\n"
-            "**Getting around** · The ferry crosses the Tagus for $2 on foot; with a vehicle the bridges charge "
-            "$3 toward Lisbon. Choose **Route options → Destination** to see the route.".replace("$", "\\$"))
     if cloud:
         cloud_account()
+    if can_continue:
+        st.caption(f"Continue with ${town.cash:,} in cash.")
+
+
+def start_menu_rules():
+    st.markdown(
+        "**Goal** · Start with $60 and grow to $500, then keep growing through trading, vehicles and "
+        "business ownership.\n\n"
+        "**Controls** · Move with **WASD** or the **arrow keys**. Press **E** at a door to go inside and **Esc** "
+        "to leave. Inside: **E** buys, makes or sells, **Q** buys up to four.\n\n"
+        "**Trade route** · Buy materials at a yellow store, make products at a blue store, sell them at a green "
+        "market. Example: wheat at Goldenfield Farm → bread at Sunrise Bakery → Daily Bread Market.\n\n"
+        "**Getting around** · The ferry crosses the Tagus for $2 on foot; with a vehicle the bridges charge "
+        "$3 toward Lisbon. Choose **Route options → Destination** to see the route.".replace("$", "\\$"))
 
 
 def cloud_account():
@@ -703,7 +709,7 @@ def cloud_account():
             st.rerun()
         return
 
-    with st.expander("Sign in for cloud saves"):
+    with st.expander("Sign in / Create account", icon=":material/cloud:", key="foundry_account"):
         st.caption("Signing in opens your cloud save. A new account can save your current guest game.")
         with st.form("cloud_account", clear_on_submit=True):
             email = st.text_input("Email")
@@ -811,6 +817,7 @@ st.html(f"""
     max-width: none !important;
     height: 100dvh !important;
     max-height: none !important;
+    overflow-y: auto;
     margin: 0;
     border-radius: 0;
     background: #17343b url("data:image/webp;base64,{waterfront}") center / cover;
@@ -841,35 +848,89 @@ st.html(f"""
   .st-key-foundry_start {{
     position: relative;
     z-index: 1;
-    width: min(100%, 38rem);
-    margin: clamp(2rem, 50dvh - 6rem, 26rem) auto 2rem;
-    max-height: calc(100dvh - 3rem);
-    overflow-y: auto;
-    transition: margin-top 0.2s;
-    padding: clamp(1rem, 3vw, 2rem);
-    border: 2px solid #ffc66c;
-    border-radius: 12px;
-    background: #16303a;
-    color: #fff7e6;
+    width: min(100%, 43rem);
+    margin: clamp(1.75rem, 45dvh - 10rem, 18rem) auto 1rem;
+    padding: clamp(1rem, 4vw, 1.5rem) clamp(1rem, 7vw, 7rem);
+    border-radius: 1rem;
+    background: #132231;
+    color: #f5f8fc;
     color-scheme: dark;
   }}
-  .st-key-foundry_start:has(details[open]) {{ margin-top: 1.5rem; }}
-  .st-key-foundry_start details p {{ color: #fff7e6; line-height: 1.5; }}
-  .st-key-foundry_start details strong {{ color: #ffc66c; }}
-  .st-key-foundry_start h1 {{ color: #ffc66c; }}
-  .st-key-foundry_start [data-testid="stCaptionContainer"] p {{ color: #a9e2ce; }}
-  .st-key-foundry_start button[data-testid^="stBaseButton"] {{
-    background: #2c4a55;
-    color: #fff7e6;
-    border-color: #577480;
+  .st-key-foundry_start:has(.st-key-foundry_account details[open]) {{ margin-top: 2rem; }}
+  .st-key-foundry_start:has([role="tab"]:nth-child(2)[aria-selected="true"]) {{
+    margin-top: clamp(2rem, 24dvh - 5rem, 8rem);
   }}
-  .st-key-foundry_start button[data-testid="stBaseButton-primary"] {{
-    background: #ffc66c;
-    color: #101f28;
+  .st-key-foundry_start h1 {{
+    padding: 0;
+    color: #f7d390;
+    font-size: clamp(1.5rem, 5vw, 1.875rem);
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: normal;
+    font-family: system-ui, sans-serif;
   }}
-  .st-key-foundry_start button[data-testid^="stBaseButton"]:disabled {{
-    background: #253e48;
-    color: #a0b2b8;
+  .st-key-foundry_start [data-testid="stCaptionContainer"] p {{
+    color: #c3d6e0;
+    opacity: 1;
+    text-align: center;
+  }}
+  .st-key-foundry_start [data-testid="stCaptionContainer"]:not([role="tabpanel"] *) p {{
+    text-transform: uppercase;
+  }}
+  .st-key-foundry_start [role="tablist"] {{ justify-content: center; }}
+  .st-key-foundry_start [role="tab"] {{ color: #c3d6e0; }}
+  .st-key-foundry_start [role="tab"][aria-selected="true"],
+  .st-key-foundry_start [role="tabpanel"] strong {{ color: #f7d390; }}
+  .st-key-foundry_start [role="tab"][aria-selected="true"] {{ box-shadow: inset 0 -2px #ddb679; }}
+  .st-key-foundry_start .react-aria-SelectionIndicator {{ visibility: hidden; }}
+  .st-key-foundry_start [role="tabpanel"] > [data-testid="stVerticalBlock"] {{ gap: 0.625rem; }}
+  :is(.st-key-foundry_new_game, .st-key-foundry_continue) button,
+  .st-key-foundry_account summary {{
+    min-height: 4rem;
+    border: 1px solid #819eaf;
+    border-radius: 1rem;
+    background: #264153;
+    color: #f5f8fc;
+    text-transform: uppercase;
+  }}
+  :is(.st-key-foundry_new_game, .st-key-foundry_continue) button p,
+  .st-key-foundry_account summary p {{
+    font-family: system-ui, sans-serif;
+    font-size: clamp(0.875rem, 3.75vw, 1.125rem);
+    font-weight: 650;
+  }}
+  .st-key-foundry_new_game button {{
+    background: #ddb679;
+    border-color: #ddb679;
+    color: #132231;
+  }}
+  .st-key-foundry_new_game button:hover {{ background: #f0cc91; color: #132231; }}
+  .st-key-foundry_continue button:hover:not(:disabled) {{ background: #36576c; color: #fff; }}
+  .st-key-foundry_continue button:disabled {{
+    background: #203546;
+    border-color: #587182;
+    color: #a7bbc7;
+  }}
+  .st-key-foundry_account details {{ border: 0; }}
+  .st-key-foundry_account summary {{
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.25rem;
+    min-height: 5.625rem;
+    background: #334a59;
+    border-color: #ddb679;
+    text-align: center;
+  }}
+  .st-key-foundry_account summary:hover {{ background: #3c5667; color: #fff; }}
+  .st-key-foundry_account summary > span {{ justify-content: center; }}
+  .st-key-foundry_account summary > span > div {{ flex: 0 1 auto; min-width: 0; width: auto; }}
+  .st-key-foundry_account summary [data-testid="stExpanderIcon"] {{ color: #f7d390; }}
+  .st-key-foundry_account summary::after {{
+    content: "Save your game across devices";
+    color: #c3d6e0;
+    font-size: 0.875rem;
+    text-transform: none;
   }}
   .foundry-fullscreen {{
     position: fixed;
