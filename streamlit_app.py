@@ -14,7 +14,8 @@ import exchange
 import innovation
 from place_names import localize_place_names, place_name
 from browser_game import (COLLISION_MAP, MONASTERY, OPEN_SITES, bag_full, next_move, STREET_LIFE, building_at, greeting, scene_for,
-                          entrance, place_vehicle_on_road, player_shapes, player_svg, street_event, street_input)
+                          entrance, place_vehicle_on_road, art_version, player_colors, player_shapes, player_svg, street_event,
+                          street_input)
 from journal_market import market_snapshot
 from journal_recipes import RECIPE_BY_KEY
 from lisbon_landmarks import LANDMARKS
@@ -33,6 +34,11 @@ PLACES = {site.name: site for site in OPEN_SITES}
 DEFAULT_DESTINATION = "No destination"
 ROOT = Path(__file__).resolve().parent
 street_map = declare_component("foundry_street", path=str(ROOT / "street"))
+
+
+@st.cache_resource
+def street_art_version():
+    return art_version(ROOT / "street")  # Read once per server start
 START_MESSAGE = "Buy materials, turn them into products, and sell them to grow your business."
 SAVE_ERRORS = (OSError, ValueError, KeyError, TypeError)
 
@@ -277,7 +283,8 @@ def play_street(site_inside=None):
     street_map(
         key="street_map", on_change=play, x=town.x, y=town.y, ack=ack,
         night=town.market_elapsed % DAY_SECONDS >= DAYLIGHT_SECONDS, facing=town.facing,
-        vehicle=town.vehicle, stowed_vehicle=town.stowed_vehicle, player=player_shapes(town.profile),
+        vehicle=town.vehicle, stowed_vehicle=town.stowed_vehicle, player=player_shapes(town.profile), player_colors=player_colors(town.profile),
+        art_version=street_art_version(),
         player_name="" if town.profile["name"] == "Player" else town.profile["name"], hint=hint,
         speed=town.movement_speed, collision=COLLISION_MAP, life=STREET_LIFE,
         cash=town.cash, on_bridge=town.bridge_journey is not None, ferry=st.session_state.get("ferry"),
@@ -808,10 +815,13 @@ def start_menu_card():
 
 def start_menu_rules():
     st.markdown(
-        "**Goal** · Start with $60 and grow to $500, then keep growing through trading, vehicles and "
-        "business ownership.\n\n"
+        "**Goal** · Start with $60. Sell your first product (Level 1), reach $500 (Level 2), then $2,000 "
+        "(Level 3), growing through trading, vehicles, a bigger warehouse and investments.\n\n"
         "**Controls** · Move with **WASD** or the **arrow keys**. Press **E** at a door to go inside and **Esc** "
-        "to leave. Inside: **E** buys, makes or sells, **Q** buys up to four.\n\n"
+        "to leave. Inside, click the buttons under the scene or press their keys: **E** buys, makes or sells, "
+        "**Q** buys up to four. **V** leaves or brings back your vehicle, **I** opens your inventory, **G** opens "
+        "Destination and **F** shows the route to the hint's building. Change your look in **Menu → Character**."
+        "\n\n"
         "**Trade route** · Buy materials at a yellow store, make products at a blue store, sell them at a green "
         "market. Example: wheat at Goldenfield Farm → bread at Sunrise Bakery → Daily Bread Market.\n\n"
         "**Getting around** · The ferry crosses the Tagus for $2 on foot; with a vehicle the bridges charge "

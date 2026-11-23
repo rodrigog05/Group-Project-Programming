@@ -552,3 +552,29 @@ def test_every_outfit_draws_a_figure_and_a_preview():
 
 def town_profile(app):
     return dict(app.session_state.town.profile)
+
+
+def test_art_version_changes_when_any_picture_changes(tmp_path):
+    from browser_game import art_version
+    (tmp_path / "scenes").mkdir()
+    (tmp_path / "map.webp").write_bytes(b"map")
+    (tmp_path / "scenes" / "farm.webp").write_bytes(b"farm")
+    (tmp_path / "street.js").write_text("code")
+    first = art_version(tmp_path)
+    (tmp_path / "street.js").write_text("other code")  # Not a picture: same version
+    assert art_version(tmp_path) == first
+    (tmp_path / "scenes" / "farm.webp").write_bytes(b"new farm")
+    assert art_version(tmp_path) != first
+
+
+def test_street_view_gets_the_rider_colours_and_art_version():
+    from browser_game import player_colors
+    from tycoon import BODY_COLORS, COSTUMES
+    app = new_app()
+    app.session_state.town.set_profile({"body": "Lilac", "costume": "Racer"})
+    app.run()
+    street = json.loads(next(iter(app.get("component_instance"))).proto.json_args)
+    assert street["player_colors"] == player_colors(app.session_state.town.profile)
+    assert street["player_colors"]["skin"] == BODY_COLORS["Lilac"]
+    assert street["player_colors"]["outfit"] == COSTUMES["Racer"][0]
+    assert isinstance(street["art_version"], str) and len(street["art_version"]) == 12
