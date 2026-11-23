@@ -8,6 +8,7 @@ function browser() {
   const sent = [];
   const listeners = {};
   const canvasListeners = {};
+  let clock = 0;
   const canvas = {
     addEventListener(name, callback) { canvasListeners[name] = callback; },
     getContext: () => ({}), clientWidth: 800, clientHeight: 450,
@@ -47,6 +48,7 @@ function browser() {
   };
   const scope = vm.createContext({
     window, document, Image, URL, location: { origin: "http://localhost" },
+    performance: { now: () => clock },
     localStorage: { getItem: () => null },
     ResizeObserver: class { observe() {} }, requestAnimationFrame() {}, setTimeout() {}, setInterval() {},
   });
@@ -64,7 +66,8 @@ function browser() {
   });
   receive({ ack: null });
   const press = key => canvasListeners.keydown({ key, preventDefault() {} });
-  return { run, receive, sent, document, press };
+  const setClock = now => { clock = now; };
+  return { run, receive, sent, document, press, setClock };
 }
 
 test("movement continues during Python latency, then replays unacknowledged input", () => {
@@ -232,6 +235,18 @@ test("an action waits behind movement and pause excludes inactive time", () => {
   b.document.activeElement = null;
   b.run("update(10000);");
   assert.equal(b.run("bufferedSeconds"), 0);
+});
+
+test("production countdown runs without map focus or new server messages", () => {
+  const b = browser();
+  b.setClock(1000);
+  b.receive({ production: [{ seconds: 4 }] });
+  b.document.activeElement = null;
+  b.run("pause()");
+  b.setClock(3000);
+  assert.equal(b.run("productionSecondsLeft(state.production[0])"), 2);
+  b.setClock(6000);
+  assert.equal(b.run("productionSecondsLeft(state.production[0])"), 0);
 });
 
 test("lake water blocks predicted movement while the shore stays walkable", () => {

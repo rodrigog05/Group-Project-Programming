@@ -66,6 +66,17 @@ cloud_session = st.session_state.get("cloud_session")
 cloud_store = CloudSave(cloud, cloud_session) if cloud and cloud_session else None
 
 
+def active_orders(town):
+    orders = [(trade.product, order) for trade, order in zip(TRADES, town.orders)]
+    orders.extend((recipe.product, town.industry_orders[role]) for role, recipe in ACTIVE_INDUSTRIES.items())
+    return [(product, order) for product, order in orders if order is not None]
+
+
+def start_production_clocks(town):
+    for _, order in active_orders(town):
+        order.start_wall_clock(town.elapsed)
+
+
 def load_game():
     town, revision = cloud_store.load() if cloud_store else (Town(), 0)
     if not revision:
@@ -85,6 +96,7 @@ if "town" not in st.session_state:
         st.stop()
 
 settle_retired_machinery(st.session_state.town)
+start_production_clocks(st.session_state.town)
 
 
 def act(operation, *args):
@@ -142,6 +154,7 @@ def button(label, operation, *args, key=None, **options):
 
 def interact(town, bulk=False):
     town.interact(bulk)
+    start_production_clocks(town)
     # Production timing belongs to the corner timer, not the action acknowledgement.
     message, timing, _ = town.message.partition(". Ready in ")
     if timing:
@@ -234,11 +247,9 @@ def district_exchange():
 
 def production_batches(town):
     """Uncollected batches, separate from the items already in the bag."""
-    orders = [(trade.product, order) for trade, order in zip(TRADES, town.orders)]
-    orders.extend((recipe.product, town.industry_orders[role]) for role, recipe in ACTIVE_INDUSTRIES.items())
     return [{"product": product, "quantity": order.quantity,
-             "seconds": max(0.0, order.ready_at - town.elapsed)}
-            for product, order in orders if order is not None]
+             "seconds": order.remaining(town.elapsed)}
+            for product, order in active_orders(town)]
 
 
 def play_street(site_inside=None):
@@ -481,7 +492,7 @@ def interior_view(site):
         if order is not None:
             view["speech"] = greeting(town, site)
             view["timer"] = {"product": TRADES[trade].product, "quantity": order.quantity,
-                             "seconds": max(0.0, order.ready_at - town.elapsed)}
+                             "seconds": order.remaining(town.elapsed)}
     return view
 
 
