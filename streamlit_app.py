@@ -183,6 +183,8 @@ def play_street(site_inside=None):
         hint = f"{pier.name} · Take the ferry for $2"
 
     def play():
+        if st.session_state.town.pending_level is not None:
+            return
         event = st.session_state.get("street_map")
         if not isinstance(event, dict):
             return
@@ -788,6 +790,10 @@ st.html(f"""
   .st-key-foundry_hud [data-testid="stProgress"] > div {{
     padding-bottom: 0;
   }}
+  section[role="dialog"]:has(.st-key-level_complete) {{
+    top: 50%;
+    transform: translateY(-50%);
+  }}
   section[role="dialog"]:has(.st-key-foundry_start) {{
     position: fixed !important;
     inset: 0 !important;
@@ -968,8 +974,8 @@ with st.container(key="foundry_hud"):
     day.metric("Day", town.day)
     with display:
         fullscreen_control("game")
-    goal = "Goal reached! Keep growing." if town.won else f"\\${town.cash:,} of the \\$500 goal"
-    goal_bar.progress(1.0 if town.won else max(0.0, min(town.cash / 500, 1.0)), text=goal)
+    goal, fraction = town.level_progress()
+    goal_bar.progress(float(fraction), text=goal.replace("$", "\\$"))
     with menu.popover("Menu", key=f"town_menu_{page}", width="stretch"):
         for label in PAGES:
             st.button(label, type="primary" if page == label else "secondary", width="stretch",
@@ -991,9 +997,28 @@ with st.container(key="foundry_hud"):
 def play_notices():
     if st.session_state.save_error:
         st.error(st.session_state.save_error)
-    if town.won and not town.milestone_acknowledged:
-        st.success("You reached the $500 cash milestone.")
-        button("Continue building", Town.continue_after_milestone)
+
+
+@st.dialog("Level complete", dismissible=False)
+def level_complete():
+    level = town.pending_level
+    with st.container(key="level_complete"):
+        st.subheader(f"Level {level} complete!")
+        st.write({
+            1: "You sold your first product! Next: reach $500 cash to complete Level 2.",
+            2: "You reached $500 cash! Continue to Level 3 and reach $2,000 cash?",
+            3: "You successfully completed the game! Good job!",
+        }[level])
+        label = {1: "Continue to Level 2", 2: "Continue to Level 3", 3: "Keep playing"}[level]
+        if st.button(label, type="primary"):
+            act(Town.acknowledge_level)
+            st.rerun()
+        if st.button("Return to start menu"):
+            if save_town(town):
+                st.session_state.show_menu = True
+                st.rerun()
+        if st.session_state.save_error:
+            st.error(st.session_state.save_error)
 
 
 if page == "Game":
@@ -1010,3 +1035,6 @@ if st.session_state.get("show_menu", True):
     start_menu()
 elif st.session_state.get("show_tutorial"):
     tutorial()
+
+elif town.pending_level is not None:
+    level_complete()

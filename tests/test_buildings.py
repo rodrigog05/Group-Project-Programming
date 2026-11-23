@@ -282,7 +282,8 @@ def test_warehouse_has_a_scene_and_the_farm_sells_only_wheat():
 
 def test_market_shows_four_route_cards_and_the_goal_bar(monkeypatch):
     app = new_app(monkeypatch)
-    assert "of the" in app.get("progress")[0].proto.text  # "$60 of the $500 goal"
+    assert app.get("progress")[0].proto.text == "LEVEL 1/3 · Sell a product 0/1"
+    assert app.get("progress")[0].proto.value == 0
     click(app, "Market & recipes")
     text = " ".join(markdown.value for markdown in app.markdown)
     for product in ("Tools", "Furniture", "Pottery", "Bread"):

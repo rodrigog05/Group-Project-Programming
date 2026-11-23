@@ -1,6 +1,6 @@
 # Foundry Town
 
-Foundry Town is a browser business tycoon set in Lisboa and Almada. Buy materials, make products, and sell them to reach $500. Keep growing with vehicles, a bigger warehouse and investments.
+Foundry Town is a browser business tycoon set in Lisboa and Almada. Buy materials, make products, and sell your first product to complete Level 1. Reach $500 for Level 2, then choose whether to continue to the $2,000 final goal. Keep growing with vehicles, a bigger warehouse and investments.
 
 **Play online:** https://foundrytown.streamlit.app/
 
@@ -39,7 +39,7 @@ Open the local URL printed by Streamlit. You start with $60 and 12 cargo slots. 
 
 The Lisbon start menu fills the browser with a looping waterfront scene from Core Edition. Boats and bridge traffic move through a two-minute day–night cycle. The browser plays the muted backdrop while the menu is open and displays a still image when reduced motion is enabled. Choose **New Game**, **Continue**, **Basics**, or **Rules & How to Play**. A new game opens **Basics**: five animated slides that show the goal and the player walking to a yellow BUY MATERIALS store, a blue MAKE PRODUCTS store and a green SELL PRODUCTS market, going inside with **E**, and getting around. Use **Back**, **Next** or **Skip**; **Basics** in the start menu replays it. The slides in `street/tutorial/` were drawn from the game's own map and store scenes. To reopen the start screen from the game, choose **Menu → Start menu**. Replacing your progress requires confirmation. Use **Fullscreen** from the menu or game and **Exit Fullscreen** or **Esc** to return to the browser window.
 
-Under **Menu**, **Game** opens the map. **Market & recipes** shows trading information. **Landmarks** describes Lisbon's monuments. With local or cloud saves, the same menu holds the save and reload buttons. The bar above the map shows cash, bag use including reserved slots, the current market day, and a progress bar toward the $500 goal.
+Under **Menu**, **Game** opens the map. **Market & recipes** shows trading information. **Landmarks** describes Lisbon's monuments. With local or cloud saves, the same menu holds the save and reload buttons. The bar above the map shows cash, bag use including reserved slots, the current market day, and a progress bar for the current level. A centered message appears after each of the three levels; acknowledged levels are saved with your game.
 
 Click or tab into the street map. Walk with **WASD** or the **arrow keys**. Press **E** at a marked entrance to go inside, or at a ferry pier to cross the Tejo (the crossing plays as an animation; click or **Esc** skips it). On the street, **Q** buys up to four units at a supplier. The buttons below the map provide touch controls. The original desktop guitar soundtrack is enabled by default and starts after your first interaction, as browsers require. Open **Settings** beside the map controls to turn **Music** off or on. The browser remembers your choice.
 

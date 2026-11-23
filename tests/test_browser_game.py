@@ -57,6 +57,9 @@ def test_browser_trade_loop_rejection_restart_and_session_isolation(tmp_path, mo
     monkeypatch.setenv("FOUNDRY_LOCAL_DB", str(tmp_path / "game.sqlite3"))
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     assert not app.exception
+    click(app, "New Game")
+    click(app, "Skip")
+    click(app, "Start playing")
     choose_place(app, "Goldenfield Farm")
     click_scene(app, "Buy up to 4 Wheat")
     assert app.metric[0].value == "$44"
@@ -73,6 +76,9 @@ def test_browser_trade_loop_rejection_restart_and_session_isolation(tmp_path, mo
     choose_place(app, "Daily Bread Market")
     click_scene(app, "Sell carried goods")
     assert app.metric[0].value == "$100"
+    assert app.session_state.town.pending_level == 1
+    click(app, "Continue to Level 2")
+    assert app.session_state.town.level_notices == 1
     choose_place(app, "Cacilhas Dealership")  # The only garage is across the Tejo
     press(app, "1")  # The motorcycle card
     assert app.metric[0].value == "$100"

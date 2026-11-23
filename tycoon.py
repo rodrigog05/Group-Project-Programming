@@ -252,6 +252,8 @@ class Town:
         self.facing = 1
         self.won = False
         self.milestone_acknowledged = False
+        self.level_notices = 0
+        self.final_goal_reached = False
         self.bag_size = BAG_SIZE
         self.warehouse_level = 0
         self.speed_until = 0
@@ -307,6 +309,38 @@ class Town:
         if sold:
             record_trade(self, next(site for site in SITES if site.role == "RESEARCH"), sold)
         return sold
+
+    @property
+    def first_product_sold(self):
+        return (sum(self.total_sold) + self.tier2_total_sold
+                + self.industry_total_sold["PASTELARIA"]
+                + sum(self.innovation["total_sold"].values())) > 0
+
+    @property
+    def pending_level(self):
+        goals = (self.first_product_sold, self.won, self.final_goal_reached)
+        level = self.level_notices
+        return level + 1 if level < 3 and goals[level] else None
+
+    def acknowledge_level(self):
+        level = self.pending_level
+        if level is None:
+            return
+        self.level_notices = level
+        if level == 2:
+            self.continue_after_milestone()
+
+    def level_progress(self):
+        if self.level_notices == 3:
+            return "ALL 3 LEVELS COMPLETE", 1
+        level = self.level_notices + 1
+        if level == 1:
+            sold = int(self.first_product_sold)
+            return f"LEVEL 1/3 · Sell a product {sold}/1", sold
+        goal = CASH_GOAL if level == 2 else 2000
+        reached = self.won if level == 2 else self.final_goal_reached
+        amount = goal if reached else max(0, min(self.cash, goal))
+        return f"LEVEL {level}/3 · ${amount:,} / ${goal:,}", amount / goal
 
     def continue_after_milestone(self):
         if not self.won:
@@ -661,6 +695,8 @@ class Town:
 
     def add_cash(self, amount, business=False):
         self.cash += amount
+        if self.cash >= 2000:
+            self.final_goal_reached = True
         if not business:
             self.other_income_today += amount
         if self.cash >= CASH_GOAL and not self.won:
@@ -1176,6 +1212,12 @@ def unpack_save(data):
     state["logistics"] = logistics.normalize_state(state.get("logistics"), SITES, businesses_state=state["businesses"])
     state["contracts"] = contracts.normalize_state(state.get("contracts"))
     state.setdefault("milestone_acknowledged", False)
+    state.setdefault("level_notices", 2 if state["milestone_acknowledged"] else 0)
+    state.setdefault("final_goal_reached", state["cash"] >= 2000)
+    if type(state["level_notices"]) is not int or not 0 <= state["level_notices"] <= 3:
+        raise ValueError("Invalid level progress in save")
+    if type(state["final_goal_reached"]) is not bool:
+        raise ValueError("Invalid final level state in save")
     state.setdefault("monastery_visits", 0)
     if type(state["monastery_visits"]) is not int or not 0 <= state["monastery_visits"] <= 4:
         raise ValueError("Invalid monastery visit bonus in save")
