@@ -323,6 +323,8 @@ def translated_map_signs(d, night):
             d.add(f'<image x="{x}" y="{y}" width="{tile.width}" height="{tile.height}" '
                   f'href="data:image/png;base64,{src}"/>')
 
+        # Erase the old garden legend using the neighbouring grass.
+        patch(im.crop((240, 1392, 380, 1393)).resize((140, 18)), 240, 1398)
         # Restore the quay behind the redundant, baked-in Cacilhas pier label.
         patch(im.crop((1317, 1090, 1318, 1106)).resize((70, 16)), 1318, 1090)
         # The building overlay covers the remainder of the old Almada label.
@@ -344,13 +346,6 @@ def translated_map_signs(d, night):
     sign(2150, 1515, 146, "SOUTH BANK FARMS", 12)
     sign(410, 729, 126, f"↑ LISBON · TOLL ${BRIDGE_TOLL}")
     sign(2135, 729, 140, f"↑ LISBON · TOLL ${BRIDGE_TOLL}")
-    sign(1910, 635, 58, "GARDEN")
-    sign(305, 1408, 108, "GARDEN · TUNNEL")
-    for (x, y), kind in SCENERY_PLOTS:
-        if kind == "park":
-            sign(x+88, y+94, 58, "GARDEN")
-        elif kind == "fountain":
-            sign(x+88, y+98, 58, "SQUARE")
 
 
 def map_wayfinding(d, night):
@@ -567,6 +562,8 @@ def city_svg(night=False):
     for site in SITES:
         if site.role not in COMPACT_ROLES and site.name not in CLOSED:
             legacy_building(d,site,night)
+    from public_spaces import draw_public_spaces
+    draw_public_spaces(d,night)
     continuous_roads(d,night)
     return d.svg()
 

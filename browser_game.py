@@ -18,6 +18,7 @@ COLLISION_MAP = {
     "world": [scene.WORLD_WIDTH, MAP_TOP, scene.WORLD_BOTTOM],
     "boxes": [list(box) for box in COLLISION_BOUNDS],
     "parks": [list(box) for box in scene.PARK_BOUNDS],
+    "lake": list(scene.LAKE),
     "tunnel": list(scene.SOUTH_PARK_TUNNEL),
     "river": [scene.RIVER_TOP, scene.RIVER_BOTTOM],
     "vasco": scene.VASCO_NORTH_X,

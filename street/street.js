@@ -265,6 +265,10 @@ function insideAny(boxes, x, y, r) {
 }
 
 function walkableTerrain(x, y, r, onFoot) {
+  if (state.collision.lake) {
+    const [cx, cy, rx, ry] = state.collision.lake;
+    if (((x - cx) / (rx + r)) ** 2 + ((y - cy) / (ry + r)) ** 2 <= 1) return false;
+  }
   const [riverTop, riverBottom] = state.collision.river;
   if (riverTop - r < y && y < riverBottom + r) {
     if (onFoot && onSand(x, y, r)) return !insideAny([state.collision.tower], x, y, r);
