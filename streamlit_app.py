@@ -891,11 +891,12 @@ st.html(f"""
   body:has(.st-key-exchange_floor) .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
     grid-template-columns: minmax(0, 1fr) auto auto;
   }}
-  body:has(.st-key-exchange_floor) .st-key-foundry_hud [data-testid="stColumn"]:is(:nth-child(1), :nth-child(3), :nth-child(4), :nth-child(5)) {{
+  body:has(.st-key-exchange_floor) .st-key-foundry_hud [data-testid="stColumn"]:is(:nth-child(1), :nth-child(3), :nth-child(4), :nth-child(5), :nth-child(6)) {{
     display: none;
   }}
-  body:has(.st-key-exchange_floor) .st-key-foundry_hud [data-testid="stColumn"]:is(:nth-child(2), :nth-child(6), :nth-child(7)) {{
+  body:has(.st-key-exchange_floor) .st-key-foundry_hud [data-testid="stColumn"]:is(:nth-child(2), :nth-child(7), :nth-child(8)) {{
     grid-row: 1;
+    grid-column: auto;
   }}
   .st-key-foundry_hud [data-testid="stProgress"] {{
     display: grid;
@@ -1124,7 +1125,23 @@ st.html(f"""
     gap: 0.375rem 0.75rem;
   }}
   .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
-    grid-template-columns: repeat(4, auto) minmax(8rem, 1fr) auto auto;
+    grid-template-columns: repeat(4, auto) minmax(8rem, 22rem) auto minmax(0, 1fr) auto auto;
+  }}
+  .st-key-foundry_hud [data-testid="stColumn"]:nth-child(7) {{ grid-column: 8; }}
+  .st-key-foundry_hud [data-testid="stColumn"]:nth-child(8) {{ grid-column: 9; }}
+  /* The Inventory button shows its key, I, as a small keyboard key */
+  .st-key-inventory [data-testid="stPopoverButton"] [data-testid="stMarkdownContainer"] p::after {{
+    content: "I";
+    display: inline-block;
+    margin-left: 0.5rem;
+    min-width: 1.15rem;
+    padding: 0 0.3rem;
+    border-radius: 4px;
+    background: #f4f1ea;
+    color: #2b2f36;
+    box-shadow: 0 2px 0 #a9a49a;
+    font: 700 0.72rem/1.15rem system-ui, sans-serif;
+    text-align: center;
   }}
   .st-key-foundry_route > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
     grid-template-columns: minmax(0, 1fr) minmax(10rem, 15rem) auto auto;
@@ -1142,12 +1159,12 @@ st.html(f"""
   }}
   @media (max-width: 740px) {{
     .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
-      grid-template-columns: repeat(4, auto) minmax(0, 1fr) auto;
+      grid-template-columns: repeat(4, auto) minmax(0, 1fr) auto auto;
     }}
-    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(5) {{
-      grid-column: 1 / -1;
-      grid-row: 2;
-    }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(5) {{ grid-row: 2; grid-column: 1 / 6; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(6) {{ grid-row: 2; grid-column: 6 / -1; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(7) {{ grid-row: 1; grid-column: 6; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(8) {{ grid-row: 1; grid-column: 7; }}
   }}
   @media (max-width: 560px) {{
     .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"],
@@ -1157,11 +1174,14 @@ st.html(f"""
     .st-key-foundry_hud > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
       grid-template-columns: minmax(0, 1fr) auto auto;
     }}
-    .st-key-foundry_hud [data-testid="stColumn"]:is(:nth-child(2), :nth-child(3), :nth-child(4)) {{
-      grid-row: 2;
-    }}
-    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(5) {{ grid-row: 3; }}
-    .st-key-foundry_hud [data-testid="stColumn"]:is(:nth-child(6), :nth-child(7)) {{ grid-row: 1; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(1) {{ grid-row: 1; grid-column: 1; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(2) {{ grid-row: 2; grid-column: 1; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(3) {{ grid-row: 2; grid-column: 2; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(4) {{ grid-row: 2; grid-column: 3; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(5) {{ grid-row: 3; grid-column: 1 / 3; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(6) {{ grid-row: 3; grid-column: 3; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(7) {{ grid-row: 1; grid-column: 2; }}
+    .st-key-foundry_hud [data-testid="stColumn"]:nth-child(8) {{ grid-row: 1; grid-column: 3; }}
     .st-key-foundry_route > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
       grid-template-columns: minmax(0, 1fr) auto;
     }}
@@ -1179,11 +1199,11 @@ PAGES = {"Game": places, "Market & recipes": market, "Landmarks": landmarks}
 if page not in PAGES:  # A page from an older version of the game
     page = st.session_state.town_page = "Game"
 with st.container(key="foundry_hud"):
-    title, cash, cargo, day, goal_bar, display, menu = st.columns(7, vertical_alignment="center")
+    title, cash, cargo, day, goal_bar, bag, display, menu = st.columns(8, vertical_alignment="center")
     title.title("Foundry Town")
     cash.metric("Cash", f"${town.cash:,}")
     cargo.metric("Bag", f"{town.cargo} / {town.carry_capacity}")
-    with cargo.popover("Inventory"):
+    with bag.popover("Inventory", key="inventory"):  # Next to the goal bar; I opens it (street.js)
         st.caption(f"{town.reserved} slots reserved for goods awaiting collection.")
         items = [(trade.supply, town.supplies[i]) for i, trade in enumerate(TRADES)]
         items += [(trade.product, town.goods[i]) for i, trade in enumerate(TRADES)]
