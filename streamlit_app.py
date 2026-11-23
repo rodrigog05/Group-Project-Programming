@@ -616,12 +616,6 @@ def tutorial():
         st.rerun()
 
 
-def open_tutorial():
-    st.session_state.show_menu = False
-    st.session_state.show_tutorial = True
-    st.session_state.tutorial_step = 0
-
-
 def close_tutorial():
     st.session_state.show_tutorial = False
     st.session_state.tutorial_step = 0
@@ -684,9 +678,6 @@ def start_menu_card():
         if cancel.button("Keep my progress"):
             st.session_state.confirm_restart = False
             st.rerun()
-    if st.button("Basics · how to play in 5 slides", width="stretch"):
-        open_tutorial()
-        st.rerun()
     with st.expander("Rules & How to Play"):
         st.markdown(
             "**Goal** · Start with $60 and grow to $500, then keep growing through trading, vehicles and "
