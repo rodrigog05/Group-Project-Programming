@@ -15,7 +15,7 @@ def choose_place(app, name):
     # AppTest does not run keyboard movement. Stage arrival, then send the same E event.
     from browser_game import entrance, street_event
     site = next(site for site in SITES if site.name == name)
-    app.selectbox[0].select(name).run()
+    app.selectbox(key="destination").select(name).run()
     app.session_state.town.x, app.session_state.town.y = entrance(site)
     app.session_state.inside = street_event(app.session_state.town,
         {"dx": 0, "dy": 0, "seconds": 0, "action": "interact"})
@@ -105,6 +105,31 @@ def test_pages_and_service_controls():
     assert not {"More", "Contracts", "Deliveries", "Businesses"} & {button.label for button in app.button}
     click(app, "Game")
     assert app.session_state.town_page == "Game"
+
+
+def test_exchange_shows_trade_controls_on_entry_and_can_buy_and_sell():
+    app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
+    click(app, "New Game")
+    click(app, "Skip")
+    click(app, "Start playing")
+    choose_place(app, "Bolsa de Lisboa")
+    assert any(heading.value == "Trade shares" for heading in app.subheader)
+    assert any(panel.label == "Share prices and holdings" for panel in app.expander)
+    assert any("0 owned" in caption.value for caption in app.caption)
+
+    click(app, "Buy shares")
+    assert app.metric[0].value == "$15"
+    assert any("1 owned" in caption.value for caption in app.caption)
+    click(app, "Buy shares")
+    assert app.metric[0].value == "$15"
+    assert "You need $45" in app.session_state.town.message
+
+    click(app, "Sell shares")
+    assert app.metric[0].value == "$55"
+    assert any("0 owned" in caption.value for caption in app.caption)
+    click(app, "Sell shares")
+    assert app.metric[0].value == "$55"
+    assert "You only own 0 shares" in app.session_state.town.message
 
 
 def test_crossing_rejects_unaffordable_ferry_and_charges_return_toll():

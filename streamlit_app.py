@@ -159,15 +159,22 @@ def show_directions(label):
 
 def district_exchange():
     rows = exchange.portfolio_rows(town)
-    st.dataframe([{k: row[k] for k in ("name", "ask", "bid", "owned", "cost_basis", "last_payout")}
-                  for row in rows], hide_index=True)
-    asset = st.selectbox("Investment", exchange.ASSETS, format_func=lambda item: item.name)
-    quantity = st.number_input("Shares", 1, asset.cap)
-    left, right = st.columns(2)
-    with left:
-        button("Buy shares", exchange.buy_shares, asset.symbol, quantity)
-    with right:
-        button("Sell shares", exchange.sell_shares, asset.symbol, quantity)
+    with st.container(border=True, width=760):
+        st.subheader("Trade shares")
+        investment, shares = st.columns((2, 1))
+        asset = investment.selectbox("Investment", exchange.ASSETS, format_func=lambda item: item.name)
+        quantity = shares.number_input("Shares", 1, asset.cap)
+        selected = next(row for row in rows if row["symbol"] == asset.symbol)
+        st.caption(f"Buy \\${selected['ask']:,} per share · Sell \\${selected['bid']:,} per share · "
+                   f"{selected['owned']} owned")
+        left, right = st.columns(2)
+        with left:
+            button("Buy shares", exchange.buy_shares, asset.symbol, quantity, width="stretch")
+        with right:
+            button("Sell shares", exchange.sell_shares, asset.symbol, quantity, width="stretch")
+        with st.expander("Share prices and holdings"):
+            st.dataframe([{key: row[key] for key in ("name", "ask", "bid", "owned", "cost_basis", "last_payout")}
+                          for row in rows], hide_index=True)
 
 
 def production_batches(town):
@@ -275,6 +282,9 @@ def places():
     )
     if st.session_state.pop("reset_destination", False) or arrived:
         st.session_state.destination = DEFAULT_DESTINATION
+    site_inside = PLACES.get(name, MONASTERY) if name else None
+    if site_inside is not None and site_inside != MONASTERY and site_inside.role == "EXCHANGE":
+        district_exchange()
     with st.container(key="foundry_route"):
         route_button, options, feedback = st.columns((2, 1, 4), vertical_alignment="center")
         with options.popover("Route options", width="stretch"):
@@ -288,7 +298,6 @@ def places():
                             on_click=st.session_state.update, kwargs={"destination": target})
         if town.message:
             feedback.info(localize_place_names(town.message))
-    site_inside = PLACES.get(name, MONASTERY) if name else None
     if site_inside is not None:
         building(site_inside)
     play_street(site_inside)
@@ -405,9 +414,6 @@ def building(site):
         return
     if site.role == "CASINO":
         st.caption(f"Monastery luck: your odds are {town.casino_luck}% better")
-    if site.role == "EXCHANGE":
-        with st.popover("Trade shares"):
-            district_exchange()
 
 
 CHIPS = (5, 10, 25, 50, 100)
