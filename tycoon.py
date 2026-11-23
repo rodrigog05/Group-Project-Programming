@@ -162,7 +162,7 @@ class Site:
 
 SITES = (
     Site("Iron Hill Mine", "SUPPLIER", 0, 1010, south(935), "#d6a46e"),
-    Site("Ironworks", "FACTORY", 0, 1280, south(935), "#ef8f76"),
+    Site("Ironworks", "FACTORY", 0, 2060, south(1430), "#ef8f76"),
     Site("Tool Market", "PUBLIC SHOP", 0, 508, 345, "#72d8bc"),
     Site("Pine Mill", "SUPPLIER", 1, 1280, 160, "#d6a46e"),
     Site("Oak Workshop", "FACTORY", 1, 268, 160, "#ef8f76"),
@@ -181,7 +181,7 @@ SITES = (
     Site("Estaleiro do Tejo", "SHIPYARD", -1, 380, south(935), "#94bdc9"),
     Site("Oriente Tool Market", "PUBLIC SHOP", 0, 1540, south(935), "#72d8bc"),
     Site("Mercado das Nações", "PUBLIC SHOP", 2, 2080, 530, "#d2a7e5"),
-    Site("Quinta de Palmela", "SUPPLIER", 3, 2060, south(1430), "#e3c77e"),
+    Site("Quinta de Palmela", "SUPPLIER", 3, 1280, south(935), "#e3c77e"),
     Site("Cacilhas Dealership", "GARAGE", -1, 1540, south(1180), "#86caff"),
     Site("Armazém do Seixal", "WAREHOUSE", -1, 2060, south(1180), "#d2a7e5"),
     Site("Bolsa de Lisboa", "EXCHANGE", -1, 508, 160, "#d7bb6e"),

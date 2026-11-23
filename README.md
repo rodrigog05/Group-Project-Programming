@@ -49,7 +49,7 @@ Press **E** at the **Lisbon Stock Exchange** to open the illustrated trading flo
 
 Shares you still own at market close pay **5%** of their closing value. Selling goods at a listed store raises only that store's share price by **10% at close**, once per game day. Claiming payment for a boat repair does the same for Tagus Shipyard. The game rounds the closing price and each store's total dividend to the nearest dollar, with 50¢ rounded up. Select **Leave** to return to the street and advance the market clock.
 
-The full tools route is on Margem Sul. Buy iron ore at **Iron Hill Mine**, make tools at **Ironworks**, and sell them at **Tool Market**. The three buildings are near the existing waterfront road. **The Pottery Shop** remains in Oriente. Shares from the retired duplicate listings transfer one-for-one to the remaining shop for that product, keeping their purchase cost and unpaid dividends.
+The full tools route is on Margem Sul. Buy iron ore at **Iron Hill Mine**, make tools at **Ironworks** in the former Palmela Farm plot, and sell them at **Tool Market** by the waterfront. **The Pottery Shop** remains in Oriente. Shares from the retired duplicate listings transfer one-for-one to the remaining shop for that product, keeping their purchase cost and unpaid dividends.
 
 The market clock and production run while the map has focus. Click outside the map to pause street play. Each day has 60 seconds of daylight followed by 60 seconds of night. The market settles every 120 game seconds. Trade shortcuts appear only within reach of the right supplier, with enough cash and free cargo space. On foot, the ferry costs $2. With a vehicle, bridges charge a $3 toll toward Lisbon.
 
@@ -128,7 +128,7 @@ The tests need no network, accounts or secrets.
 - Nova SBE opens a game-style classroom scene of three team members presenting Foundry Town to the professors, inspired by the supplied reference. It has no research or workshop controls.
 - To keep the town simple, the only car dealership is Cacilhas Dealership (your first vehicle needs a ferry ride), Foundry Warehouse is the only warehouse, and eggs and Pastéis de Belém were removed. The engine keeps these buildings for older saves; on the map their plots show apartment blocks and they cannot be entered.
 - Apartments replace Foundry Precision Works. When an older save opens, each carried or pending unit of Precision Machinery is converted to cash at that save's last machinery price, freeing the occupied and reserved bag slots. The conversion is recorded with the next normal save.
-- **Goldenfield Farm** is the only wheat supplier. Apartments replace Palmela Farm.
+- **Goldenfield Farm** is the only wheat supplier. Palmela Farm is retired.
 - Contracts, delivery routes and business ownership were taken out of the menus to keep the game simple. Research and advanced crafting were also retired from the browser menus; legacy innovation fields remain readable in saves. Their rules (`contracts.py`, `logistics.py`, `businesses.py`, `innovation.py`) remain in the engine, with their tests, because older saves still store their fields.
 
 ## How it could change

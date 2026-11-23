@@ -276,7 +276,7 @@ def test_closed_buildings_cannot_be_entered_and_are_not_destinations():
 
 def test_tools_route_buys_makes_and_sells_on_the_south_bank():
     from browser_game import OPEN_SITES, advance_clock
-    from lisbon_scene import RIVER_BOTTOM
+    from lisbon_scene import RIVER_BOTTOM, south
     from navigation import directions
     from tycoon import TRADES
 
@@ -284,6 +284,8 @@ def test_tools_route_buys_makes_and_sells_on_the_south_bank():
     town = app.session_state.town
     mine, works, market = (next(site for site in OPEN_SITES if site.name == name)
                            for name in ("Iron Hill Mine", "Ironworks", "Oriente Tool Market"))
+    assert (works.x, works.y) == (2060, south(1430))
+    assert (market.x, market.y) == (1540, south(935))
     assert [site.name for site in OPEN_SITES if site.role == "SUPPLIER" and site.trade == 3] == ["Goldenfield Farm"]
     for start, end in ((mine, works), (works, market)):
         town.x, town.y = entrance(start)
