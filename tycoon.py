@@ -145,7 +145,7 @@ RULES_TEXT = (
     "Each completed Almada-to-Lisbon bridge crossing costs $3. Outbound crossings and halfway turnarounds are free.\n\n"
     "TOWN & GOAL\n"
     "Each day lasts 5 minutes: 3 minutes of daylight and 2 minutes of night. Prices and customer demand "
-    "change daily. Reach $500 for the first milestone, then choose Continue building & researching to keep playing. "
+    "change daily. Sell your first product to complete Level 1. Reach $500 for Level 2, then choose whether to continue. Reach $2,000 to complete Level 3. "
     "Your progress saves automatically."
 )
 
@@ -385,6 +385,8 @@ class Town:
         self.facing = 1
         self.won = False
         self.milestone_acknowledged = False
+        self.level_notices = 0
+        self.final_goal_reached = False
         self.bag_size = BAG_SIZE
         self.warehouse_level = 0
         self.speed_until = 0
@@ -440,6 +442,38 @@ class Town:
         if sold:
             record_trade(self, next(site for site in SITES if site.role == "RESEARCH"), sold)
         return sold
+
+    @property
+    def first_product_sold(self):
+        return (sum(self.total_sold) + self.tier2_total_sold
+                + self.industry_total_sold["PASTELARIA"]
+                + sum(self.innovation["total_sold"].values())) > 0
+
+    @property
+    def pending_level(self):
+        goals = (self.first_product_sold, self.won, self.final_goal_reached)
+        level = self.level_notices
+        return level + 1 if level < 3 and goals[level] else None
+
+    def acknowledge_level(self):
+        level = self.pending_level
+        if level is None:
+            return
+        self.level_notices = level
+        if level == 2:
+            self.continue_after_milestone()
+
+    def level_progress(self):
+        if self.level_notices == 3:
+            return "ALL 3 LEVELS COMPLETE", 1
+        level = self.level_notices + 1
+        if level == 1:
+            sold = int(self.first_product_sold)
+            return f"LEVEL 1/3 · Sell a product {sold}/1", sold
+        goal = CASH_GOAL if level == 2 else 2000
+        reached = self.won if level == 2 else self.final_goal_reached
+        amount = goal if reached else max(0, min(self.cash, goal))
+        return f"LEVEL {level}/3 · ${amount:,} / ${goal:,}", amount / goal
 
     def continue_after_milestone(self):
         if not self.won:
@@ -759,6 +793,8 @@ class Town:
 
     def add_cash(self, amount, business=False):
         self.cash += amount
+        if self.cash >= 2000:
+            self.final_goal_reached = True
         if not business:
             self.other_income_today += amount
         if self.cash >= CASH_GOAL and not self.won:
@@ -1251,6 +1287,12 @@ def unpack_save(data):
     state["logistics"] = logistics.normalize_state(state.get("logistics"), SITES, businesses_state=state["businesses"])
     state["contracts"] = contracts.normalize_state(state.get("contracts"))
     state.setdefault("milestone_acknowledged", False)
+    state.setdefault("level_notices", 2 if state["milestone_acknowledged"] else 0)
+    state.setdefault("final_goal_reached", state["cash"] >= 2000)
+    if type(state["level_notices"]) is not int or not 0 <= state["level_notices"] <= 3:
+        raise ValueError("Invalid level progress in save")
+    if type(state["final_goal_reached"]) is not bool:
+        raise ValueError("Invalid final level state in save")
     state.setdefault("monastery_visits", 0)
     if type(state["monastery_visits"]) is not int or not 0 <= state["monastery_visits"] <= 4:
         raise ValueError("Invalid monastery visit bonus in save")
@@ -1594,18 +1636,18 @@ class Game:
         # Building interiors keep your production timers running while you wait inside.
         paused = (self.profile_window is not None and not self.interior_open) or self.casino_open
         focused = self.root.focus_displayof() is not None
-        if focused and (not self.town.won or self.town.milestone_acknowledged):
+        if focused and self.winner_window is None and self.town.pending_level is None:
             active_seconds = min(.25, max(0, dt))
             advance_city(self.town, active_seconds)
             self.town.advance_research(active_seconds)
             self.town.advance_deliveries(active_seconds)
             self.town.advance_contracts(active_seconds)
             self.town.advance_businesses(active_seconds)
-        if not paused and focused:
+        if not paused and focused and self.town.pending_level is None:
             self.town.advance(dt)
-        if self.town.won and not self.town.milestone_acknowledged and self.winner_window is None:
+        if self.town.pending_level is not None and self.winner_window is None:
             self.show_winner()
-        if not self.casino_open:
+        if not self.casino_open and self.winner_window is None:
             dx = int("d" in self.keys or "right" in self.keys) - int("a" in self.keys or "left" in self.keys)
             dy = int("s" in self.keys or "down" in self.keys) - int("w" in self.keys or "up" in self.keys)
             move_time = min(dt, 0.25)
@@ -1630,27 +1672,32 @@ class Game:
         self.town.interact()
 
     def show_winner(self):
+        level = self.town.pending_level
+        if level is None:
+            return
         self.keys.clear()
         if self.profile_window is not None:
             previous, self.profile_window = self.profile_window, None
             previous.destroy()
         panel = self.winner_window = tk.Toplevel(self.root)
         self.profile_window = panel
-        panel.title("Foundry Town Champion")
+        panel.title(f"Level {level} complete")
         panel.transient(self.root)
         panel.resizable(False, False)
-        panel.grab_set()
         frame = tk.Frame(panel, padx=40, pady=32, bg=INK)
         frame.pack()
-        tk.Label(frame, text="YOU ARE THE WINNER!", font=(FONT, 24, "bold"),
+        tk.Label(frame, text=f"LEVEL {level} COMPLETE!", font=(FONT, 24, "bold"),
                  bg=INK, fg=GOLD).pack(pady=(0, 12))
-        tk.Label(frame, text=f"Your business reached ${CASH_GOAL:,} on Day {self.town.day}.",
+        messages = {
+            1: "You sold your first product!\nNext: reach $500 cash to complete Level 2.",
+            2: "You reached $500 cash!\nContinue to Level 3 and reach $2,000 cash?",
+            3: "You successfully completed the game! Good job!",
+        }
+        tk.Label(frame, text=messages[level], wraplength=440, justify="center",
                  font=(FONT, 13), bg=INK, fg=WHITE).pack(pady=(0, 18))
-        tk.Label(frame, text="Continue growing: research at Nova SBE in Carcavelos\nand unlock advanced products.",
-                 font=(FONT, 11), bg=INK, fg=MUTED).pack(pady=(0, 18))
 
         def continue_playing():
-            self.town.continue_after_milestone()
+            self.town.acknowledge_level()
             self.winner_window = None
             if self.profile_window is panel:
                 self.profile_window = None
@@ -1659,15 +1706,14 @@ class Game:
             self.keys.clear()
             self.root.focus_set()
 
-        tk.Button(frame, text="Continue building & researching", command=continue_playing,
+        label = {1: "Continue to Level 2", 2: "Continue to Level 3", 3: "Keep playing"}[level]
+        tk.Button(frame, text=label, command=continue_playing,
                   bg=GOLD, fg=INK).pack(fill="x", pady=(0, 10))
         tk.Button(frame, text="Save and exit game", command=self.close).pack(fill="x")
-
-        def finish():
-            self.winner_window = None
-            self.close()
-
-        panel.protocol("WM_DELETE_WINDOW", finish)
+        panel.protocol("WM_DELETE_WINDOW", self.close)
+        self.center_settings_window()
+        panel.grab_set()
+        panel.focus_set()
 
     def close_casino(self):
         # Held keys stay recorded until released, so a held E does not reopen the casino.
@@ -2697,19 +2743,20 @@ class Game:
         if not self.casino_open:
             self.world_view.render(BODY_COLORS, HAIR_COLORS, COSTUMES)
         self.hud_label("day", 308, 30, f"DAY {town.day:02}", 14, WHITE, True)
-        progress = round(104*self.scale_x*fraction), town.cash, is_daytime
+        goal_label, goal_fraction = town.level_progress()
+        progress = round(104*self.scale_x*fraction), goal_fraction, is_daytime
         if progress != self.last_progress:
             self.canvas.coords(self.day_progress, 308*self.scale_x, 52*self.scale_y,
                                308*self.scale_x+progress[0], 59*self.scale_y)
             self.canvas.itemconfigure(self.day_progress, fill=MINT if is_daytime else GOLD)
             self.canvas.coords(self.cash_progress, 451*self.scale_x, 52*self.scale_y,
-                               (451+180*(1 if town.won else max(0, min(town.cash/CASH_GOAL, 1))))*self.scale_x, 59*self.scale_y)
+                               (451+180*goal_fraction)*self.scale_x, 59*self.scale_y)
             self.last_progress = progress
         minutes, seconds = divmod(max(0, math.ceil(duration-phase_elapsed)), 60)
         phase_name = "DAY" if is_daytime else "NIGHT"
         self.hud_label("phase", 308, 77, f"{phase_name} · {minutes}:{seconds:02} left", 9, MUTED)
         self.hud_label("cash", 451, 30, f"CASH  ${town.cash:,}", 14, GOLD, True)
-        self.hud_label("goal", 451, 77, "MILESTONE COMPLETE" if town.won else f"${CASH_GOAL} GOAL", 9, MUTED)
+        self.hud_label("goal", 451, 77, goal_label, 9, MUTED)
         reserved = f"   +{town.reserved} at factory" if town.reserved else ""
         cargo_label = "BAG + TRUNK" if town.vehicle else "BAG"
         self.hud_label("bag", 673, 25, f"{cargo_label}  {town.cargo}/{town.carry_capacity}{reserved}", 12, WHITE, True)
