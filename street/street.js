@@ -1258,8 +1258,32 @@ function frame(now) {
 }
 
 canvas.addEventListener("pointerdown", () => { ferry = null; });
+// I opens the Inventory popover above the map, from the map or anywhere on the page.
+function openInventory() {
+  for (const page of pageDocuments()) {
+    const button = page.querySelector(".st-key-inventory button");
+    if (button) {
+      button.click();
+      return true;
+    }
+  }
+  return false;
+}
+
+for (const page of pageDocuments()) {
+  page.addEventListener("keydown", (event) => {
+    if (event.key.toLowerCase() !== "i" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (typingOnPage() || dialogOpen()) return;
+    if (openInventory()) event.preventDefault();
+  });
+}
+
 canvas.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
+  if (key === "i" && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey && !ferry) {
+    if (openInventory()) event.preventDefault();
+    return;
+  }
   if (ferry) {
     if (key === "escape") ferry = null;
     event.preventDefault();
