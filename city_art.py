@@ -8,7 +8,7 @@ from html import escape
 from pathlib import Path
 
 from ferry import FERRY_FARE, FERRY_PIERS
-from lisbon_scene import NORTH_AVENUE_Y, NORTH_JUNCTIONS, NORTH_QUARTERS, SCENERY_PLOTS, north_avenue_outline
+from lisbon_scene import BRIDGE_TOLL, NORTH_AVENUE_Y, NORTH_JUNCTIONS, NORTH_QUARTERS, SCENERY_PLOTS, north_avenue_outline
 from tycoon import SITES
 from place_names import localize_place_names
 
@@ -295,6 +295,49 @@ def apartments(d, x, y, index, night):
     d.add('</g>')
 
 
+def translated_map_signs(d, night):
+    from base64 import b64encode
+    from io import BytesIO
+    from PIL import Image
+
+    # Repair the two labels baked into the old map before drawing them in clear ground.
+    time = "night" if night else "day"
+    with Image.open(Path(__file__).resolve().parent / "street" / f"world_100_{time}.webp") as im:
+        def patch(tile, x, y):
+            data = BytesIO()
+            tile.save(data, format="PNG")
+            src = b64encode(data.getvalue()).decode("ascii")
+            d.add(f'<image x="{x}" y="{y}" width="{tile.width}" height="{tile.height}" '
+                  f'href="data:image/png;base64,{src}"/>')
+
+        # The building overlay covers the remainder of the old Almada label.
+        patch(im.crop((195, 1088, 225, 1106)), 348, 1088)
+        # Match the kerb at the identical junction one block west. Keep the orchard
+        # silhouette by copying the neighbouring tree, above the shop's fascia.
+        patch(im.crop((1755, 1550, 1775, 1587)), 2015, 1550)
+        corner = im.crop((1747, 1550, 1776, 1587)).transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+        patch(corner, 2035, 1550)
+        patch(im.crop((2280, 1550, 2330, 1587)), 2064, 1550)
+        patch(im.crop((2240, 1565, 2252, 1583)).resize((120, 18)), 2114, 1565)
+
+    ink = "#fff2cb"
+    def sign(x, y, width, label, size=9):
+        d.rect(x-width/2, y-7, width, 15, "#294547", 3)
+        d.text(x, y+3, label, size, ink)
+
+    sign(210, 1106, 80, "ALMADA", 12)
+    sign(2150, 1515, 146, "SOUTH BANK FARMS", 12)
+    sign(410, 729, 126, f"↑ LISBON · TOLL ${BRIDGE_TOLL}")
+    sign(2135, 729, 140, f"↑ LISBON · TOLL ${BRIDGE_TOLL}")
+    sign(1910, 635, 58, "GARDEN")
+    sign(305, 1408, 108, "GARDEN · TUNNEL")
+    for (x, y), kind in SCENERY_PLOTS:
+        if kind == "park":
+            sign(x+88, y+94, 58, "GARDEN")
+        elif kind == "fountain":
+            sign(x+88, y+98, 58, "SQUARE")
+
+
 def map_wayfinding(d, night):
     """Update the streets and signs baked into the original browser map."""
     verge, curb, asphalt = (("#334946", "#666e68", "#47514f") if night else
@@ -321,6 +364,7 @@ def map_wayfinding(d, night):
 def city_svg(night=False):
     d = Drawing(2400, 1780)
     map_wayfinding(d, night)
+    translated_map_signs(d, night)
     for site in SITES:
         if site.name in CLOSED:
             continue

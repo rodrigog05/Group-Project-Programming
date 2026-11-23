@@ -250,8 +250,8 @@ class LisbonScene:
         middle = (RIVER_TOP+RIVER_BOTTOM)/2
         self.text(900, middle+30, "RIO TEJO", 23, "#d5edef", True, anchor="center")
         self.text(900, middle+54, "LISBOA  /  ALMADA", 8, "#587c81", anchor="center")
-        self.text(350, 729, f"↑ LISBOA · PORTAGEM ${BRIDGE_TOLL}", 7, "#3c5d61", True)
-        self.text(bridge_center(729, True)+35, 729, f"↑ LISBOA · ${BRIDGE_TOLL}", 7, "#3c5d61", True)
+        self.text(350, 729, f"↑ LISBON · TOLL ${BRIDGE_TOLL}", 7, "#3c5d61", True)
+        self.text(bridge_center(729, True)+35, 729, f"↑ LISBON · TOLL ${BRIDGE_TOLL}", 7, "#3c5d61", True)
 
     def expanded_north(self):
         self.rect(1200, 104, WORLD_WIDTH, RIVER_TOP, "#d9d7bf")
@@ -259,7 +259,7 @@ class LisbonScene:
             self.road((x, NORTH_AVENUE_Y, x, 660), 29)
         self.rect(*ORIENTE_PARK_BOUNDS, "#b7c5a0")
         self.line((1830, 610, 1910, 545, 1990, 610), "#ece3c7", 13, smooth=True)
-        self.text(1910, 635, "JARDIM", 7, "#5f7650", True, "center")
+        self.text(1910, 635, "GARDEN", 7, "#5f7650", True, "center")
         for x, y in ((1830, 550), (1985, 550), (1910, 615), (2300, 215),
                      (1260, 575), (1740, 555), (2300, 565), (2310, 390)):
             self.tree(x, y, 20)
@@ -338,7 +338,7 @@ class LisbonScene:
             self.rect(bench_x-11, bench_y-7, bench_x+11, bench_y-5, "#7a5c41")
         for tree_x, tree_y, size in ((across(26), y+70, 15), (across(150), y+36, 14), (across(92), y+30, 12)):
             self.tree(tree_x, tree_y, size)
-        self.text(x+88, bottom-10, "JARDIM", 7, "#5f7650", True, "center")
+        self.text(x+88, bottom-10, "GARDEN", 7, "#5f7650", True, "center")
 
     def fountain_square(self, x, y, index):
         """A paved praça with wavy calçada and a fountain in the middle."""
@@ -365,7 +365,7 @@ class LisbonScene:
         for lamp_x in (x+8, right-8):
             self.line((lamp_x, bottom-6, lamp_x, y+12), "#4a5455", 2)
             self.c.create_oval(lamp_x-4, y+6, lamp_x+4, y+14, fill="#f1e6c2", outline="", tags="city")
-        self.text(x+88, bottom-6, "PRAÇA", 7, "#5f6a6a", True, "center")
+        self.text(x+88, bottom-6, "SQUARE", 7, "#5f6a6a", True, "center")
 
     def light_scenery(self, glow):
         """Night pass for apartment windows, fountain lamps and lit water."""
@@ -399,7 +399,7 @@ class LisbonScene:
                 self.road_junction(x, y, 30, horizontal_width)
         self.text(1290, 1010, "CACILHAS", 20, "#65795e", True)
         self.text(2070, 1010, "SEIXAL", 20, "#65795e", True)
-        self.text(2020, 1392, "QUINTAS DA MARGEM SUL", 12, "#708461", True)
+        self.text(2090, 1335, "SOUTH BANK FARMS", 12, "#708461", True)
         for x in range(700, 1100, 35):
             self.line((x, 1430, x+12, 1520), "#aaab71", 7)
         for x, y in ((120, 1250), (250, 1400), (470, 1290), (90, 1510), (1470, 1420),
@@ -540,7 +540,7 @@ class LisbonScene:
         self.road((bridge_center(south(902), True), 902, VASCO_NORTH_X, 1058), 32)
         self.road_junction(300, 1058, 32, 24)
         self.road_junction(VASCO_NORTH_X, 1058, 32, 24)
-        self.text(350, 916, "ALMADA", 12, "#6c7f65", True)
+        self.text(175, 926, "ALMADA", 12, "#6c7f65", True)
         if any(site.role == "SHIPYARD" for site in self.sites):
             self.rect(458, 868, 478, 912, "#aa8b63")
             for y in range(870, 910, 7):
@@ -580,7 +580,7 @@ class LisbonScene:
             self.line((x-5, center_y, x+5, center_y), "#dfd0aa", 1, dash=(3, 3))
             self.rect(x-11, center_y-28, x+11, center_y-24, "#d7c59e")
             self.rect(x-11, center_y+24, x+11, center_y+28, "#d7c59e")
-        self.text((left+right)/2, SOUTH_PARK_BOUNDS[1]+18, "JARDIM · TÚNEL", 7, "#5e6c54", True, "center")
+        self.text((left+right)/2, SOUTH_PARK_BOUNDS[1]+18, "GARDEN · TUNNEL", 7, "#5e6c54", True, "center")
 
     @staticmethod
     def across_river(*fractions):
