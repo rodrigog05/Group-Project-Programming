@@ -17,7 +17,7 @@ Foundry Town is a browser business tycoon set in Lisboa and Almada. Buy material
 | Part | Choice | Why |
 |---|---|---|
 | Language | Python 3.12 | The course language. The game rules were already written in Python. |
-| Interface | Streamlit 1.66.0 | Runs Python in the browser with no separate front end, and deploys free on Streamlit Community Cloud. |
+| Interface | Streamlit 1.67.0 | Runs Python in the browser with no separate front end, and deploys free on Streamlit Community Cloud. |
 | Street map | A small Streamlit component (`street/`, HTML and JavaScript) | Streamlit has no keyboard-driven map, so this one view is custom. |
 | Progress | Streamlit Session State and Supabase | Guests play in session memory. Supabase stores permanent, per-account saves. |
 | Tests | pytest | The course's test tool. Streamlit's `AppTest` drives the real app in tests. |
@@ -82,7 +82,7 @@ Guests can play immediately in separate sessions. [Community Cloud deployment gu
 
 1. In your Supabase project, run [`supabase/foundry_saves.sql`](supabase/foundry_saves.sql) once in the SQL Editor. It creates one save row per player and enables row-level security so signed-in players can read and write their own row.
 2. Enable **Email** sign-in, new account signups, and email confirmations in Supabase Auth. Under **URL Configuration**, set **Site URL** to your public Streamlit URL. Players confirm their email and then return to the game to sign in. For public signups, configure a custom SMTP provider. The default Supabase mail service sends only to addresses on the project team and has a low rate limit. [Supabase SMTP guide](https://supabase.com/docs/guides/auth/auth-smtp)
-3. In Streamlit's **Secrets** settings, add these two top-level values using your project URL and **publishable key**. A private local deployment can also pass them as environment variables.
+3. In Streamlit's **Secrets** settings, add these two top-level values using your project URL and **publishable key**. To run with cloud saves on your own computer, copy [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example) to `.streamlit/secrets.toml` (ignored by git) and fill it in, or pass the same names as environment variables. The code reads them only by name, so the real values never appear in the repository.
 
    ```toml
    SUPABASE_URL = "https://YOUR_PROJECT_REF.supabase.co"
@@ -116,7 +116,9 @@ The tests need no network, accounts or secrets.
 ## Security and data
 
 - Guests can play without accounts. Supabase cloud saves require sign-in and the app uses a publishable key paired with the player's access token. `.env` files and Streamlit secrets are listed in `.gitignore`.
-- The only dependency is `streamlit`, pinned to an exact version in `requirements.txt`.
+- `requirements.txt` pins exact versions: `streamlit` and `pillow`, the image library Streamlit installs. Pillow is pinned to 13.0.0 because older versions have known security issues. Check for known vulnerabilities with `uvx pip-audit -r requirements.txt`; it reported none for these versions.
+- Secrets are read only by name from environment variables or `.streamlit/secrets.toml`, which is listed in `.gitignore`. `.streamlit/secrets.toml.example` shows the names with placeholder values. No key has ever been committed. If one is, revoke it in the Supabase dashboard straight away (deleting the commit is not enough), then put the new value in the local secrets file and the Streamlit Cloud settings.
+- Untrusted input is checked at the boundary: saves are validated field by field when loaded (unknown buildings, invalid amounts, character choices or level progress are rejected or reset to defaults), and map events from the browser are re-checked in Python for collisions, reach, cash and cargo before anything is traded or saved.
 - Guest progress is held in session memory. Supabase stores versioned game snapshots and enforces save ownership in the database.
 
 ## Known limits
@@ -127,6 +129,15 @@ The tests need no network, accounts or secrets.
 - To keep the town simple, the only car dealership is Cacilhas Dealership (your first vehicle needs a ferry ride), Foundry Warehouse is the only warehouse, and eggs and Pastéis de Belém were removed. The engine keeps these buildings for older saves; on the map their plots show apartment blocks and they cannot be entered.
 - Apartments replace Foundry Precision Works. When an older save opens, each carried or pending unit of Precision Machinery is converted to cash at that save's last machinery price, freeing the occupied and reserved bag slots. The conversion is recorded with the next normal save.
 - Contracts, delivery routes and business ownership were taken out of the menus to keep the game simple. Research and advanced crafting were also retired from the browser menus; legacy innovation fields remain readable in saves. Their rules (`contracts.py`, `logistics.py`, `businesses.py`, `innovation.py`) remain in the engine, with their tests, because older saves still store their fields.
+
+## How it could change
+
+- **Bring back retired features.** Contracts, delivery routes, business ownership and research are still in the engine (`contracts.py`, `logistics.py`, `businesses.py`, `innovation.py`) with their tests. Each could return as one new building or menu page, once the basic trade loop is easy for new players.
+- **Show the chosen look everywhere.** The building scenes are pre-drawn images, so the player inside them keeps the default look. Drawing the player on top of each scene in `street.js` (as the street view already does with `browser_game.player_shapes`) would fix this.
+- **Play together.** Each save belongs to one player. Shared markets or co-op trading would need real-time shared state, for example Supabase Realtime, and server-side checks on every trade between players.
+- **More of Lisbon and Almada.** New districts, routes and products follow the existing pattern: a `Site` in `tycoon.py`, a plot in `city_layout.py`, its art in `city_art.py`, and a scene in `street/scenes/`.
+- **Phones and tablets.** The touch buttons work, but the map is designed for a keyboard. A larger on-screen joystick and bigger in-scene buttons would make small screens comfortable.
+- **Automated checks.** A GitHub Actions workflow could run the pytest suite, the browser prediction tests (`node --test`) and `pip-audit` on every pull request, so main can never have a failing test.
 
 ## Project structure
 
