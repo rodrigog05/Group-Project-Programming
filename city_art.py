@@ -363,10 +363,76 @@ def map_wayfinding(d, night):
         d.text(pier.x, y+2.5, f"Ferry tickets €{FERRY_FARE}", 7.2, "#fff4ce")
 
 
+def bridge_connections(d, night):
+    """Continuous quay approaches, matching the deck and the playable road segments."""
+    import math
+    from lisbon_scene import (LisbonScene, RIVER_TOP, RIVER_BOTTOM, VASCO_NORTH_X,
+                              bridge_center, south)
+    curb = "#73827e" if night else "#b4ac98"
+    road = "#475957" if night else "#747a77"
+    deck = "#506566" if night else "#747e7e"
+    stone = "#81918b" if night else "#c3c9c1"
+    paint = "#d6cfad" if night else "#eee3c5"
+
+    def polygon(points, fill):
+        d.path("M"+"L".join(f'{x:.2f} {y:.2f}' for x,y in points)+"Z", fill)
+
+    def strip(a, b, width, fill):
+        dx,dy=b[0]-a[0],b[1]-a[1]
+        length=math.hypot(dx,dy)
+        nx,ny=-dy/length*width/2,dx/length*width/2
+        polygon(((a[0]+nx,a[1]+ny),(b[0]+nx,b[1]+ny),
+                 (b[0]-nx,b[1]-ny),(a[0]-nx,a[1]-ny)),fill)
+
+    def junction(x,y,vertical,horizontal):
+        for extra,fill in ((5,curb),(0,road)):
+            values=LisbonScene._cross_outline(x,y,vertical/2+extra,horizontal/2+extra,4)
+            polygon(list(zip(values[::2],values[1::2])),fill)
+
+    # Widen gently from the city street to the deck. The old narrow ramp ended
+    # against a broad, angled curb cap, making the north end appear disconnected.
+    x=VASCO_NORTH_X
+    start_y=RIVER_TOP-20
+    bx=bridge_center(start_y,True)
+    end_y=RIVER_TOP+22
+    ex=bridge_center(end_y,True)
+    for start_half,mid_half,end_half,fill in ((21,29,29,stone),(16,22.5,22.5,deck)):
+        polygon(((x-start_half,660),(x+start_half,660),(bx+mid_half,start_y),
+                 (ex+end_half,end_y),(ex-end_half,end_y),(bx-mid_half,start_y)),fill)
+    junction(x,660,29,35)
+    # The waterfront tram rails cross the road at grade rather than blocking it.
+    for y in (681,691):
+        d.path(f'M{x-19} {y}h44',stroke="#84938b" if night else "#91978c",width=1.2)
+    d.add(f'<path d="M{x} 678L{bx} {start_y}L{ex} {end_y}" fill="none" '
+          f'stroke="{paint}" stroke-width="1" stroke-dasharray="6 9"/>')
+
+    # Erase only the old land-side road. Its starting point was inside the deck,
+    # causing an offset at the join. Preserve the river and nearby vegetation.
+    d.add('<defs><clipPath id="south-bridge-land"><rect x="1800" y="1080" width="280" height="180"/></clipPath></defs>')
+    d.add('<g clip-path="url(#south-bridge-land)">')
+    strip((bridge_center(RIVER_BOTTOM+2,True),RIVER_BOTTOM+2),
+          (x,south(1058)),46,"#586668" if night else "#cfceb0")
+    d.add('</g>')
+    end=(bridge_center(RIVER_BOTTOM+19,True),RIVER_BOTTOM+19)
+    town=(x,south(1058))
+    for width,fill in ((42,curb),(32,road)):
+        d.path(f'M{end[0]} {end[1]}L{town[0]} {town[1]}',stroke=fill,width=width)
+    d.add(f'<path d="M{end[0]} {end[1]}L{town[0]} {town[1]}" fill="none" '
+          f'stroke="{paint}" stroke-width="1" stroke-dasharray="9 14"/>')
+    # Replace the final deck section over the repaired ramp, without a square gap.
+    a=(bridge_center(RIVER_BOTTOM-25,True),RIVER_BOTTOM-25)
+    strip(a,end,58,stone)
+    strip(a,end,45,deck)
+    d.add(f'<path d="M{a[0]} {a[1]}L{end[0]} {end[1]}" fill="none" '
+          f'stroke="{paint}" stroke-width="1" stroke-dasharray="6 9"/>')
+    junction(*town,32,24)
+
+
 def city_svg(night=False):
     d = Drawing(2400, 1780)
     map_wayfinding(d, night)
     translated_map_signs(d, night)
+    bridge_connections(d, night)
     for site in SITES:
         if site.name in CLOSED:
             continue

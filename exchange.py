@@ -62,6 +62,7 @@ def initial_state():
         "holdings": _zeros(),
         "cost_basis": _zeros(),
         "quotes": {asset.symbol: asset.base_price for asset in ASSETS},
+        "previous_quotes": {asset.symbol: asset.base_price for asset in ASSETS},
         "pending_cents": _zeros(),
         "total_dividends": _zeros(),
         "activity_today": {asset.symbol: {"city": 0, "player": 0} for asset in ASSETS},
@@ -109,6 +110,7 @@ def normalize_state(value):
         return item if isinstance(item, dict) else {}
 
     holdings, basis, quotes = mapping("holdings"), mapping("cost_basis"), mapping("quotes")
+    previous_quotes = mapping("previous_quotes")
     pending, dividends, activity = mapping("pending_cents"), mapping("total_dividends"), mapping("activity_today")
     for asset in ASSETS:
         symbol = asset.symbol
@@ -117,6 +119,9 @@ def normalize_state(value):
         result["cost_basis"][symbol] = _whole(basis.get(symbol), owned * asset.base_price) if owned else 0
         low, high = _quote_bounds(asset)
         result["quotes"][symbol] = min(high, max(low, _whole(quotes.get(symbol), asset.base_price)))
+        # Old saves have no previous close: start flat rather than inventing a gain.
+        result["previous_quotes"][symbol] = min(high, max(low, _whole(
+            previous_quotes.get(symbol), result["quotes"][symbol])))
         result["pending_cents"][symbol] = _whole(pending.get(symbol))
         result["total_dividends"][symbol] = _whole(dividends.get(symbol))
         counts = activity.get(symbol)
@@ -293,6 +298,7 @@ def settle_exchange(town, day):
         return 0
     statement = _statement()
     statement["day"] = day
+    state["previous_quotes"] = dict(state["quotes"])
     for asset in ASSETS:
         symbol = asset.symbol
         payout, cents = divmod(state["pending_cents"][symbol], 100)
@@ -331,10 +337,14 @@ def portfolio_rows(town):
         ask = state["quotes"][symbol]
         bid = max(1, ask * BID_PERCENT // 100)
         owned = state["holdings"][symbol]
+        previous = state.get("previous_quotes", {}).get(symbol, ask)
+        change = ask - previous
         counts = state["activity_today"][symbol]
         rows.append({
             "symbol": symbol, "name": asset.name, "kind": asset.kind,
             "description": asset.description, "ask": ask, "bid": bid,
+            "previous_close": previous, "day_change": change,
+            "day_change_percent": change / previous * 100,
             "owned": owned, "cap": asset.cap, "cost_basis": state["cost_basis"][symbol],
             "value": owned * bid, "pending_cents": state["pending_cents"][symbol],
             "activity": counts["city"] + counts["player"],
