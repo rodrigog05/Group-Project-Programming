@@ -42,6 +42,12 @@ save_path = os.environ.get("FOUNDRY_LOCAL_DB")
 def cloud_client():
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_PUBLISHABLE_KEY")
+    if not (url and key):
+        try:
+            url = url or st.secrets.get("SUPABASE_URL")
+            key = key or st.secrets.get("SUPABASE_PUBLISHABLE_KEY")
+        except FileNotFoundError:
+            pass
     if not url and not key:
         return None
     if not url or not key:
@@ -664,6 +670,7 @@ def start_menu_card():
     town = st.session_state.town
     can_continue = bool(st.session_state.revision or st.session_state.get("started"))
     st.caption(f"Continue with ${town.cash:,} in cash." if can_continue else "Start with $60 and a 12-slot bag.")
+    cloud_account()
     new, resume = st.columns(2)
     if new.button("New Game", width="stretch", type="primary"):
         if can_continue:
@@ -697,11 +704,12 @@ def start_menu_card():
             "market. Example: wheat at Goldenfield Farm → bread at Sunrise Bakery → Daily Bread Market.\n\n"
             "**Getting around** · The ferry crosses the Tagus for $2 on foot; with a vehicle the bridges charge "
             "$3 toward Lisbon. Choose **Route options → Destination** to see the route.".replace("$", "\\$"))
-    if cloud:
-        cloud_account()
 
 
 def cloud_account():
+    if not cloud:
+        st.caption("Cloud sign-in is unavailable on this server. You can still play as a guest.")
+        return
     if cloud_store:
         st.caption("Cloud saves are active.")
         if st.button("Sign out"):
@@ -855,7 +863,7 @@ st.html(f"""
     position: relative;
     z-index: 1;
     width: min(100%, 38rem);
-    margin: clamp(2rem, 50dvh - 6rem, 26rem) auto 2rem;
+    margin: clamp(1.5rem, 100dvh - 34rem, 26rem) auto 1.5rem;
     max-height: calc(100dvh - 3rem);
     overflow-y: auto;
     transition: margin-top 0.2s;
