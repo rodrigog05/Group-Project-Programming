@@ -148,8 +148,6 @@ window.addEventListener("message", (event) => {
   const alertId = next.alert ? next.alert.id : 0;
   if (lastAlertId !== null && alertId !== lastAlertId) alertBanner = { text: next.alert.text, start: performance.now() };
   lastAlertId = alertId;
-  timerBase = next.interior && next.interior.timer
-    ? { seconds: next.interior.timer.seconds, at: performance.now() } : null;
   controls.hidden = Boolean(next.interior);
   player = { x: next.x, y: next.y };
   facing = next.facing;
@@ -446,6 +444,7 @@ function draw() {
     drawWalker();
   }
   context.restore();
+  drawTimer();
   drawHint("street");
   drawAlert();
 }
@@ -920,7 +919,6 @@ function drawInterior() {
 }
 
 // ----- Overlays in screen pixels: the production countdown and the next-move hint -----
-let timerBase = null;
 let alertBanner = null;
 let lastAlertId = null;
 const ALERT_SECONDS = 3.5;
@@ -969,36 +967,38 @@ function card(x, y, width, height, border) {
 }
 
 function drawTimer() {
-  const timer = state.interior && state.interior.timer;
-  if (!timer || !timerBase) return;
-  // Python sends the remaining time with every update; count down smoothly in between.
-  const left = Math.max(0, timerBase.seconds - (performance.now() - timerBase.at) / 1000);
+  const timers = state.production || [];
+  if (!timers.length) return;
   const { width } = screenSpace();
-  const ready = left <= 0;
-  const text = ready ? timer.product + " ready! Press E" : timer.quantity + " " + timer.product + " · " + Math.ceil(left) + "s";
-  context.font = "bold 17px system-ui, sans-serif";
-  const boxWidth = context.measureText(text).width + 62;
-  const x = width - boxWidth - 14;
-  const top = 14;
-  card(x, top, boxWidth, 46, ready ? "#7ee0a1" : "#ffc66c");
-  // A small clock whose hand sweeps once per second.
-  const cx = x + 24;
-  const cy = top + 23;
-  context.strokeStyle = ready ? "#7ee0a1" : "#ffc66c";
-  context.lineWidth = 2.5;
-  context.beginPath();
-  context.arc(cx, cy, 11, 0, Math.PI * 2);
-  context.stroke();
-  const angle = ready ? -Math.PI / 2 : (left % 1) * Math.PI * 2 - Math.PI / 2;
-  context.beginPath();
-  context.moveTo(cx, cy);
-  context.lineTo(cx + 8 * Math.cos(angle), cy + 8 * Math.sin(angle));
-  context.stroke();
-  context.fillStyle = "#fff3dc";
-  context.textAlign = "left";
-  context.textBaseline = "middle";
-  context.fillText(text, x + 44, top + 24);
-  context.textBaseline = "alphabetic";
+  timers.forEach((timer, index) => {
+    // Use authoritative game time: production pauses when the map loses focus.
+    const left = Math.max(0, timer.seconds);
+    const ready = left <= 0;
+    const text = timer.quantity + " " + timer.product + (ready ? " · Ready to collect" : " · " + Math.ceil(left) + "s left");
+    context.font = "bold 17px system-ui, sans-serif";
+    const boxWidth = Math.min(width - 28, context.measureText(text).width + 62);
+    const x = width - boxWidth - 14;
+    const top = 14 + index * 54;
+    card(x, top, boxWidth, 46, ready ? "#7ee0a1" : "#ffc66c");
+    // A small clock whose hand sweeps once per second.
+    const cx = x + 24;
+    const cy = top + 23;
+    context.strokeStyle = ready ? "#7ee0a1" : "#ffc66c";
+    context.lineWidth = 2.5;
+    context.beginPath();
+    context.arc(cx, cy, 11, 0, Math.PI * 2);
+    context.stroke();
+    const angle = ready ? -Math.PI / 2 : (left % 1) * Math.PI * 2 - Math.PI / 2;
+    context.beginPath();
+    context.moveTo(cx, cy);
+    context.lineTo(cx + 8 * Math.cos(angle), cy + 8 * Math.sin(angle));
+    context.stroke();
+    context.fillStyle = "#fff3dc";
+    context.textAlign = "left";
+    context.textBaseline = "middle";
+    context.fillText(text, x + 44, top + 24, boxWidth - 54);
+    context.textBaseline = "alphabetic";
+  });
 }
 
 function drawHint(where) {

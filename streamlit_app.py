@@ -11,6 +11,7 @@ from streamlit.components.v1 import declare_component
 
 import businesses
 import exchange
+import innovation
 from place_names import localize_place_names, place_name
 from browser_game import (COLLISION_MAP, MONASTERY, OPEN_SITES, bag_full, next_move, STREET_LIFE, LocalSave, building_at, greeting, scene_for,
                           SaveConflict, entrance, place_vehicle_on_road, street_event, street_input)
@@ -172,6 +173,22 @@ def district_exchange():
         button("Sell shares", exchange.sell_shares, asset.symbol, quantity)
 
 
+def production_batches(town):
+    """Uncollected batches, separate from the items already in the bag."""
+    orders = [(trade.product, order) for trade, order in zip(TRADES, town.orders)]
+    orders.append(("Precision machinery", town.tier2_order))
+    orders.extend((INDUSTRIES[role].product, order) for role, order in town.industry_orders.items())
+    batches = [{"product": product, "quantity": order.quantity,
+             "seconds": max(0.0, order.ready_at - town.elapsed)}
+            for product, order in orders if order is not None]
+    for recipe in innovation.TIER3_RECIPES:
+        order = town.innovation["orders"][recipe.key]
+        if order:
+            batches.append({"product": recipe.product, "quantity": order["quantity"],
+                            "seconds": max(0.0, order["remaining"])})
+    return batches
+
+
 def play_street(site_inside=None):
     place_vehicle_on_road(town)
     nearby = town.nearby()
@@ -209,6 +226,7 @@ def play_street(site_inside=None):
         cash=town.cash, on_bridge=town.bridge_journey is not None, ferry=st.session_state.get("ferry"),
         station_bounds=ORIENTE_BOUNDS,
         alert=st.session_state.get("alert"),
+        production=production_batches(town),
         interior=interior_view(site_inside) if site_inside is not None else None,
         next_move=visible_next_move(st.session_state.get("inside")) if st.session_state.get("show_hints", True) else None,
         route=directions(town, destination_point(st.session_state.get("destination", DEFAULT_DESTINATION))),
@@ -970,7 +988,16 @@ with st.container(key="foundry_hud"):
     title, cash, cargo, day, goal_bar, display, menu = st.columns(7, vertical_alignment="center")
     title.title("Foundry Town")
     cash.metric("Cash", f"${town.cash:,}")
-    cargo.metric("Bag + reserved", f"{town.cargo + town.reserved} / {town.carry_capacity}")
+    cargo.metric("Bag", f"{town.cargo} / {town.carry_capacity}")
+    with cargo.popover("Inventory"):
+        st.caption(f"{town.reserved} slots reserved for goods awaiting collection.")
+        items = [(trade.supply, town.supplies[i]) for i, trade in enumerate(TRADES)]
+        items += [(trade.product, town.goods[i]) for i, trade in enumerate(TRADES)]
+        items += [("Eggs", town.eggs), ("Precision machinery", town.tier2_goods)]
+        items += [(INDUSTRIES[role].product, quantity) for role, quantity in town.industry_goods.items()]
+        items += [(recipe.product, town.innovation["goods"][recipe.key]) for recipe in innovation.TIER3_RECIPES]
+        for name, quantity in items:
+            st.text(f"{name}: {quantity}")
     day.metric("Day", town.day)
     with display:
         fullscreen_control("game")
