@@ -23,9 +23,9 @@ def shift_south(points):
 VASCO_NORTH_X = 2035
 NORTH_AVENUE_Y = 124
 NORTH_JUNCTIONS = (238, 478, 718, 958, 1225, 1495, 1775, VASCO_NORTH_X, 2350)
-NORTH_QUARTERS = ((115, "Belém Riverside"), (355, "Alcântara Loomworks"),
-                  (600, "Baixa Arcade"), (835, "Alfama Heights"), (1090, "Beato Foundries"),
-                  (1370, "Marvila Workshops"), (1900, "Oriente Gardens"))
+NORTH_QUARTERS = ((115, "BELÉM"), (355, "ALCÂNTARA"),
+                  (600, "BAIXA · CHIADO"), (835, "ALFAMA · GRAÇA"), (1090, "BEATO"),
+                  (1370, "MARVILA"), (1900, "PARQUE DAS NAÇÕES"))
 BRIDGE_TOLL = 3
 # Plots without a business are apartment blocks, small parks or fountain squares,
 # so they never look like a shop the player could use.
@@ -379,8 +379,8 @@ class LisbonScene:
         for x in south_verticals:
             for y, horizontal_width in ((1110, 34), (1370, 34), (1570, 34)):
                 self.road_junction(x, y, 30, horizontal_width)
-        self.text(1290, 1010, "GINJAL QUAYS", 17, "#65795e", True)
-        self.text(2070, 1010, "SEIXAL TIDE MILLS", 17, "#65795e", True)
+        self.text(1290, 1010, "CACILHAS", 20, "#65795e", True)
+        self.text(2070, 1010, "SEIXAL", 20, "#65795e", True)
         self.text(2020, 1392, "QUINTAS DA MARGEM SUL", 12, "#708461", True)
         for x in range(700, 1100, 35):
             self.line((x, 1430, x+12, 1520), "#aaab71", 7)

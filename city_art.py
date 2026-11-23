@@ -312,9 +312,6 @@ def map_wayfinding(d, night):
         d.add(f'<path d="M{left+18} {y}H{right-18}" stroke="#d8cda9" stroke-dasharray="9 14"/>')
     for x, name in NORTH_QUARTERS:
         d.text(x, 101, name, 14, ink)
-    for x, name in ((1290, "Ginjal Quays"), (2070, "Seixal Tide Mills")):
-        d.rect(x-4, 1175, 180, 32, "#293f43", 4)
-        d.text(x+86, 1197, name, 15, "#ffe7ad")
     for pier in FERRY_PIERS:
         _, top, _, bottom = pier.kiosk
         y = bottom-8 if pier.north else top+8
