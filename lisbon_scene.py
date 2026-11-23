@@ -4,6 +4,7 @@ import math
 import random
 from city_layout import ROAD_COLOR, apartment_bounds
 from lisbon_landmarks import draw_landmarks, light_landmarks
+from public_spaces import LAKE, LAKE_PLOT, garden_bounds, fountain_bounds, lake_blocked
 
 # The Tejo is wide enough that crossing takes a vehicle or the ferry. Everything on the
 # south bank sits SOUTH_SHIFT lower than it did when the river ended at y=900.
@@ -58,8 +59,8 @@ SOUTH_PARK_BOUNDS = (60, south(1210), 550, south(1530))
 # A covered east-west roadway passes beneath the south-bank garden.
 SOUTH_PARK_TUNNEL = (45, 565, south(1370), 17)
 ORIENTE_PARK_BOUNDS = (1810, 520, 2010, 640)
-PARK_BOUNDS = (SOUTH_PARK_BOUNDS, ORIENTE_PARK_BOUNDS) + tuple(
-    (x, y, x+176, y+104) for (x, y), kind in SCENERY_PLOTS if kind == "park"
+PARK_BOUNDS = (SOUTH_PARK_BOUNDS, ORIENTE_PARK_BOUNDS, LAKE_PLOT) + tuple(
+    garden_bounds(x,y) for (x, y), kind in SCENERY_PLOTS if kind == "park"
 )
 # A small low-tide foreshore meets the promenade beside the fixed tower.
 SAND_WEST, SAND_EAST = 55, 235
@@ -89,7 +90,7 @@ def vehicle_park_blocked(x, y, radius=10):
                for left, top, right, bottom in PARK_BOUNDS)
 SCENERY_BLOCKS = tuple(
     apartment_bounds(x,y) if kind == "flats"
-    else (x+FOUNTAIN_BASIN[0], y+FOUNTAIN_BASIN[1], x+FOUNTAIN_BASIN[2], y+FOUNTAIN_BASIN[3])
+    else fountain_bounds(x,y)
     for (x, y), kind in SCENERY_PLOTS if kind != "park"
 )
 
@@ -107,6 +108,8 @@ def bridge_at(x, y, radius=10):
 
 def walkable_terrain(x, y, radius=10, on_foot=False):
     """The river is only crossable on a bridge, and the bridges only carry vehicles."""
+    if lake_blocked(x,y,radius):
+        return False
     if RIVER_TOP - radius < y < RIVER_BOTTOM + radius:
         if on_foot and on_sand(x, y, radius):
             # The tower stays in its original position and remains solid.
@@ -118,6 +121,11 @@ def walkable_terrain(x, y, radius=10, on_foot=False):
 
 
 # These trees are rendered into the static day/night maps, outside doorways.
+NORTH_CURB_TREES = ((224,171),(462,168),(704,164),(944,167),(1180,164),
+                    (218,366),(461,365),(702,367),(939,365),
+                    (221,553),(460,553),(702,552),(941,552))
+SOUTH_BANK_TREES = ((120,1250),(250,1400),(470,1290),(90,1510),(1470,1420),
+                    (1940,1550),(2280,1300),(2300,1230),(1220,1510),(570,1450))
 STREET_TREES = (
     tuple((x, 697, 12) for x in range(60, WORLD_WIDTH-40, 80)
           if all(abs(x-bridge_center(697, eastern)) > 85 for eastern in (False, True)) and abs(x-660) > 140)
@@ -228,9 +236,7 @@ class LisbonScene:
         for site in self.sites:
             if site.y < RIVER_TOP:
                 self.building(site)
-        for x, y in ((224, 171), (462, 168), (704, 164), (944, 167), (1180, 164),
-                     (218, 366), (461, 365), (702, 367), (939, 365),
-                     (221, 553), (460, 553), (702, 552), (941, 552)):
+        for x, y in NORTH_CURB_TREES:
             self.tree(x, y, 11)
         self.river()
         with self.shifted(SOUTH_SHIFT):
@@ -260,7 +266,6 @@ class LisbonScene:
             self.road((x, NORTH_AVENUE_Y, x, 660), 29)
         self.rect(*ORIENTE_PARK_BOUNDS, "#b7c5a0")
         self.line((1830, 610, 1910, 545, 1990, 610), "#ece3c7", 13, smooth=True)
-        self.text(1910, 635, "GARDEN", 7, "#5f7650", True, "center")
         for x, y in ((1830, 550), (1985, 550), (1910, 615), (2300, 215),
                      (1260, 575), (1740, 555), (2300, 565), (2310, 390)):
             self.tree(x, y, 20)
@@ -339,7 +344,6 @@ class LisbonScene:
             self.rect(bench_x-11, bench_y-7, bench_x+11, bench_y-5, "#7a5c41")
         for tree_x, tree_y, size in ((across(26), y+70, 15), (across(150), y+36, 14), (across(92), y+30, 12)):
             self.tree(tree_x, tree_y, size)
-        self.text(x+88, bottom-10, "GARDEN", 7, "#5f7650", True, "center")
 
     def fountain_square(self, x, y, index):
         """A paved praça with wavy calçada and a fountain in the middle."""
@@ -366,7 +370,6 @@ class LisbonScene:
         for lamp_x in (x+8, right-8):
             self.line((lamp_x, bottom-6, lamp_x, y+12), "#4a5455", 2)
             self.c.create_oval(lamp_x-4, y+6, lamp_x+4, y+14, fill="#f1e6c2", outline="", tags="city")
-        self.text(x+88, bottom-6, "SQUARE", 7, "#5f6a6a", True, "center")
 
     def light_scenery(self, glow):
         """Night pass for apartment windows, fountain lamps and lit water."""
@@ -403,8 +406,7 @@ class LisbonScene:
         self.text(2090, 1335, "SOUTH BANK FARMS", 12, "#708461", True)
         for x in range(700, 1100, 35):
             self.line((x, 1430, x+12, 1520), "#aaab71", 7)
-        for x, y in ((120, 1250), (250, 1400), (470, 1290), (90, 1510), (1470, 1420),
-                     (1940, 1550), (2280, 1300), (2300, 1230), (1220, 1510), (570, 1450)):
+        for x, y in SOUTH_BANK_TREES:
             self.tree(x, y, 26)
 
     def night_lighting(self):
@@ -582,7 +584,6 @@ class LisbonScene:
             self.line((x-5, center_y, x+5, center_y), "#dfd0aa", 1, dash=(3, 3))
             self.rect(x-11, center_y-28, x+11, center_y-24, "#d7c59e")
             self.rect(x-11, center_y+24, x+11, center_y+28, "#d7c59e")
-        self.text((left+right)/2, SOUTH_PARK_BOUNDS[1]+18, "GARDEN · TUNNEL", 7, "#5e6c54", True, "center")
 
     @staticmethod
     def across_river(*fractions):

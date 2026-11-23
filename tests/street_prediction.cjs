@@ -83,7 +83,7 @@ test("night image is deferred and only requested at night", () => {
   const b = browser();
   assert.equal(b.run("night.src"), undefined);
   b.receive({ night: true });
-  assert.equal(b.run("night.src"), "world_100_night.webp");
+  assert.match(b.run("night.src"), /^world_100_night\.webp(?:\?v=[^&]+)?$/);
 });
 
 test("bulk buy is available only within reach with cash and cargo room", () => {
@@ -116,4 +116,13 @@ test("an action waits behind movement and pause excludes inactive time", () => {
   b.document.activeElement = null;
   b.run("update(10000);");
   assert.equal(b.run("bufferedSeconds"), 0);
+});
+
+test("lake water blocks predicted movement while the shore stays walkable", () => {
+  const { run } = browser();
+  run("state.collision.lake = [905, 1650, 185, 40]");
+  assert.equal(run("canWalk(905, 1650)"), false);
+  assert.equal(run("canWalk(905, 1699)"), false);
+  assert.equal(run("canWalk(905, 1715)"), true);
+  assert.equal(run("canWalk(667, 1650)"), true);
 });
