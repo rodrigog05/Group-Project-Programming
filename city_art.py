@@ -332,6 +332,9 @@ def translated_map_signs(d, night):
     for material, coords in CAPARICA_ART:
         points = zip(coords[::2], coords[1::2])
         d.path("M" + "L".join(f"{x} {RIVER_BOTTOM+y}" for x, y in points) + "Z", fill=beach[material])
+    # Reuse the painted portal at the new western edge of the garden.
+    with Image.open(Path(__file__).resolve().parent / "street" / f"world_100_{time}.webp") as im:
+        patch(im.crop((48, 1522, 73, 1579)), 126, 1522)
     beach_ink = "#f2e3bc" if night else "#645c43"
     d.text(52, 1178, "COSTA DA", 10, beach_ink)
     d.text(52, 1192, "CAPARICA", 13, beach_ink)

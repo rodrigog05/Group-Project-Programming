@@ -30,6 +30,8 @@ def north_avenue_outline(half_width, verge_width, bevel):
 
 # Caparica beach polygons, relative to the south shoreline and west of Cristo Rei.
 CAPARICA_ART = (
+    ("sand", (0, 140, 126, 140, 126, 700, 0, 700)),
+    ("sand", (126, 310, 138, 310, 138, 630, 126, 630)),
     # Sand ends at the kerbs and follows the western garden fence and tunnel portal.
     ("sand", (0, 0, 121, 0, 116, 24, 123, 55, 120, 88, 127, 115, 124, 141, 0, 141)),
     ("sand", (0, 175, 124, 175, 127, 188, 0, 188)),
@@ -85,9 +87,9 @@ SCENERY_PLOTS = (
 )
 FOUNTAIN_BASIN = (58, 26, 118, 74)  # Inside the 176 x 104 plot
 # Solid footprints: whole apartment blocks and fountain basins. Parks are walkable.
-SOUTH_PARK_BOUNDS = (60, south(1210), 550, south(1530))
+SOUTH_PARK_BOUNDS = (138, south(1210), 550, south(1530))
 # A covered east-west roadway passes beneath the south-bank garden.
-SOUTH_PARK_TUNNEL = (45, 565, south(1370), 17)
+SOUTH_PARK_TUNNEL = (126, 565, south(1370), 17)
 ORIENTE_PARK_BOUNDS = (1810, 520, 2010, 640)
 PARK_BOUNDS = (SOUTH_PARK_BOUNDS, ORIENTE_PARK_BOUNDS) + tuple(
     (x, y, x+176, y+104) for (x, y), kind in SCENERY_PLOTS if kind == "park"
@@ -422,7 +424,7 @@ class LisbonScene:
         """South-bank streets in the old layout's coordinates. Drawn inside shifted()."""
         self.rect(0, 1085, WORLD_WIDTH, WORLD_BOTTOM-SOUTH_SHIFT, "#c5c9a6")
         for y in (1110, 1370, 1570):
-            self.road((0, y, WORLD_WIDTH, y), 34)
+            self.road((143, y, WORLD_WIDTH, y), 34)
         south_verticals = (620, 1190, 1495, 1775, VASCO_NORTH_X, 2350)
         for x in south_verticals:
             self.road((x, 1060, x, 1580), 30)
@@ -434,7 +436,7 @@ class LisbonScene:
         self.text(2090, 1335, "SOUTH BANK FARMS", 12, "#708461", True)
         for x in range(700, 1100, 35):
             self.line((x, 1430, x+12, 1520), "#aaab71", 7)
-        for x, y in ((120, 1250), (250, 1400), (470, 1290), (90, 1510), (1470, 1420),
+        for x, y in ((168, 1250), (250, 1400), (470, 1290), (170, 1510), (1470, 1420),
                      (1940, 1550), (2280, 1300), (2300, 1230), (1220, 1510), (570, 1450)):
             self.tree(x, y, 26)
 
@@ -567,7 +569,7 @@ class LisbonScene:
         self.rect(0, OLD_RIVER_BOTTOM+2, WORLD_WIDTH, WORLD_BOTTOM-SOUTH_SHIFT, "#cfceb0")
         self.expanded_south()
         self.rect(0, OLD_RIVER_BOTTOM+2, WORLD_WIDTH, OLD_RIVER_BOTTOM+9, "#f1e8ce")
-        self.road((0, 1058, WORLD_WIDTH, 1058), 24)
+        self.road((138, 1058, WORLD_WIDTH, 1058), 24)
         self.road((300, 902, 300, 1058), 32)
         self.road((bridge_center(south(902), True), 902, VASCO_NORTH_X, 1058), 32)
         self.road_junction(300, 1058, 32, 24)
@@ -602,8 +604,8 @@ class LisbonScene:
     def south_garden(self):
         """The Almada garden and its road tunnel, in current coordinates."""
         self.rect(*SOUTH_PARK_BOUNDS, "#abbc8b")
-        self.line(shift_south((100, 1480, 300, 1250, 495, 1480)), "#e1d7b6", 22, smooth=True)
-        for x, y in ((120, 1250), (250, 1400), (470, 1290), (90, 1510), (570, 1450)):
+        self.line(shift_south((160, 1480, 300, 1250, 495, 1480)), "#e1d7b6", 22, smooth=True)
+        for x, y in ((168, 1250), (250, 1400), (470, 1290), (170, 1510), (570, 1450)):
             self.tree(x, south(y), 26)
         self.south_park_tunnel()
 
