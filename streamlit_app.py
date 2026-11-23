@@ -1234,8 +1234,10 @@ st.html(f"""
   .st-key-foundry_hud [data-testid="stColumn"]:nth-child(7) {{ margin-left: 1rem; }}
   .st-key-inventory {{ --key-label: "I"; }}
   .st-key-show_suggested_route {{ --key-label: "F"; }}
+  .st-key-destination {{ --key-label: "G"; }}
   :is(.st-key-inventory [data-testid="stPopoverButton"], .st-key-show_suggested_route button)
-    [data-testid="stMarkdownContainer"] p::after {{
+    [data-testid="stMarkdownContainer"] p::after,
+  .st-key-destination button::before {{
     content: var(--key-label);
     display: inline-block;
     margin-left: 0.5rem;
@@ -1247,6 +1249,10 @@ st.html(f"""
     box-shadow: 0 2px 0 #a9a49a;
     font: 700 0.72rem/1.15rem system-ui, sans-serif;
     text-align: center;
+  }}
+  .st-key-destination button::before {{
+    margin-left: 0;
+    margin-right: 0.35rem;
   }}
   .st-key-foundry_route > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {{
     grid-template-columns: minmax(0, 1fr) minmax(10rem, 15rem) auto auto;
