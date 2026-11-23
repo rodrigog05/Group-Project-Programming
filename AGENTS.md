@@ -37,6 +37,7 @@ Document current stack, app/test/deployment commands explicitly in `README.md`; 
 - Do not edit generated files, seed/deployed data, or destructively effective config unless explicitly required.
 - Never create, read, print, commit, or modify secrets; expose no credentials, tokens, passwords, private keys, or real personal data.
 - Keep `.env` and secret-bearing files out of version control. Document env-var names only with safe examples.
+- Read secrets only by name from environment variables or `.streamlit/secrets.toml`; never write a secret value in code, tests or docs. The secrets file is never committed (it is in `.gitignore`); `.streamlit/secrets.toml.example` lists the names with placeholder values. Before the first commit that uses a new secret, confirm with `git check-ignore` that its file is ignored.
 - No destructive actions against shared/prod/deployed resources without explicit confirmation.
 - Claim commands passed only when output proves it.
 
