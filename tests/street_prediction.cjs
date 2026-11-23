@@ -89,8 +89,7 @@ test("night image is deferred and only requested at night", () => {
 test("F activates the suggested route only when the button is available", () => {
   const b = browser();
   b.run(`
-    let routeClicks = 0;
-    const routeButton = { disabled: false, click() { routeClicks++; } };
+    const routeButton = { disabled: false };
     window.parent.document.querySelector = selector =>
       selector === ".st-key-show_suggested_route button" ? routeButton : null;
     const pressRoute = (options = {}) => handleHudShortcut({
@@ -98,12 +97,15 @@ test("F activates the suggested route only when the button is available", () => 
     });
   `);
   assert.equal(b.run("pressRoute()"), true);
+  assert.equal(b.run("queuedAction"), "toggle_suggested_route");
+  b.run("update(100)");
+  assert.equal(b.sent.at(-1).value.action, "toggle_suggested_route");
   assert.equal(b.run("pressRoute({ ctrlKey: true })"), false);
   assert.equal(b.run("pressRoute({ shiftKey: true })"), false);
   assert.equal(b.run("pressRoute({ repeat: true })"), false);
   assert.equal(b.run('window.parent.document.activeElement = { tagName: "INPUT" }; pressRoute()'), false);
   assert.equal(b.run("window.parent.document.activeElement = null; routeButton.disabled = true; pressRoute()"), false);
-  assert.equal(b.run("routeClicks"), 1);
+  assert.equal(b.run("queuedAction"), null);
 });
 
 test("G opens Destination without activating Show route", () => {
@@ -121,6 +123,37 @@ test("G opens Destination without activating Show route", () => {
   assert.equal(b.run('press("g", { ctrlKey: true })'), false);
   assert.equal(b.run('window.parent.document.activeElement = { tagName: "INPUT" }; press("g")'), false);
   assert.equal(b.run("opened"), 1);
+});
+
+test("G and I can close their own control after it takes keyboard focus", () => {
+  const b = browser();
+  b.run(`
+    const page = window.parent.document;
+    const destinationInput = { tagName: "INPUT" };
+    const inventoryDialog = {};
+    const destination = {
+      getAttribute() { return "true"; },
+      click() { this.closed = true; },
+    };
+    const inventory = {
+      getAttribute() { return "true"; },
+      click() { this.closed = true; },
+    };
+    page.querySelector = selector => ({
+      ".st-key-destination button": destination,
+      ".st-key-destination [role=combobox]": destinationInput,
+      ".st-key-inventory button": inventory,
+      '[role="dialog"]': inventoryOpen ? inventoryDialog : null,
+    })[selector] ?? null;
+    let inventoryOpen = false;
+    const press = key => handleHudShortcut({ key, preventDefault() {} });
+    page.activeElement = destinationInput;
+  `);
+  assert.equal(b.run('press("g")'), true);
+  assert.equal(b.run("destination.closed"), true);
+  assert.equal(b.document.activeElement, b.run("canvas"));
+  assert.equal(b.run('page.activeElement = inventory; inventoryOpen = true; press("i")'), true);
+  assert.equal(b.run("inventory.closed"), true);
 });
 
 test("bulk buy is available only within reach with cash and cargo room", () => {

@@ -22,9 +22,9 @@ def scene_labels(app):
     return {label: key for key, label in scene(app).get("keys", [])}
 
 
-def press(app, key):
+def press(app, key, *, action=None):
     component = next(iter(app.get("component_instance")))
-    event = {"segments": [{"dx": 0, "dy": 0, "seconds": 0}], "action": "leave" if key == "escape" else "building",
+    event = {"segments": [{"dx": 0, "dy": 0, "seconds": 0}], "action": action or ("leave" if key == "escape" else "building"),
              "key": key, "id": next(_ids)}
     states = app._tree.get_widget_states()
     state = WidgetState(id=component.proto.id)

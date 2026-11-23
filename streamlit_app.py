@@ -153,6 +153,7 @@ def warehouse(town):
 
 
 def show_directions(label):
+    clear_suggested_route()
     st.session_state.destination = label
     st.session_state.town_page = "Game"
     st.session_state.inside = None
@@ -255,6 +256,10 @@ def play_street(site_inside=None):
         event = st.session_state.get("street_map")
         if not isinstance(event, dict):
             return
+        if event.get("action") == "toggle_suggested_route":
+            act(street_event, {**event, "action": None})
+            toggle_suggested_route()
+            return
         if site_inside is not None and event.get("action") in ("leave", "building"):
             act(street_event, {**event, "action": None})  # The time spent inside still counts
             if event["action"] == "leave":
@@ -318,6 +323,22 @@ def destination_point(name):
     return entrance(site) if site else None
 
 
+def clear_suggested_route():
+    st.session_state.pop("destination_before_shortcut", None)
+
+
+def toggle_suggested_route():
+    if "destination_before_shortcut" in st.session_state:
+        st.session_state.destination = st.session_state.pop("destination_before_shortcut")
+        return
+    hint = next_move(st.session_state.town, st.session_state.get("inside"))
+    if st.session_state.get("show_hints", True) and hint and hint["target"]:
+        current = st.session_state.get("destination", DEFAULT_DESTINATION)
+        if current != hint["target"]:
+            st.session_state.destination_before_shortcut = current
+            st.session_state.destination = hint["target"]
+
+
 def places():
     name = st.session_state.get("inside")
     if not (name and building_at(town) == name):
@@ -328,6 +349,7 @@ def places():
         building_at(town) == destination or (town.x-point[0])**2 + (town.y-point[1])**2 <= 28**2
     )
     if st.session_state.pop("reset_destination", False) or arrived or (point is None and destination != DEFAULT_DESTINATION):
+        clear_suggested_route()
         st.session_state.destination = DEFAULT_DESTINATION
     site_inside = PLACES.get(name, MONASTERY) if name else None
     if site_inside is not None and site_inside != MONASTERY and site_inside.role == "EXCHANGE":
@@ -337,14 +359,21 @@ def places():
         # One row: the latest message, then Destination, Show route and the hints switch.
         feedback, choose, route_button, hints = st.columns((4, 2, 2, 1), vertical_alignment="center")
         destination = choose.selectbox("Destination", [DEFAULT_DESTINATION, *PLACES, MONASTERY],
-                                       format_func=place_name, key="destination", label_visibility="collapsed")
+                                       format_func=place_name, key="destination", label_visibility="collapsed",
+                                       on_change=clear_suggested_route)
         hints.toggle("💡 Show hints", value=True, key="show_hints")
         hint = next_move(town, name)
         target = hint and hint["target"]
-        route_button.button(f"Show route to {place_name(target)}" if target else "Show route", width="stretch",
+        shortcut_active = "destination_before_shortcut" in st.session_state
+        label = "Restore previous route" if shortcut_active else (
+            f"Show route to {place_name(target)}" if target else "Show route"
+        )
+        can_show_route = st.session_state.show_hints and target and target != destination
+        route_button.button(label, width="stretch",
                             key="show_suggested_route",
-                            disabled=not (st.session_state.show_hints and target and target != destination),
-                            on_click=st.session_state.update, kwargs={"destination": target})
+                            disabled=not (shortcut_active or can_show_route),
+                            on_click=toggle_suggested_route if shortcut_active else st.session_state.update,
+                            kwargs=None if shortcut_active else {"destination": target})
         if town.message:
             feedback.info(localize_place_names(town.message))
     if site_inside is not None:
