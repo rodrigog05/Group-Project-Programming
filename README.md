@@ -19,7 +19,7 @@ Foundry Town is a browser business tycoon set in Lisboa and Almada. Buy material
 | Language | Python 3.12 | The course language. The game rules were already written in Python. |
 | Interface | Streamlit 1.66.0 | Runs Python in the browser with no separate front end, and deploys free on Streamlit Community Cloud. |
 | Street map | A small Streamlit component (`street/`, HTML and JavaScript) | Streamlit has no keyboard-driven map, so this one view is custom. |
-| Saving | SQLite, optional | Built into Python and enough for one local player. |
+| Progress | Streamlit Session State and Supabase | Guests play in session memory. Supabase stores permanent, per-account saves. |
 | Tests | pytest | The course's test tool. Streamlit's `AppTest` drives the real app in tests. |
 | Commands | uv | Installs the pinned dependencies and runs the app and tests with one command. |
 
@@ -39,7 +39,7 @@ Open the local URL printed by Streamlit. You start with $60 and 12 cargo slots. 
 
 The Lisbon start menu fills the browser with a looping waterfront scene from Core Edition. Boats and bridge traffic move through a two-minute day–night cycle. The browser plays the muted backdrop while the menu is open and displays a still image when reduced motion is enabled. The **Play** tab has **New Game** and **Continue**, plus **Sign in / Create account** when cloud saves are configured. The **Rules & How to Play** tab lists the goal, controls, a trade route example and travel costs. A new game opens **Basics**, five animated slides that show how to trade, enter stores with **E**, and get around. Use **Back**, **Next** or **Skip**. The slides in `street/tutorial/` were drawn from the game's own map and store scenes. To reopen the start screen from the game, choose **Menu → Start menu**. Replacing your progress requires confirmation. Use **Fullscreen** from the menu or game and **Exit Fullscreen** or **Esc** to return to the browser window.
 
-Under **Menu**, **Game** opens the map. **Market & recipes** shows trading information. **Landmarks** describes Lisbon's monuments. With local or cloud saves, the same menu holds the save and reload buttons. The bar above the map shows cash, carried bag items (with reserved space listed separately in Inventory), the current market day, and a progress bar for the current level. A centered message appears after each of the three levels; acknowledged levels are saved with your game.
+Under **Menu**, **Game** opens the map. **Market & recipes** shows trading information. **Landmarks** describes Lisbon's monuments. Signed-in players can also save and reload cloud progress from this menu. The bar above the map shows cash, carried bag items (with reserved space listed separately in Inventory), the current market day, and a progress bar for the current level. A centered message appears after each of the three levels; acknowledged levels are saved with your game.
 
 Click or tab into the street map. Walk with **WASD** or the **arrow keys**. Press **E** at a marked entrance to go inside, or at a ferry pier to cross the Tejo (the crossing plays as an animation; click or **Esc** skips it). On the street, **Q** buys up to four units at a supplier. The buttons below the map provide touch controls. The original desktop guitar soundtrack is enabled by default and starts after your first interaction, as browsers require. Open **Settings** beside the map controls to turn **Music** off or on. The browser remembers your choice.
 
@@ -55,17 +55,13 @@ Vehicles drive on paved streets, bridges, and the Almada tunnel. Drive straight 
 
 Street movement and camera tracking render immediately in the browser. Movement is batched approximately every 200 ms, with one request in flight, and Python validates collisions before trading or saving. The browser reconciles each reply and replays unsent movement. Prediction buffers at most two seconds during a slow response. The compressed night map loads only when night is first shown.
 
-## Keep local progress
+## Vehicles
 
-Vehicles use the same side-view skins in the dealership and on the street. All four player vehicles drive 30% slower than before, on roads and off-road. Press **V** or **Leave vehicle** below the map to park your vehicle and walk; on a street, **V** or **Bring back vehicle** gets you back in. Owned rides remain available at the garage through **Drive · Free**, including after restoring a local save. Empty excess cargo and finish reserved orders before switching to your smaller walking bag. Leave bridges before dismounting.
+Vehicles use the same side-view skins in the dealership and on the street. All four player vehicles drive 30% slower than before, on roads and off-road. Press **V** or **Leave vehicle** below the map to park your vehicle and walk; on a street, **V** or **Bring back vehicle** gets you back in. Owned rides remain available at the garage through **Drive · Free**, including after restoring a cloud save. Empty excess cargo and finish reserved orders before switching to your smaller walking bag. Leave bridges before dismounting.
 
-Run a private instance bound to loopback:
+## Guest progress
 
-```sh
-FOUNDRY_LOCAL_DB=.local/game.sqlite3 uv run --python 3.12 --with-requirements requirements.txt streamlit run streamlit_app.py --server.address 127.0.0.1
-```
-
-`FOUNDRY_LOCAL_DB` selects one local autosave slot. Use **Menu → Reload local progress** to reopen that save. Choose a new path to start a fresh game or back up the database to keep progress. If two tabs edit the same slot, the older revision must reload before writing. A failed SQLite write leaves the current game state available for retry. The browser build starts fresh from its own save slot and does not import desktop saves.
+Guest progress lives in Streamlit Session State. Use **Continue** to resume from the start menu within the same session. Refreshing the browser, opening a separate tab, or restarting the server starts a new guest session. Sign in to keep progress across sessions.
 
 ## Publish on Streamlit Community Cloud
 
@@ -74,7 +70,7 @@ FOUNDRY_LOCAL_DB=.local/game.sqlite3 uv run --python 3.12 --with-requirements re
 3. Set **Main file path** to `streamlit_app.py`. Select Python 3.12 in advanced settings, then deploy.
 4. Open the assigned URL and run the first-trade walkthrough above. Open a separate private browser window and confirm it starts with $60.
 
-Guests can play immediately. Their progress lasts for their current browser session. Leave `FOUNDRY_LOCAL_DB` unset for a public instance so players have separate games. [Community Cloud deployment guide](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy)
+Guests can play immediately in separate sessions. [Community Cloud deployment guide](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy)
 
 ## Enable per-player cloud saves
 
@@ -87,7 +83,7 @@ Guests can play immediately. Their progress lasts for their current browser sess
    SUPABASE_PUBLISHABLE_KEY = "sb_publishable_YOUR_KEY"
    ```
 
-4. Open the start menu and choose **Sign in for cloud saves**. After signing in, **Continue** opens your cloud save. When an account has an empty save slot, signing in from a guest game carries that progress into the account. When the account already has a save, signing in opens that save.
+4. Open the start menu and choose **Sign in / Create account**. After signing in, **Continue** opens your cloud save. When an account has an empty save slot, signing in from a guest game carries that progress into the account. When the account already has a save, signing in opens that save.
 
 Trades and other explicit actions save immediately. Street movement and clock updates save about every 15 seconds while playing. **Menu → Save progress** saves your position before you close the tab. **Sign out** also saves before ending the session. If another tab has changed the save, use **Menu → Reload cloud progress** to continue from the latest revision. After closing the app or a server restart, sign in again and choose **Continue**. Play a test session in two separate accounts and verify their saves stay independent before sharing the deployed app.
 
@@ -97,39 +93,38 @@ From the repository root:
 
 ```sh
 uv run --python 3.12 --with-requirements requirements.txt --with pytest python -m pytest -q
+node --test tests/street_prediction.cjs
 ```
 
 The tests need no network, accounts or secrets.
 
 - **Game rules** (`tests/test_market.py`, `test_vehicles.py`, `test_contracts.py` and the other engine tests) cover trades, production, prices, vehicles, tolls, contracts, research, businesses and deliveries. They include rejected actions, such as buying without enough cash or space.
-- **Browser app** (`tests/test_browser_game.py`) tests the start menu and save replacement, a full trade loop, rejected purchases, separate player sessions, ferry fares and bridge tolls, and stale-save protection.
+- **Browser app** (`tests/test_browser_game.py`) tests New Game, Continue, progress replacement, a full trade loop, rejected purchases, separate guest sessions, ferry fares and bridge tolls.
+- **Cloud saves** (`tests/test_supabase_saves.py`) use a fake Supabase service to test authentication, saving and reloading, account separation, stale-save protection and session refresh.
 - **Street map** (`tests/test_street.py`) checks walking, collisions, entrances, cargo limits, the ferry, invalid input, and that cars stay on roads and pedestrians never step onto one.
 - **Buildings** (`tests/test_buildings.py`) check that every door opens its own building without trading, every scene image exists, E enters and Leave exits, destination selection never teleports or opens a store, casino spins pay by colour and reject unaffordable chips, the monastery's luck cap, and that cross-bank walking routes lead to the ferry.
 - **Casino and ferry rules** (`tests/test_casino.py`, `tests/test_ferry.py`) cover the roulette wheel and payouts, fares, failed trips and reaching every business on foot.
-- **Not covered by automated tests:** the JavaScript in `street/` (map drawing, the ferry animation and the browser's copy of the collision rules) and the deployed site. We check those by hand in a browser before the demo.
+- **Browser prediction** (`tests/street_prediction.cjs`) covers delayed-response reconciliation, action ordering, trade shortcuts and deferred night-map loading. The deployed site and visual rendering require a browser check.
 
 ## Security and data
 
-- Guests can play without accounts. Supabase cloud saves require sign-in and the app uses a publishable key paired with the player's access token. `.env` files, Streamlit secrets and SQLite saves are listed in `.gitignore`.
+- Guests can play without accounts. Supabase cloud saves require sign-in and the app uses a publishable key paired with the player's access token. `.env` files and Streamlit secrets are listed in `.gitignore`.
 - The only dependency is `streamlit`, pinned to an exact version in `requirements.txt`.
-- Guest progress is held in session memory. Signed-in cloud saves use the same versioned game snapshot as local saves. Supabase enforces ownership in the database.
-- Locally, `FOUNDRY_LOCAL_DB` turns on one SQLite save slot. All database queries are parameterized.
+- Guest progress is held in session memory. Supabase stores versioned game snapshots and enforces save ownership in the database.
 
 ## Known limits
 
 - Guest games reset on reload or when the server restarts. Players with cloud saves can sign in again to resume.
 - The soundtrack from the desktop version is not in the browser version. The exchange uses plain controls. Nova SBE opens a game-style classroom scene of three team members presenting Foundry Town to the professors, inspired by the supplied reference. It has no research or workshop controls.
 - To keep the town simple, the only car dealership is Cacilhas Dealership (your first vehicle needs a ferry ride), Foundry Warehouse is the only warehouse, and eggs and Pastéis de Belém were removed. The engine keeps these buildings for older saves; on the map their plots show apartment blocks and they cannot be entered.
-- One local save slot per `FOUNDRY_LOCAL_DB` path, meant for one player.
 - Contracts, delivery routes and business ownership were taken out of the menus to keep the game simple. Research and advanced crafting were also retired from the browser menus; legacy innovation fields remain readable in saves. Their rules (`contracts.py`, `logistics.py`, `businesses.py`, `innovation.py`) remain in the engine, with their tests, because older saves still store their fields.
 
 ## Project structure
 
-With Node.js installed, run `node --test tests/street_prediction.cjs` for browser prediction, delayed-response reconciliation, action ordering and deferred night-map checks.
-
 - `streamlit_app.py` contains game screens and event handlers.
 - `navigation.py` finds safe street routes and directs walkers to the ferry when crossing banks. Routes are cached and never change player position or cash.
-- `browser_game.py` adapts navigation, time, and persistence for the browser.
+- `browser_game.py` adapts navigation and simulation turns for the browser.
+- `supabase_saves.py` handles authentication and per-account cloud saves.
 - `tycoon.py` and the adjacent simulation modules hold game rules and state.
 - `street/` contains the browser map component and original day/night artwork; `street/scenes/` holds the building, casino, monastery and ferry scenes, drawn from the desktop game's own scene code (kept on the `desktop-game` branch).
 - `oriente_station.py` draws the station's branching steel canopy and glass platforms for day and night. Run `python oriente_station.py` to rebuild `street/oriente_day.svg` and `street/oriente_night.svg`; the street view and landmark map share this artwork.

@@ -28,8 +28,7 @@ def test_factory_hint_is_collect_only_without_countdown(trade, ready, full):
     assert "100s" not in hint
 
 
-def test_production_timer_is_separate_from_seller_recipe_and_hint(monkeypatch):
-    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
+def test_production_timer_is_separate_from_seller_recipe_and_hint():
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     town = app.session_state.town
     bakery = next(site for site in OPEN_SITES if site.name == "Sunrise Bakery")
@@ -61,8 +60,7 @@ def test_production_timer_is_separate_from_seller_recipe_and_hint(monkeypatch):
 
 
 @pytest.mark.parametrize("trade", range(len(TRADES)))
-def test_batch_quantity_countdown_and_carried_inventory(trade, monkeypatch):
-    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
+def test_batch_quantity_countdown_and_carried_inventory(trade):
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     town = app.session_state.town
     factory = next(site for site in OPEN_SITES if site.role == "FACTORY" and site.trade == trade)

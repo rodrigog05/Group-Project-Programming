@@ -3,7 +3,6 @@ from base64 import b64encode
 from copy import deepcopy
 import os
 from pathlib import Path
-import sqlite3
 from time import monotonic
 
 import streamlit as st
@@ -13,15 +12,15 @@ import businesses
 import exchange
 import innovation
 from place_names import localize_place_names, place_name
-from browser_game import (COLLISION_MAP, MONASTERY, OPEN_SITES, bag_full, next_move, STREET_LIFE, LocalSave, building_at, greeting, scene_for,
-                          SaveConflict, entrance, place_vehicle_on_road, street_event, street_input)
+from browser_game import (COLLISION_MAP, MONASTERY, OPEN_SITES, bag_full, next_move, STREET_LIFE, building_at, greeting, scene_for,
+                          entrance, place_vehicle_on_road, street_event, street_input)
 from journal_market import market_snapshot
 from journal_recipes import RECIPE_BY_KEY
 from lisbon_landmarks import LANDMARKS
 from ferry import FERRY_PIERS, nearby_pier
 from lisbon_scene import RIVER_BOTTOM
 from tourism import monument_description
-from supabase_saves import CloudSave, SignupError, Supabase
+from supabase_saves import CloudSave, SaveConflict, SignupError, Supabase
 from tycoon import DAY_SECONDS, DAYLIGHT_SECONDS, EGG_COST, INDUSTRIES, SITES, TRADES, ROULETTE_POCKETS, Town, roulette_color
 from vehicles import VEHICLES
 from navigation import directions
@@ -33,10 +32,9 @@ DEFAULT_DESTINATION = "No destination"
 ROOT = Path(__file__).resolve().parent
 street_map = declare_component("foundry_street", path=str(ROOT / "street"))
 START_MESSAGE = "Buy materials, turn them into products, and sell them to grow your business."
-SAVE_ERRORS = (OSError, sqlite3.Error, ValueError, KeyError, TypeError)
+SAVE_ERRORS = (OSError, ValueError, KeyError, TypeError)
 
 st.set_page_config(page_title="Foundry Town", layout="wide")
-save_path = os.environ.get("FOUNDRY_LOCAL_DB")
 
 
 def cloud_client():
@@ -54,14 +52,13 @@ def cloud_client():
         return None
 
 
-cloud = None if save_path else cloud_client()
+cloud = cloud_client()
 cloud_session = st.session_state.get("cloud_session")
 cloud_store = CloudSave(cloud, cloud_session) if cloud and cloud_session else None
-store = LocalSave(save_path) if save_path else cloud_store
 
 
 def load_game():
-    town, revision = store.load() if store else (Town(), 0)
+    town, revision = cloud_store.load() if cloud_store else (Town(), 0)
     if not revision:
         town.message = START_MESSAGE
     st.session_state.town = town
@@ -116,10 +113,10 @@ def save_town(candidate, *, checkpoint=False):
     if cloud_store:
         st.session_state.next_cloud_checkpoint = monotonic() + 15
     try:
-        if store:
-            st.session_state.revision = store.save(candidate, st.session_state.revision)
+        if cloud_store:
+            st.session_state.revision = cloud_store.save(candidate, st.session_state.revision)
     except SaveConflict:
-        st.session_state.cloud_conflict = bool(cloud_store)
+        st.session_state.cloud_conflict = True
         st.session_state.save_error = "Another tab updated this save. Reload progress before continuing."
         return
     except SAVE_ERRORS:
@@ -1095,12 +1092,11 @@ with st.container(key="foundry_hud"):
                       on_click=st.session_state.update, kwargs={"town_page": label})
         st.button("Start menu", width="stretch",
                   on_click=st.session_state.update, kwargs={"show_menu": True})
-        if store:
-            if cloud_store and st.button("Save progress", width="stretch"):
+        if cloud_store:
+            if st.button("Save progress", width="stretch"):
                 if save_town(town):
                     st.toast("Progress saved.")
-            reload_label = "Reload cloud progress" if cloud_store else "Reload local progress"
-            if st.button(reload_label, width="stretch"):
+            if st.button("Reload cloud progress", width="stretch"):
                 try:
                     load_game()
                     st.rerun()

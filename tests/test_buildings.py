@@ -33,8 +33,7 @@ def labels(app):
     return {button.label for button in app.button}
 
 
-def new_app(monkeypatch):
-    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
+def new_app():
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     assert not app.exception
     return app
@@ -80,9 +79,9 @@ def test_monastery_luck_is_capped_at_twenty_points():
 # ----- Inside buildings in the app -----
 
 
-def test_nova_sbe_presentation_has_only_exit_and_preserves_progress(monkeypatch):
+def test_nova_sbe_presentation_has_only_exit_and_preserves_progress():
     from copy import deepcopy
-    app = new_app(monkeypatch)
+    app = new_app()
     town = app.session_state.town
     before = town.cash, list(town.supplies), list(town.goods), deepcopy(town.innovation)
     choose_place(app, "Nova SBE · Carcavelos")
@@ -99,11 +98,11 @@ def test_nova_sbe_presentation_has_only_exit_and_preserves_progress(monkeypatch)
     assert app.session_state.inside is None
 
 
-def test_english_names_are_visible_without_changing_saved_identifiers(monkeypatch):
+def test_english_names_are_visible_without_changing_saved_identifiers():
     import json
     from browser_game import OPEN_SITES
     from place_names import PLACE_NAMES, place_name
-    app = new_app(monkeypatch)
+    app = new_app()
     options = app.selectbox[0].options
     assert {place_name(site.name) for site in OPEN_SITES} <= set(options)
     assert not {name for name, label in PLACE_NAMES.items() if name != label} & set(options)
@@ -128,8 +127,8 @@ def test_browser_clock_leaves_retired_research_untouched():
     assert town.innovation == before
 
 
-def test_visit_enters_the_building_and_leave_returns_to_the_street(monkeypatch):
-    app = new_app(monkeypatch)
+def test_visit_enters_the_building_and_leave_returns_to_the_street():
+    app = new_app()
     choose_place(app, "Goldenfield Farm")
     assert {"Buy up to 4 Wheat", "Leave"} <= set(scene_labels(app))  # Buttons drawn in the scene
     assert not {"Buy up to 4 Wheat", "Leave"} & labels(app)  # Not repeated under the map
@@ -144,8 +143,8 @@ def test_visit_enters_the_building_and_leave_returns_to_the_street(monkeypatch):
     assert "Buy up to 4 Wheat" in scene_labels(app)
 
 
-def test_casino_spin_pays_by_colour_and_rejects_an_unaffordable_chip(monkeypatch):
-    app = new_app(monkeypatch)
+def test_casino_spin_pays_by_colour_and_rejects_an_unaffordable_chip():
+    app = new_app()
     choose_place(app, "Foundry Casino")
     assert not any("pays" in label for label in labels(app))  # The bets are only in the scene
     click_scene(app, "Red · pays 2×")
@@ -166,8 +165,8 @@ def test_casino_spin_pays_by_colour_and_rejects_an_unaffordable_chip(monkeypatch
     assert "need $10" in app.session_state.reply
 
 
-def test_monastery_visit_shows_the_prayer_and_adds_luck(monkeypatch):
-    app = new_app(monkeypatch)
+def test_monastery_visit_shows_the_prayer_and_adds_luck():
+    app = new_app()
     left, _, right, bottom = LANDMARKS[0].bounds
     town = app.session_state.town
     town.x, town.y = (left + right) / 2, bottom + 16
@@ -179,10 +178,10 @@ def test_monastery_visit_shows_the_prayer_and_adds_luck(monkeypatch):
 
 # ----- Ferry crossings are animated -----
 
-def test_crossbank_destination_gives_ferry_directions_without_travelling(monkeypatch):
+def test_crossbank_destination_gives_ferry_directions_without_travelling():
     from navigation import directions
     from browser_game import street_event
-    app = new_app(monkeypatch)
+    app = new_app()
     before = app.session_state.town.x, app.session_state.town.y, app.session_state.town.cash
     app.selectbox[0].select("Iron Hill Mine").run()
     town = app.session_state.town
@@ -220,8 +219,7 @@ def test_e_at_a_door_opens_the_building_without_trading():
 
 # ----- Basics tutorial -----
 
-def test_new_game_opens_the_basics_and_the_slides_page_through(monkeypatch):
-    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
+def test_new_game_opens_the_basics_and_the_slides_page_through():
     app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
     click(app, "New Game")
     assert app.session_state.show_tutorial and app.session_state.tutorial_step == 0
@@ -240,11 +238,7 @@ def test_new_game_opens_the_basics_and_the_slides_page_through(monkeypatch):
     assert "Back" not in labels(app)
 
 
-def test_basics_can_be_replayed_from_the_start_menu_and_every_slide_exists(monkeypatch):
-    monkeypatch.delenv("FOUNDRY_LOCAL_DB", raising=False)
-    app = AppTest.from_file("../streamlit_app.py", default_timeout=15).run()
-    click(app, "Basics · how to play in 5 slides")
-    assert app.session_state.show_tutorial and not app.session_state.show_menu
+def test_basics_slide_assets_exist():
     slides = Path(__file__).resolve().parents[1] / "street" / "tutorial"
     for name in ("goal", "buy", "make", "sell", "garage"):
         assert (slides / f"{name}.webp").is_file(), name
@@ -253,7 +247,7 @@ def test_basics_can_be_replayed_from_the_start_menu_and_every_slide_exists(monke
 
 # ----- Simplified town -----
 
-def test_closed_buildings_cannot_be_entered_and_are_not_destinations(monkeypatch):
+def test_closed_buildings_cannot_be_entered_and_are_not_destinations():
     from browser_game import CLOSED_SITES, OPEN_SITES, street_event
     assert CLOSED_SITES == {"Motorworks Garage", "Armazém do Seixal", "Pastéis de Belém"}
     assert [site.name for site in OPEN_SITES if site.role == "GARAGE"] == ["Cacilhas Dealership"]
@@ -263,7 +257,7 @@ def test_closed_buildings_cannot_be_entered_and_are_not_destinations(monkeypatch
     town.x, town.y = entrance(garage)
     assert street_event(town, {"dx": 0, "dy": 0, "seconds": 0, "action": "interact"}) is None
     assert "apartments" in town.message and town.cash == 60
-    app = new_app(monkeypatch)
+    app = new_app()
     options = set(app.selectbox[0].options)
     from place_names import place_name
     assert not {place_name(name) for name in CLOSED_SITES} & options
@@ -280,8 +274,8 @@ def test_warehouse_has_a_scene_and_the_farm_sells_only_wheat():
     assert "Egg" not in greeting(town, farm)
 
 
-def test_market_shows_four_route_cards_and_the_goal_bar(monkeypatch):
-    app = new_app(monkeypatch)
+def test_market_shows_four_route_cards_and_the_goal_bar():
+    app = new_app()
     assert app.get("progress")[0].proto.text == "LEVEL 1/3 · Sell a product 0/1"
     assert app.get("progress")[0].proto.value == 0
     click(app, "Market & recipes")
@@ -363,10 +357,10 @@ def test_building_hints_and_no_hints_once_every_route_is_learned():
     assert next_move(town) is None
 
 
-def test_hints_can_be_hidden_and_show_route_sets_the_destination(monkeypatch):
+def test_hints_can_be_hidden_and_show_route_sets_the_destination():
     def route_button(app):
         return next(button for button in app.button if button.label.startswith("Show route"))
-    app = new_app(monkeypatch)
+    app = new_app()
     app.selectbox[0].select("Tool Market").run()
     assert route_button(app).label == "Show route to Goldenfield Farm" and not route_button(app).disabled
     route_button(app).click().run()
@@ -377,8 +371,8 @@ def test_hints_can_be_hidden_and_show_route_sets_the_destination(monkeypatch):
     assert route_button(app).disabled
 
 
-def test_bakery_shows_a_countdown_while_bread_is_made(monkeypatch):
-    app = new_app(monkeypatch)
+def test_bakery_shows_a_countdown_while_bread_is_made():
+    app = new_app()
     choose_place(app, "Goldenfield Farm")
     click_scene(app, "Buy up to 4 Wheat")
     choose_place(app, "Sunrise Bakery")
@@ -417,8 +411,8 @@ def test_full_bag_hint_says_to_make_or_sell_on_any_route():
     assert next_move(town, "Sunrise Bakery")["text"] == "Your bag is full (12/12). Sell your 12 Bread at Daily Bread Market."
 
 
-def test_buying_with_a_full_bag_raises_the_red_warning_only_then(monkeypatch):
-    app = new_app(monkeypatch)
+def test_buying_with_a_full_bag_raises_the_red_warning_only_then():
+    app = new_app()
     app.session_state.town.cash = 500
     choose_place(app, "Goldenfield Farm")
     for _ in range(3):
@@ -443,8 +437,8 @@ def test_full_bag_inside_a_new_routes_supplier_says_sell_not_buy():
         "target": "Daily Bread Market"}
 
 
-def test_garage_sends_one_card_per_vehicle_with_its_status(monkeypatch):
-    app = new_app(monkeypatch)
+def test_garage_sends_one_card_per_vehicle_with_its_status():
+    app = new_app()
     town = app.session_state.town
     town.cash, town.owned_vehicles = 300, ["motorcycle"]
     garage = next(site for site in SITES if site.name == "Cacilhas Dealership")

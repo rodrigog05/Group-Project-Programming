@@ -1,10 +1,6 @@
-"""Browser-specific navigation, simulation turns and optional local saves."""
-from contextlib import closing
-import json
+"""Browser-specific navigation and simulation turns."""
 import math
-from pathlib import Path
 import random
-import sqlite3
 
 from exchange import advance_city
 from ferry import FERRY_FARE, FERRY_PIERS, nearby_pier, ride_ferry
@@ -15,8 +11,7 @@ from vehicles import (
     VEHICLES, CAR_SPEED_RANGE, ROAD_EXCLUSIONS, ROAD_SEGMENTS, in_tunnel, on_road,
     road_projection, tunnel_covers_y,
 )
-from tycoon import (BRIDGE_TOLL, COLLISION_BOUNDS, MAP_TOP, PLAYER_RADIUS, RIVER_BOTTOM, SITES, TRADES, Town,
-                    pack_save, unpack_save)
+from tycoon import BRIDGE_TOLL, COLLISION_BOUNDS, MAP_TOP, PLAYER_RADIUS, RIVER_BOTTOM, SITES, TRADES
 
 # The browser predicts movement with the same walls as Town.can_walk. Python still checks every step.
 COLLISION_MAP = {
@@ -477,47 +472,3 @@ def street_event(town, event):
         event = {"segments": [{"dx": 0, "dy": 0, "seconds": 0}], "action": "interact"}
     street_input(town, event)
     return None
-
-
-class SaveConflict(Exception):
-    """The save was updated in another browser session."""
-
-
-class LocalSave:
-    """One SQLite slot for a private, loopback-only instance."""
-
-    def __init__(self, path):
-        self.path = Path(path)
-
-    def connect(self):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        return sqlite3.connect(self.path, timeout=2)
-
-    def load(self):
-        with closing(self.connect()) as connection, connection:
-            connection.execute(
-                "CREATE TABLE IF NOT EXISTS game (id INTEGER PRIMARY KEY CHECK (id = 1), "
-                "revision INTEGER NOT NULL, snapshot TEXT NOT NULL)"
-            )
-            row = connection.execute("SELECT revision, snapshot FROM game WHERE id = 1").fetchone()
-        if row is None:
-            return Town(), 0
-        revision, snapshot = row
-        town, _ = unpack_save(json.loads(snapshot))
-        return town, revision
-
-    def save(self, town, revision):
-        snapshot = json.dumps(pack_save(town, 0), allow_nan=False)
-        with closing(self.connect()) as connection, connection:
-            if revision == 0:
-                result = connection.execute(
-                    "INSERT INTO game VALUES (1, 1, ?) ON CONFLICT (id) DO NOTHING", (snapshot,)
-                )
-            else:
-                result = connection.execute(
-                    "UPDATE game SET snapshot = ?, revision = revision + 1 "
-                    "WHERE id = 1 AND revision = ?", (snapshot, revision)
-                )
-            if result.rowcount != 1:
-                raise SaveConflict
-        return revision + 1

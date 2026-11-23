@@ -8,8 +8,11 @@ from urllib.parse import urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 from uuid import UUID
 
-from browser_game import SaveConflict
 from tycoon import Town, pack_save, unpack_save
+
+
+class SaveConflict(Exception):
+    """The save was updated in another browser session."""
 
 
 class SupabaseError(OSError):
